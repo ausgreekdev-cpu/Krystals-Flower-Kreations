@@ -1,6 +1,6 @@
-// Meta Graph API — Facebook Catalog + Instagram Shopping sync (stub + ready to wire)
+// Meta Graph API — Facebook Catalog + Instagram Shopping sync (custom, no Shopify)
 // Docs: https://developers.facebook.com/docs/marketing-api/catalog
-// Requires: META_APP_ID, META_APP_SECRET, META_CATALOG_ID, META_ACCESS_TOKEN, META_PAGE_ID
+// Requires: META_CATALOG_ID, META_ACCESS_TOKEN, FRONTEND_URL
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
@@ -8,9 +8,8 @@ export async function pushProductToCatalog(product) {
   const token = process.env.META_ACCESS_TOKEN;
   const catalogId = process.env.META_CATALOG_ID;
   if (!token || !catalogId) {
-    return { status: 'disabled', reason: 'Meta not configured' };
+    return { status: 'disabled', reason: 'Meta not configured — set META_CATALOG_ID + META_ACCESS_TOKEN' };
   }
-  // Build FB product payload (GST-inclusive price, availability)
   const payload = {
     name: product.title,
     description: product.description?.slice(0, 5000) || product.title,
@@ -23,9 +22,18 @@ export async function pushProductToCatalog(product) {
     url: `${process.env.FRONTEND_URL}/product/${product.slug}`,
     brand: "Krystal's Flower Kreations",
   };
-  // TODO: POST to /{catalog_id}/products
-  // const res = await fetch(`${GRAPH}/${catalogId}/products?access_token=${token}`, { method: 'POST', body: JSON.stringify(payload) })
-  return { status: 'pending', payload, note: 'Stub — wire Graph API call when credentials ready' };
+  try {
+    const res = await fetch(`${GRAPH}/${catalogId}/products?access_token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { status: 'error', payload, error: data.error?.message || res.statusText, data };
+    return { status: 'synced', payload, data, note: 'Pushed to Meta Catalog → Instagram Shopping' };
+  } catch (e) {
+    return { status: 'error', payload, error: e.message };
+  }
 }
 
 export async function handleMetaWebhook(body) {

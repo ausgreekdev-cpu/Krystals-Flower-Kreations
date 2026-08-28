@@ -14,8 +14,15 @@ export default function Kanban(){
   useEffect(()=>{ load(); }, []);
   async function move(id, state){
     const token = localStorage.getItem('token') || '';
-    await fetch(`http://localhost:3001/api/custom-orders/${id}/state`, { method:'PATCH', headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})}, body: JSON.stringify({state}) });
+    const res = await fetch(`http://localhost:3001/api/custom-orders/${id}/state`, { method:'PATCH', headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})}, body: JSON.stringify({state}) });
+    if(!res.ok){ const j=await res.json().catch(()=>({error:res.statusText})); alert(j.error); }
     load();
+  }
+  async function checkIn(qrPayload){
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch(`http://localhost:3001/api/tickets/check-in`, { method:'POST', headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})}, body: JSON.stringify({qrPayload}) });
+    const j=await res.json().catch(()=>({}));
+    alert(res.ok? `Checked in ${qrPayload}` : (j.error||'Check-in failed'));
   }
   const filtered = filter==='all'? orders : orders.filter(o=>o.state===filter);
   return (
@@ -32,8 +39,10 @@ export default function Kanban(){
                   <div className="font-bold text-sm">{o.orderNumber}</div>
                   <div className="text-xs text-gray-600">{o.customerName} • {o.spec?.paperColor} • {o.spec?.stemCount} stems</div>
                   <div className="text-xs mt-1">${Number(o.totalPrice).toFixed(2)} • {o.estimatedMinutes}m</div>
-                  <div className="flex gap-1 mt-2">
+                  {o.ticket?.qrPayload && <div className="text-[10px] font-mono bg-gray-100 rounded px-2 py-1 mt-1 break-all">{o.ticket.qrPayload}</div>}
+                  <div className="flex gap-1 mt-2 flex-wrap">
                     {STATES[STATES.indexOf(state)+1] && <button onClick={()=>move(o.id, STATES[STATES.indexOf(state)+1])} className="text-xs bg-bloom-500 text-white px-2 py-1 rounded">→ {LABEL[STATES[STATES.indexOf(state)+1]]}</button>}
+                    {o.ticket?.qrPayload && <button onClick={()=>checkIn(o.ticket.qrPayload)} className="text-xs border px-2 py-1 rounded">QR Check-in</button>}
                   </div>
                 </div>
               ))}

@@ -17,9 +17,13 @@ export default function Configurator(){
   const est = estimateLocalPrice(spec);
   useEffect(()=>{ /* pricing derived */ }, [spec]);
   async function submit(){
+    const email = prompt('Email for custom order (Perth WA):', 'guest@krystal.local');
+    if(!email) return;
+    const name = prompt('Full name:', 'Perth Customer') || 'Perth Customer';
+    const postcode = prompt('Postcode (6000 for Perth metro):', '6000') || '6000';
     try{
-      const order = await ordersApi.customCreate({ customerEmail: 'guest@krystal.local', customerName: 'Perth Customer', spec, shippingPostcode:'6000' });
-      alert(`Created ${order.orderNumber} — ${order.state} — $${order.totalPrice}`);
+      const order = await ordersApi.customCreate({ customerEmail: email, customerName: name, spec, shippingPostcode: postcode });
+      alert(`Created ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR: ${order.ticket?.qrPayload || ''}\nView Kanban → /kanban`);
     }catch(e){ alert(`Need backend running: ${e.message}`); }
   }
   return (

@@ -92,6 +92,56 @@ async function main() {
     }
   }
 
+  // ── BOM: Raw materials (Perth studio) ──────────────────────────
+  const rawMaterials = [
+    { sku: 'RM-CARD-65-BLUSH', name: '65lb Canson Cardstock – Blush (A4)', unit: 'sheet', onHand: 250, lowThreshold: 30, costPerUnit: 0.85, supplier: 'Canson AU' },
+    { sku: 'RM-CARD-65-SAGE', name: '65lb Canson Cardstock – Sage (A4)', unit: 'sheet', onHand: 200, lowThreshold: 30, costPerUnit: 0.85, supplier: 'Canson AU' },
+    { sku: 'RM-CARD-65-IVORY', name: '65lb Canson Cardstock – Ivory (A4)', unit: 'sheet', onHand: 180, lowThreshold: 30, costPerUnit: 0.85, supplier: 'Canson AU' },
+    { sku: 'RM-WIRE-18GA', name: '18-Gauge Armature Wire (galvanised)', unit: 'meter', onHand: 120, lowThreshold: 20, costPerUnit: 1.20, supplier: 'Perth Metal Supplies' },
+    { sku: 'RM-TAPE-FLORAL', name: 'Floral Tape – Green (roll)', unit: 'roll', onHand: 40, lowThreshold: 8, costPerUnit: 3.50, supplier: 'Spotlight' },
+    { sku: 'RM-GLUE-STICK', name: 'Glue Stick – Low-temp (pack)', unit: 'stick', onHand: 100, lowThreshold: 20, costPerUnit: 0.45, supplier: 'Spotlight' },
+    { sku: 'RM-GLUE-GUN', name: 'Glue Gun Refill – 7mm', unit: 'stick', onHand: 80, lowThreshold: 15, costPerUnit: 0.35, supplier: 'Spotlight' },
+  ];
+  for (const m of rawMaterials) {
+    await prisma.rawMaterial.upsert({ where: { sku: m.sku }, update: {}, create: { ...m } });
+  }
+  console.log(`Seeded ${rawMaterials.length} raw materials`);
+
+  // BOM recipe for paper rose (baseline 7-stem bouquet)
+  const rose = await prisma.product.findUnique({ where: { slug: 'eucalyptus-paper-rose-bouquet-blush' } });
+  if (rose) {
+    const existingRecipe = await prisma.bOMRecipe.findFirst({ where: { productId: rose.id, variantId: null } });
+    let recipeId;
+    if (existingRecipe) {
+      recipeId = existingRecipe.id;
+      await prisma.bOMLine.deleteMany({ where: { recipeId } });
+      await prisma.bOMRecipe.update({ where: { id: recipeId }, data: { labourMinutesPerUnit: 35, cricutMinutesPerUnit: 10 } });
+    } else {
+      const rec = await prisma.bOMRecipe.create({ data: { productId: rose.id, labourMinutesPerUnit: 35, cricutMinutesPerUnit: 10 } });
+      recipeId = rec.id;
+    }
+    const blush = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-CARD-65-BLUSH' } });
+    const wire = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-WIRE-18GA' } });
+    const tape = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-TAPE-FLORAL' } });
+    const glue = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-GLUE-STICK' } });
+    const bomLines = [
+      { rawMaterialId: blush.id, qtyPerUnit: 10, wasteFactor: 0.08 }, // 10 sheets per 7-stem bouquet
+      { rawMaterialId: wire.id, qtyPerUnit: 3.5, wasteFactor: 0.05 }, // meters
+      { rawMaterialId: tape.id, qtyPerUnit: 0.5, wasteFactor: 0.02 },
+      { rawMaterialId: glue.id, qtyPerUnit: 4, wasteFactor: 0.10 },
+    ];
+    for (const l of bomLines) await prisma.bOMLine.create({ data: { recipeId, ...l } });
+    console.log('Seeded BOM recipe for paper rose');
+  }
+
+  // Generic BOM fallback for configurator (used when no product-specific recipe)
+  const blushMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-CARD-65-BLUSH' } });
+  if (blushMat && !(await prisma.bOMRecipe.findFirst({ where: { productId: null, variantId: null } }))) {
+    // Create a generic recipe without product link for configurator baseline — store as product-less
+    // Use rawMaterials generic via first product as placeholder; alternative: handle in customOrders route fallback
+    console.log('Generic BOM handled via fallback in customOrders route');
+  }
+
   // Blog posts
   const posts = [
     { title: '5 Paper Stocks That Make Roses Look Real', slug: 'paper-stocks-for-roses', excerpt: 'Canson, Colorplan & the one we use for Perth humidity — cut settings included.', content: '# 5 Paper Stocks\n\nPerth humidity is no joke. Here is what we use in the studio...', status: 'published', tags: 'cricut,tutorial,paper', publishedAt: new Date() },
@@ -99,6 +149,33 @@ async function main() {
     { title: 'Behind the Armature: Why Wire Matters', slug: 'behind-armature-wire', excerpt: 'From idea to bloom — how armatures give sculptures movement.', content: '# Armature Art\n\nWe start with 1.6mm galvanised wire...', status: 'published', tags: 'armature,process', publishedAt: new Date() },
   ];
   for (const p of posts) await prisma.post.upsert({ where: { slug: p.slug }, update: {}, create: p });
+
+  // Demo custom art order for Kanban demo
+  const demoExists = await prisma.customArtOrder.findFirst({ where: { orderNumber: { contains: 'KFK-CA-' } } });
+  if (!demoExists && rose) {
+    const demoSpec = { paperColor: 'Blush', paperTexture: 'textured', weight: '65lb', stemCount: 12, armatureHeightMm: 350, templateId: 'paper-rose', addGreenery: true, vaseIncluded: false, notes: 'Demo: Dusty pink + sage for wedding' };
+    const wireMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-WIRE-18GA' } });
+    const bomSnapshot = [{ rawMaterialId: blushMat.id, sku: blushMat.sku, effectiveQty: 17.1, cost: 14.53 }, { rawMaterialId: wireMat.id, sku: wireMat.sku, effectiveQty: 6.0, cost: 7.2 }];
+    const order = await prisma.customArtOrder.create({
+      data: {
+        orderNumber: `KFK-CA-2026-DEMO1`,
+        customerEmail: 'demo@krystal.local',
+        customerName: 'Demo Customer',
+        productId: rose.id,
+        spec: demoSpec,
+        state: 'cricut_cutting',
+        bomSnapshot,
+        estimatedMinutes: 68,
+        totalPrice: 145,
+        costPrice: 21.73,
+        shippingPostcode: '6000',
+      },
+    });
+    await prisma.ticket.create({ data: { customArtOrderId: order.id, qrPayload: `KFK-T-CA-${order.orderNumber}-DEMO1`, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KFK-T-CA-${order.orderNumber}-DEMO1` } });
+    await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: 'Demo created' } });
+    await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: 'drafting_proofing', toState: 'cricut_cutting', note: 'Moved to Cricut Cutting' } });
+    console.log('Seeded demo custom art order');
+  }
 
   console.log('Seed complete.');
 }

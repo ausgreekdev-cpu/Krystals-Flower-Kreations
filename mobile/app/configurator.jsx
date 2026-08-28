@@ -30,9 +30,9 @@ export default function Configurator() {
         spec,
         shippingPostcode: '6000',
       });
-      alert(`Draft created — ${order.orderNumber} — ${order.state} — est ${order.estimatedMinutes}m — $${order.totalPrice}`);
+      alert(`Draft ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR ${order.ticket?.qrPayload || ''}. See Kanban.`);
     } catch (e) {
-      alert(`Need backend: ${e.message}`);
+      alert(`Need backend running: ${e.message}`);
     }
   }
 
