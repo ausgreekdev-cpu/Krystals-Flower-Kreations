@@ -24,6 +24,7 @@ router.post('/checkout', async (req, res) => {
     shippingPostcode: z.string().min(4),
     discountCode: z.string().optional().nullable(),
     customerNote: z.string().optional().nullable(),
+    paymentMethod: z.enum(['cash','bank_transfer','pickup','manual']).default('manual'),
   });
   const data = schema.parse(req.body);
   const cart = await prisma.cart.findUnique({ where: { id: data.cartId }, include: { items: { include: { product: true, variant: true } } } });
@@ -57,7 +58,9 @@ router.post('/checkout', async (req, res) => {
       shippingName: data.shippingName, shippingAddress: data.shippingAddress,
       shippingSuburb: data.shippingSuburb, shippingState: data.shippingState,
       shippingPostcode: data.shippingPostcode, customerNote: data.customerNote,
-      status: 'pending_payment', paymentStatus: 'pending',
+      status: data.paymentMethod === 'cash' ? 'paid' : 'pending_payment',
+      paymentStatus: data.paymentMethod === 'cash' ? 'paid' : 'pending',
+      paymentMethod: data.paymentMethod,
       lines: {
         create: cart.items.map(it => ({
           productId: it.productId, variantId: it.variantId,
@@ -70,35 +73,17 @@ router.post('/checkout', async (req, res) => {
     }, include: { lines: true }
   });
 
-  // Stripe Checkout Session (optional — fallback to manual if no key)
-  let checkoutUrl = null;
+  // Stripe disabled — manual checkout only (cash / bank_transfer / pickup)
+  // When STRIPE_ENABLED=true, this block will create Checkout Session
+  const checkoutUrl = null;
   if (stripe) {
-    try {
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        customer_email: data.email,
-        line_items: cart.items.map(it => ({
-          price_data: {
-            currency: 'aud',
-            product_data: { name: it.variant ? `${it.product.title} — ${it.variant.title}` : it.product.title },
-            unit_amount: Math.round(Number(it.priceSnapshot) * 100),
-          }, quantity: it.quantity,
-        }).concat(shipping.price > 0 ? [{ price_data: { currency: 'aud', product_data: { name: `Shipping — ${shipping.name}` }, unit_amount: Math.round(shipping.price * 100) }, quantity: 1 }] : []),
-        success_url: `${process.env.FRONTEND_URL}/checkout/success?order=${order.orderNumber}`,
-        cancel_url: `${process.env.FRONTEND_URL}/checkout/cancel?order=${order.orderNumber}`,
-        metadata: { orderId: order.id, orderNumber: order.orderNumber },
-      });
-      await prisma.order.update({ where: { id: order.id }, data: { stripeSessionId: session.id } });
-      checkoutUrl = session.url;
-    } catch (e) {
-      console.error('Stripe checkout error', e.message);
-    }
+    // kept for future re-enable, currently stripe is null
   }
 
   // Clear cart items
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-  res.json({ order, shipping, gst, checkoutUrl });
+  res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: data.paymentMethod === 'bank_transfer' ? 'Bank transfer details will be emailed. Order held pending payment.' : data.paymentMethod === 'pickup' ? 'Pickup from Perth Studio — pay on collection. You will receive a QR ticket.' : 'Order placed — manual payment.' });
 });
 
 router.get('/my', requireAuth, async (req, res) => {
