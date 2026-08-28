@@ -1,0 +1,1 @@
+export default function Cart(){ return <div className="max-w-3xl mx-auto px-4 py-8"><h1 className="text-2xl font-black text-bloom-700">Cart</h1><p className="text-gray-600 mt-2">Your cart lives in the API — wire add-to-cart to <span className="font-mono">POST /api/cart/add</span> then checkout.</p></div>; }

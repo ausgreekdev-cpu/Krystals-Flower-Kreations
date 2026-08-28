@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: krystal
+      POSTGRES_PASSWORD: krystal_dev_password
+      POSTGRES_DB: krystals_flower_kreations
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Optional: Meilisearch for typo-tolerant product search
+  # search:
+  #   image: getmeili/meilisearch:v1.9
+  #   environment:
+  #     MEILI_MASTER_KEY: dev_master_key
+  #   ports:
+  #     - "7700:7700"
+
+volumes:
+  pgdata:

@@ -1,0 +1,33 @@
+{
+  "name": "krystal-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build:android": "eas build --platform android",
+    "build:ios": "eas build --platform ios"
+  },
+  "dependencies": {
+    "expo": "~52.0.11",
+    "expo-router": "~4.0.15",
+    "expo-status-bar": "~2.0.0",
+    "expo-secure-store": "~13.0.2",
+    "expo-image-picker": "~16.0.3",
+    "expo-barcode-scanner": "~13.0.1",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.1.0",
+    "nativewind": "^2.0.11",
+    "tailwindcss": "3.4.1",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "typescript": "^5.3.3"
+  }
+}

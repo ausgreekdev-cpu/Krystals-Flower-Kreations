@@ -1,0 +1,650 @@
+// Krystal's Flower Kreations — Prisma schema
+// Perth WA — paper florist + armature art workshop (Cricut + origami)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  staff
+  maker
+  admin
+  developer
+}
+
+enum ProductType {
+  physical
+  made_to_order
+  digital_template
+  workshop_ticket
+  commission
+}
+
+enum StockMode {
+  tracked
+  made_to_order
+  digital
+}
+
+enum OrderStatus {
+  draft
+  pending_payment
+  paid
+  making
+  ready
+  shipped
+  delivered
+  cancelled
+  refunded
+  partially_refunded
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+  partially_refunded
+}
+
+enum PaymentMethod {
+  stripe
+  afterpay
+  paypal
+  cash
+  eftpos
+  bank_transfer
+}
+
+enum PostStatus {
+  draft
+  review
+  published
+  archived
+}
+
+enum WorkshopStatus {
+  draft
+  open
+  full
+  cancelled
+  completed
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  waitlisted
+  cancelled
+  attended
+  no_show
+}
+
+enum MetaSyncStatus {
+  pending
+  synced
+  error
+  disabled
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(customer)
+  phone     String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders         Order[]
+  reviews        Review[]
+  bookings       Booking[]
+  posts          Post[]
+  posSessions    PosSession[]
+  stockMovements StockMovement[]
+
+  @@map("users")
+}
+
+model Collection {
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  description String? @db.Text
+  imageUrl    String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  products CollectionProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("collections")
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  sortOrder    Int    @default(0)
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+  @@map("collection_products")
+}
+
+model Product {
+  id            String      @id @default(cuid())
+  title         String
+  slug          String      @unique
+  description   String?     @db.Text
+  type          ProductType @default(physical)
+  stockMode     StockMode   @default(tracked)
+  price         Decimal     @db.Decimal(10, 2) // GST-inclusive per AU
+  compareAtPrice Decimal?   @db.Decimal(10, 2)
+  cost          Decimal?    @db.Decimal(10, 2)
+  sku           String?     @unique
+  barcode       String?
+  weightGrams   Int?
+  lengthMm      Int?
+  widthMm       Int?
+  heightMm      Int?
+  isActive      Boolean     @default(true)
+  isFeatured    Boolean     @default(false)
+  metaTitle     String?
+  metaDescription String?   @db.Text
+  // Paper/craft specifics
+  paperStock    String? // e.g., "250gsm cardstock, eucalyptus"
+  cricutCompatible Boolean @default(false)
+  svgUrl        String? // digital template file
+  careInstructions String? @db.Text
+  madeToOrderDays Int? // e.g., 5
+  // SEO + social
+  ogImageUrl    String?
+
+  variants  ProductVariant[]
+  images    ProductImage[]
+  collections CollectionProduct[]
+  orderLines OrderLine[]
+  cartItems  CartItem[]
+  inventoryLevels InventoryLevel[]
+  stockMovements StockMovement[]
+  inventoryLots InventoryLot[]
+  reviews    Review[]
+  postProducts PostProduct[]
+  metaSync   MetaCatalogItem?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, isFeatured])
+  @@index([type])
+  @@map("products")
+}
+
+model ProductVariant {
+  id       String  @id @default(cuid())
+  productId String
+  title    String // e.g., "Blush / Medium / 250gsm"
+  sku      String? @unique
+  barcode  String?
+  option1  String? // colour
+  option2  String? // size
+  option3  String? // paper stock
+  price    Decimal @db.Decimal(10, 2)
+  compareAtPrice Decimal? @db.Decimal(10, 2)
+  isActive Boolean @default(true)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderLines OrderLine[]
+  cartItems  CartItem[]
+  inventoryLevels InventoryLevel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String @id @default(cuid())
+  productId String
+  url       String
+  alt       String?
+  sortOrder Int    @default(0)
+  width     Int?
+  height    Int?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model InventoryLocation {
+  id       String  @id @default(cuid())
+  name     String  // "Perth Studio", "Market Van", "Storage"
+  address  String?
+  isDefault Boolean @default(false)
+  isActive Boolean @default(true)
+
+  levels InventoryLevel[]
+  movements StockMovement[]
+  lots      InventoryLot[]
+
+  @@map("inventory_locations")
+}
+
+model InventoryLevel {
+  id         String @id @default(cuid())
+  productId  String
+  variantId  String?
+  locationId String
+  onHand     Int    @default(0)
+  reserved   Int    @default(0)
+  allocated  Int    @default(0)
+
+  product  Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant  ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, variantId, locationId])
+  @@map("inventory_levels")
+}
+
+model InventoryLot {
+  id         String   @id @default(cuid())
+  productId  String
+  locationId String
+  lotNumber  String?
+  quantity   Int
+  costPerUnit Decimal? @db.Decimal(10,2)
+  receivedAt DateTime @default(now())
+  expiresAt  DateTime?
+
+  product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_lots")
+}
+
+model StockMovement {
+  id         String   @id @default(cuid())
+  productId  String
+  variantId  String?
+  locationId String?
+  type       String   // in, out, adjustment, sale, return, stocktake, po
+  quantity   Int
+  reason     String?
+  reference  String? // order_id, po_id
+  userId     String?
+
+  product  Product @relation(fields: [productId], references: [id])
+  location InventoryLocation? @relation(fields: [locationId], references: [id])
+  user     User? @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([type])
+  @@map("stock_movements")
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String?
+  sessionId String?  @unique // guest
+  currency  String   @default("AUD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  productId String
+  variantId String?
+  quantity  Int    @default(1)
+  priceSnapshot Decimal @db.Decimal(10,2)
+
+  cart    Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@map("cart_items")
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique // KFK-2026-0001
+  userId        String?
+  email         String
+  phone         String?
+  status        OrderStatus @default(pending_payment)
+  paymentStatus PaymentStatus @default(pending)
+  paymentMethod PaymentMethod?
+  currency      String      @default("AUD")
+  subtotal      Decimal     @db.Decimal(10,2)
+  shippingCost  Decimal     @db.Decimal(10,2) @default(0)
+  discountTotal Decimal     @db.Decimal(10,2) @default(0)
+  taxTotal      Decimal     @db.Decimal(10,2) @default(0) // GST component for AU invoice
+  total         Decimal     @db.Decimal(10,2)
+  // Address (snapshot)
+  shippingName    String?
+  shippingAddress String? @db.Text
+  shippingSuburb  String?
+  shippingState   String?
+  shippingPostcode String?
+  shippingCountry String? @default("AU")
+  billingSameAsShipping Boolean @default(true)
+  billingAddress String? @db.Text
+  customerNote String? @db.Text
+  adminNote    String? @db.Text
+  stripePaymentIntentId String?
+  stripeSessionId String?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  trackingNumber String?
+  trackingUrl String?
+
+  user   User? @relation(fields: [userId], references: [id])
+  lines  OrderLine[]
+  payments Payment[]
+  history OrderStatusHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderLine {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  variantId String?
+  title     String // snapshot
+  sku       String?
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10,2)
+  lineTotal Decimal @db.Decimal(10,2)
+  isDigital Boolean @default(false)
+  downloadUrl String?
+
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@map("order_lines")
+}
+
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  fromStatus String?
+  toStatus  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_status_history")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  orderId   String
+  amount    Decimal  @db.Decimal(10,2)
+  method    PaymentMethod
+  status    PaymentStatus @default(pending)
+  reference String? // Stripe PI id
+  rawJson   String? @db.Text
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Discount {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., BLOOM10
+  description String?
+  type        String   // percent, fixed
+  value       Decimal  @db.Decimal(10,2)
+  minSpend    Decimal? @db.Decimal(10,2)
+  maxUses     Int?
+  usedCount   Int      @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  isActive    Boolean  @default(true)
+
+  @@map("discounts")
+}
+
+model Workshop {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  imageUrl    String?
+  location    String? // Perth Studio address
+  status      WorkshopStatus @default(draft)
+  price       Decimal  @db.Decimal(10,2)
+  capacity    Int      @default(12)
+  materialsIncluded String? @db.Text
+  durationMinutes Int?
+  level       String? // beginner, intermediate
+  isActive    Boolean  @default(true)
+
+  sessions WorkshopSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("workshops")
+}
+
+model WorkshopSession {
+  id         String   @id @default(cuid())
+  workshopId String
+  startsAt   DateTime
+  endsAt     DateTime
+  capacity   Int
+  bookedCount Int @default(0)
+  waitlistCount Int @default(0)
+  status     WorkshopStatus @default(open)
+  notes      String? @db.Text
+
+  workshop Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([startsAt])
+  @@map("workshop_sessions")
+}
+
+model Booking {
+  id         String @id @default(cuid())
+  sessionId  String
+  userId     String?
+  name       String
+  email      String
+  phone      String?
+  quantity   Int    @default(1)
+  status     BookingStatus @default(pending)
+  totalPaid  Decimal @db.Decimal(10,2) @default(0)
+  stripePaymentIntentId String?
+  checkedInAt DateTime?
+  notes      String? @db.Text
+
+  session WorkshopSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User? @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bookings")
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  excerpt   String?  @db.Text
+  content   String?  @db.Text // markdown / rich text
+  coverImageUrl String?
+  status    PostStatus @default(draft)
+  authorId  String?
+  publishedAt DateTime?
+  metaTitle String?
+  metaDescription String? @db.Text
+  tags      String? // comma-separated or JSON
+  viewCount Int @default(0)
+
+  author User? @relation(fields: [authorId], references: [id])
+  products PostProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, publishedAt])
+  @@map("posts")
+}
+
+model PostProduct {
+  postId    String
+  productId String
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([postId, productId])
+  @@map("post_products")
+}
+
+model Review {
+  id        String @id @default(cuid())
+  productId String
+  userId    String?
+  name      String
+  rating    Int // 1-5
+  title     String?
+  body      String? @db.Text
+  isApproved Boolean @default(false)
+  images    String? @db.Text // JSON array of urls
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User? @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, isApproved])
+  @@map("reviews")
+}
+
+model PosSession {
+  id        String @id @default(cuid())
+  openedBy  String
+  location  String? // Perth Studio, Market
+  openedAt  DateTime @default(now())
+  closedAt  DateTime?
+  openingCash Decimal @db.Decimal(10,2) @default(0)
+  closingCash Decimal? @db.Decimal(10,2)
+  expectedCash Decimal? @db.Decimal(10,2)
+  variance  Decimal? @db.Decimal(10,2)
+  status    String @default("open") // open, closed, reconciled
+  notes     String? @db.Text
+
+  user  User @relation(fields: [openedBy], references: [id])
+  payments PosPayment[]
+
+  @@map("pos_sessions")
+}
+
+model PosPayment {
+  id         String @id @default(cuid())
+  sessionId  String
+  orderId    String?
+  amount     Decimal @db.Decimal(10,2)
+  method     PaymentMethod
+  reference  String?
+  createdAt  DateTime @default(now())
+
+  session PosSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("pos_payments")
+}
+
+model MetaCatalogItem {
+  id          String @id @default(cuid())
+  productId   String @unique
+  fbProductId String? // Facebook catalog item id
+  status      MetaSyncStatus @default(pending)
+  lastSyncedAt DateTime?
+  lastError   String? @db.Text
+  rawJson     String? @db.Text
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("meta_catalog_items")
+}
+
+model MetaSyncLog {
+  id        String @id @default(cuid())
+  action    String // push, pull, webhook
+  productId String?
+  status    String // success, error
+  message   String? @db.Text
+  rawJson   String? @db.Text
+  createdAt DateTime @default(now())
+
+  @@map("meta_sync_logs")
+}
+
+model ShippingZone {
+  id       String @id @default(cuid())
+  name     String // Perth Metro, WA Regional, East Coast, National
+  postcodes String? @db.Text // JSON array or comma
+  isActive Boolean @default(true)
+  rates    ShippingRate[]
+
+  @@map("shipping_zones")
+}
+
+model ShippingRate {
+  id       String @id @default(cuid())
+  zoneId   String
+  name     String // Standard, Express
+  price    Decimal @db.Decimal(10,2)
+  freeOver Decimal? @db.Decimal(10,2)
+  maxWeightGrams Int?
+  isActive Boolean @default(true)
+
+  zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@map("shipping_rates")
+}
+
+model Setting {
+  key   String @id
+  value String @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

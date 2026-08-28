@@ -1,0 +1,20 @@
+{
+  "name": "krystals-flower-kreations",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Krystal's Flower Kreations — paper florist & armature art workshop (Perth WA). Cricut + origami shop, blog, POS & workshop platform.",
+  "workspaces": ["backend", "frontend", "mobile"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
+    "db:up": "docker compose up -d db",
+    "db:migrate": "cd backend && npx prisma migrate dev",
+    "db:seed": "cd backend && npx prisma db seed",
+    "lint": "cd backend && npm run lint; cd ../frontend && npm run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
