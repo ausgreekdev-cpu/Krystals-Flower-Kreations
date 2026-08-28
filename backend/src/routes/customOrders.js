@@ -1,0 +1,172 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
+import prisma from '../lib/prisma.js';
+import { requireAuth, requireRole } from '../lib/auth.js';
+import { validate } from '../middleware/validate.js';
+
+const router = Router();
+
+const STATE_ORDER = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready'];
+
+function nextState(current, target) {
+  if (target === 'cancelled') return true;
+  const ci = STATE_ORDER.indexOf(current);
+  const ti = STATE_ORDER.indexOf(target);
+  return ti === ci + 1 || ti === ci; // allow same (idempotent) or next only; no skipping backwards except cancel
+}
+
+function orderNumber() {
+  return `KFK-CA-${new Date().getFullYear()}-${Math.random().toString(36).toUpperCase().slice(2,6)}${Date.now().toString().slice(-3)}`;
+}
+
+// ── Create custom order (configurator → BOM snapshot + ticket) ──
+const specSchema = z.object({
+  paperColor: z.string().min(1),
+  paperTexture: z.string().min(1),
+  weight: z.string().min(1),
+  stemCount: z.number().int().min(1).max(25),
+  armatureHeightMm: z.number().int().min(50).max(800),
+  templateId: z.string().min(1),
+  addGreenery: z.boolean().default(false),
+  vaseIncluded: z.boolean().default(false),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+const createSchema = z.object({
+  customerEmail: z.string().email(),
+  customerName: z.string().min(1).max(120),
+  customerPhone: z.string().optional().nullable(),
+  productId: z.string().optional().nullable(),
+  variantId: z.string().optional().nullable(),
+  spec: specSchema,
+  shippingName: z.string().optional().nullable(),
+  shippingAddress: z.string().optional().nullable(),
+  shippingSuburb: z.string().optional().nullable(),
+  shippingState: z.string().default('WA'),
+  shippingPostcode: z.string().optional().nullable(),
+});
+
+router.post('/', validate(createSchema), async (req, res) => {
+  const data = req.validated;
+  // Find BOM recipe for product/variant
+  let recipe = null;
+  if (data.variantId) recipe = await prisma.bOMRecipe.findFirst({ where: { variantId: data.variantId }, include: { lines: { include: { rawMaterial: true } } } });
+  if (!recipe && data.productId) recipe = await prisma.bOMRecipe.findFirst({ where: { productId: data.productId, variantId: null }, include: { lines: { include: { rawMaterial: true } } } });
+  if (!recipe) recipe = await prisma.bOMRecipe.findFirst({ include: { lines: { include: { rawMaterial: true } } } }); // fallback generic
+
+  const stemCount = data.spec.stemCount;
+  let bomSnapshot = [];
+  let costPrice = 0;
+  let estimatedMinutes = 0;
+
+  if (recipe) {
+    // Scale BOM by stemCount (heuristic: recipe is per-stem or per-bouquet — assume per bouquet at 7 stems baseline)
+    const baseline = 7;
+    const scale = stemCount / baseline;
+    for (const l of recipe.lines) {
+      const eff = l.qtyPerUnit * (1 + l.wasteFactor) * scale;
+      const cost = eff * l.rawMaterial.costPerUnit;
+      bomSnapshot.push({ rawMaterialId: l.rawMaterialId, sku: l.rawMaterial.sku, effectiveQty: eff, cost });
+      costPrice += cost;
+    }
+    estimatedMinutes = Math.round((recipe.labourMinutesPerUnit + recipe.cricutMinutesPerUnit) * scale);
+    if (data.spec.vaseIncluded) estimatedMinutes += 8;
+    if (data.spec.addGreenery) estimatedMinutes += 5;
+  } else {
+    // Fallback estimate
+    estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.armatureHeightMm / 60));
+  }
+
+  // Price: materials cost + labour (AU $55/hr studio rate) + 30% margin, GST-inclusive
+  const LABOUR_RATE = 55 / 60; // per minute
+  const rawPrice = costPrice + (estimatedMinutes * LABOUR_RATE);
+  const totalPrice = Math.round((rawPrice * 1.30) * 100) / 100 + (data.spec.vaseIncluded ? 22 : 0) + (data.spec.addGreenery ? 12 : 0);
+  // Ensure minimum
+  const finalPrice = Math.max(45 + stemCount * 9.5, totalPrice);
+
+  const order = await prisma.customArtOrder.create({
+    data: {
+      orderNumber: orderNumber(),
+      customerEmail: data.customerEmail,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      productId: data.productId || null,
+      variantId: data.variantId || null,
+      spec: data.spec,
+      state: 'drafting_proofing',
+      bomSnapshot,
+      estimatedMinutes,
+      totalPrice: Math.round(finalPrice * 100) / 100,
+      costPrice: Math.round(costPrice * 100) / 100,
+      shippingName: data.shippingName,
+      shippingAddress: data.shippingAddress,
+      shippingSuburb: data.shippingSuburb,
+      shippingState: data.shippingState,
+      shippingPostcode: data.shippingPostcode,
+    },
+  });
+
+  // Ticket QR (for pickup)
+  const qrPayload = `KFK-T-CA-${order.orderNumber}-${randomUUID().slice(0,8).toUpperCase()}`;
+  await prisma.ticket.create({ data: { customArtOrderId: order.id, qrPayload, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrPayload)}` } });
+
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: 'Created from configurator' } });
+
+  const full = await prisma.customArtOrder.findUnique({ where: { id: order.id }, include: { history: true, ticket: true } });
+  res.status(201).json(full);
+});
+
+// ── List / kanban ──────────────────────────
+router.get('/', requireAuth, requireRole('admin','developer','maker','staff'), async (req, res) => {
+  const { state } = req.query;
+  const where = state ? { state } : {};
+  const orders = await prisma.customArtOrder.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, include: { history: true, ticket: true, product: { select: { title: true } } } });
+  res.json(orders);
+});
+
+router.get('/kanban', requireAuth, requireRole('admin','developer','maker','staff'), async (req, res) => {
+  const counts = await prisma.customArtOrder.groupBy({ by: ['state'], _count: true, _sum: { totalPrice: true }, where: { state: { not: 'cancelled' } } });
+  res.json(counts);
+});
+
+router.get('/:id', async (req, res) => {
+  const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id }, include: { history: true, ticket: true, product: { include: { images: true } } } });
+  if (!order) return res.status(404).json({ error: 'Not found' });
+  res.json(order);
+});
+
+router.get('/by-number/:orderNumber', async (req, res) => {
+  const order = await prisma.customArtOrder.findUnique({ where: { orderNumber: req.params.orderNumber }, include: { history: true, ticket: true } });
+  if (!order) return res.status(404).json({ error: 'Not found' });
+  res.json(order);
+});
+
+// ── Advance state (Kanban drag) ────────────
+router.patch('/:id/state', requireAuth, requireRole('admin','developer','maker'), async (req, res) => {
+  const { state, note } = req.body;
+  const valid = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready','cancelled'];
+  if (!valid.includes(state)) return res.status(400).json({ error: 'Invalid state' });
+  const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Not found' });
+  if (!nextState(order.state, state)) return res.status(409).json({ error: `Cannot move ${order.state} → ${state}` });
+
+  // On transition to cricut_cutting, deduct BOM from raw materials
+  if (order.state === 'drafting_proofing' && state === 'cricut_cutting') {
+    for (const line of (order.bomSnapshot || [])) {
+      try {
+        await prisma.rawMaterial.update({ where: { id: line.rawMaterialId }, data: { onHand: { decrement: line.effectiveQty } } });
+        await prisma.stockMovement.create({ data: { productId: order.productId || 'custom', rawMaterialId: line.rawMaterialId, type: 'bom_deduct', quantity: -Math.round(line.effectiveQty), reason: `Custom order ${order.orderNumber} → Cricut Cutting`, reference: order.id, userId: req.user.id } });
+      } catch {}
+    }
+  }
+
+  const updated = await prisma.customArtOrder.update({
+    where: { id: order.id },
+    data: { state, ...(state === 'dispatched_pickup_ready' ? { dispatchedAt: new Date() } : {}) },
+  });
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: order.state, toState: state, note: note || null, byUserId: req.user.id } });
+  res.json(updated);
+});
+
+export default router;

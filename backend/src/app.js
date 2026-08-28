@@ -12,6 +12,9 @@ import workshopRoutes from './routes/workshops.js';
 import inventoryRoutes from './routes/inventory.js';
 import posRoutes from './routes/pos.js';
 import metaRoutes from './routes/meta.js';
+import bomRoutes from './routes/bom.js';
+import customOrderRoutes from './routes/customOrders.js';
+import ticketRoutes from './routes/tickets.js';
 
 const app = express();
 
@@ -31,6 +34,9 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/posts', blogRoutes);
 app.use('/api/workshops', workshopRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/bom', bomRoutes);
+app.use('/api/custom-orders', customOrderRoutes);
+app.use('/api/tickets', ticketRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/meta', metaRoutes);
 

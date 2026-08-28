@@ -11,6 +11,8 @@ import Blog from './pages/Blog.jsx';
 import Post from './pages/Post.jsx';
 import Workshops from './pages/Workshops.jsx';
 import Admin from './pages/Admin.jsx';
+import Configurator from './features/configurator/Configurator.jsx';
+import Kanban from './features/kanban/Kanban.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
@@ -23,6 +25,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/blog" element={<Blog />} />
       <Route path="/blog/:slug" element={<Post />} />
       <Route path="/workshops" element={<Workshops />} />
+      <Route path="/configurator" element={<Configurator />} />
+      <Route path="/kanban" element={<Kanban />} />
       <Route path="/admin" element={<Admin />} />
     </Routes>
   </BrowserRouter>

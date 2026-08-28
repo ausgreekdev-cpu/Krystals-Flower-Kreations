@@ -183,6 +183,8 @@ model Product {
   reviews    Review[]
   postProducts PostProduct[]
   metaSync   MetaCatalogItem?
+  bomRecipes BOMRecipe[]
+  customArtOrders CustomArtOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -209,6 +211,8 @@ model ProductVariant {
   orderLines OrderLine[]
   cartItems  CartItem[]
   inventoryLevels InventoryLevel[]
+  bomRecipes BOMRecipe[]
+  customArtOrders CustomArtOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -240,6 +244,7 @@ model InventoryLocation {
   levels InventoryLevel[]
   movements StockMovement[]
   lots      InventoryLot[]
+  rawMaterials RawMaterial[]
 
   @@map("inventory_locations")
 }
@@ -495,6 +500,7 @@ model Booking {
 
   session WorkshopSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User? @relation(fields: [userId], references: [id])
+  ticket  Ticket?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -647,4 +653,135 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// ── Custom BOM & Kanban (Supabase-synced) ──────────────────────────
+
+enum CustomOrderState {
+  drafting_proofing
+  cricut_cutting
+  hand_folding_assembly
+  quality_check
+  dispatched_pickup_ready
+  cancelled
+}
+
+enum RawUnit {
+  sheet
+  meter
+  stick
+  roll
+  piece
+  ml
+  gram
+}
+
+model RawMaterial {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  unit         RawUnit  @default(sheet)
+  onHand       Float    @default(0)
+  lowThreshold Float    @default(5)
+  costPerUnit  Float    @default(0)
+  supplier     String?
+  locationId   String?
+  location     InventoryLocation? @relation(fields: [locationId], references: [id])
+  bomLines     BOMLine[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("raw_materials")
+}
+
+model BOMRecipe {
+  id                     String   @id @default(cuid())
+  productId              String?
+  variantId              String?
+  product                Product? @relation(fields: [productId], references: [id])
+  variant                ProductVariant? @relation(fields: [variantId], references: [id])
+  labourMinutesPerUnit   Float    @default(25)
+  cricutMinutesPerUnit   Float    @default(8)
+  lines                  BOMLine[]
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([productId, variantId])
+  @@map("bom_recipes")
+}
+
+model BOMLine {
+  id            String      @id @default(cuid())
+  recipeId      String
+  recipe        BOMRecipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id])
+  qtyPerUnit    Float       @default(1)
+  wasteFactor   Float       @default(0.05)
+  createdAt     DateTime    @default(now())
+
+  @@unique([recipeId, rawMaterialId])
+  @@map("bom_lines")
+}
+
+model CustomArtOrder {
+  id              String           @id @default(cuid())
+  orderNumber     String           @unique
+  customerEmail   String
+  customerName    String?
+  customerPhone   String?
+  productId       String?
+  product         Product?         @relation(fields: [productId], references: [id])
+  variantId       String?
+  variant         ProductVariant?  @relation(fields: [variantId], references: [id])
+  spec            Json             @default("{}")
+  state           CustomOrderState @default(drafting_proofing)
+  bomSnapshot     Json             @default("[]")
+  estimatedMinutes Float           @default(0)
+  totalPrice      Float            @default(0)
+  costPrice       Float?
+  shippingName    String?
+  shippingAddress String?          @db.Text
+  shippingSuburb  String?
+  shippingState   String?          @default("WA")
+  shippingPostcode String?
+  shippingCountry String?          @default("AU")
+  pickupReadyAt   DateTime?
+  dispatchedAt    DateTime?
+  history         CustomArtOrderHistory[]
+  ticket          Ticket?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([state])
+  @@index([customerEmail])
+  @@map("custom_art_orders")
+}
+
+model CustomArtOrderHistory {
+  id        String           @id @default(cuid())
+  orderId   String
+  order     CustomArtOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromState CustomOrderState?
+  toState   CustomOrderState
+  note      String?          @db.Text
+  byUserId  String?
+  createdAt DateTime         @default(now())
+
+  @@index([orderId])
+  @@map("custom_art_order_history")
+}
+
+model Ticket {
+  id                 String          @id @default(cuid())
+  bookingId          String?         @unique
+  booking            Booking?        @relation(fields: [bookingId], references: [id])
+  customArtOrderId   String?         @unique
+  customArtOrder     CustomArtOrder? @relation(fields: [customArtOrderId], references: [id])
+  qrPayload          String          @unique
+  qrUrl              String?
+  checkedInAt        DateTime?
+  createdAt          DateTime        @default(now())
+
+  @@map("tickets")
 }

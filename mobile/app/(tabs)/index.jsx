@@ -11,7 +11,11 @@ export default function Home() {
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
         <Feature title="Shop" subtitle="Bouquets, armatures & SVG templates" href="/shop" />
+        <Feature title="Configurator" subtitle="Custom: colour • stems • Cricut" href="/configurator" />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
         <Feature title="Workshops" subtitle="Perth studio + online kits" href="/workshops" />
+        <Feature title="Kanban" subtitle="Maker pipeline (admin)" href="/kanban" />
       </View>
       <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8, color: '#4A2C2A' }}>Featured — made in Perth</Text>
       <Text style={{ color: '#6B4A4A' }}>API: {process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}</Text>
