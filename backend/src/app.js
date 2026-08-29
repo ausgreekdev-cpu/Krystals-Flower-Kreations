@@ -16,17 +16,53 @@ import bomRoutes from './routes/bom.js';
 import customOrderRoutes from './routes/customOrders.js';
 import ticketRoutes from './routes/tickets.js';
 
+import { requestLogger } from './middleware/request-log.js';
+import { globalRateLimit } from './middleware/rate-limit.js';
+import { notFound, errorHandler } from './middleware/error-handler.js';
+import prisma from './lib/prisma.js';
+import { authenticate, roleAtLeast } from './lib/auth.js';
+
 const app = express();
 
-app.use(helmet({ crossOriginEmbedderPolicy: false }));
-app.use(cors({ origin: process.env.FRONTEND_URL?.split(',') || true, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Security headers — CSP enabled (was disabled in LUX), allow self + Stripe + Supabase
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: ["'self'", "https://*.supabase.co", "https://api.stripe.com", "https://*.stripe.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      frameSrc: ["https://js.stripe.com"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
-// Health
-app.get('/api/health', (req, res) => res.json({ ok: true, name: "Krystal's Flower Kreations", version: '0.1.0', env: process.env.NODE_ENV }));
+// CORS — explicit origin list, no credentials needed (Bearer header)
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3001',
+  'https://krystalsflowerkreations.netlify.app',
+  'capacitor://localhost',
+  'http://localhost',
+];
+const corsOrigin = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map(s=>s.trim()) : defaultOrigins;
+app.use(cors({ origin: corsOrigin, methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization','X-Request-Id','X-Cart-Id','Idempotency-Key'] }));
 
-// Routes
+app.use(requestLogger);
+app.use('/api', globalRateLimit(300, 1));
+
+// Body parsers — json 1mb (was 10mb) to limit abuse; multer handles file uploads separately
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Health (no auth, no rate-limit beyond global)
+app.get('/api/health', (req, res) => res.json({ ok: true, name: "Krystal's Flower Kreations", version: '1.0.0', env: process.env.NODE_ENV || 'development', requestId: req.id }));
+app.get('/health', (req, res) => res.json({ status: 'healthy', timestamp: new Date().toISOString(), version: '1.0.0', requestId: req.id }));
+
+// Routes — apply stricter per-route rate limits where needed inside routers
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
@@ -41,28 +77,26 @@ app.use('/api/pos', posRoutes);
 app.use('/api/meta', metaRoutes);
 
 // Collections (thin)
-import prisma from './lib/prisma.js';
-app.get('/api/collections', async (req, res) => {
-  const cols = await prisma.collection.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' }, include: { products: { include: { product: { include: { images: true } } } } } });
-  res.json(cols);
+app.get('/api/collections', async (req, res, next) => {
+  try {
+    const cols = await prisma.collection.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' }, include: { products: { include: { product: { include: { images: true } } } } } });
+    res.json(cols);
+  } catch (err) { next(err); }
 });
-app.post('/api/collections', async (req, res) => {
-  const col = await prisma.collection.create({ data: req.body });
-  res.status(201).json(col);
+app.post('/api/collections', authenticate, roleAtLeast('maker'), async (req, res, next) => {
+  try {
+    const col = await prisma.collection.create({ data: req.body });
+    res.status(201).json(col);
+  } catch (err) { next(err); }
 });
 
-// Stripe webhook (raw body needed — keep before json parser if you move it)
+// Stripe webhook (raw body needed — keep before json parser if you re-enable, currently json-parsed; stripe disabled)
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  // verify signature with STRIPE_WEBHOOK_SECRET, update order status
-  res.json({ received: true });
+  res.json({ received: true, note: 'Stripe disabled — manual payments active' });
 });
 
-// 404
-app.use((req, res) => res.status(404).json({ error: 'Not found' }));
-// Error
-app.use((err, req, res, _next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal error' });
-});
+// 404 + error (structured codes)
+app.use('/api', notFound);
+app.use(errorHandler);
 
 export default app;

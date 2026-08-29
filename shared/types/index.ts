@@ -26,7 +26,19 @@ export interface ProductVariant {
   option3?: string | null; // paper stock
   price: number; // GST-inclusive
   compareAtPrice?: number | null;
+  inventoryQuantity: number; // atomic stock
   isActive: boolean;
+}
+
+export interface InventoryLedger {
+  id: string;
+  variantId: string;
+  delta: number;
+  reason: string;
+  orderId?: string | null;
+  customOrderId?: string | null;
+  userId?: string | null;
+  createdAt: string;
 }
 
 export interface Product {
@@ -184,6 +196,7 @@ export interface ConfiguratorSpec {
 export interface CustomArtOrder {
   id: string;
   orderNumber: string; // KFK-CA-2026-0001
+  idempotencyKey?: string | null;
   customerEmail: string;
   customerName?: string | null;
   customerPhone?: string | null;
@@ -289,6 +302,16 @@ export interface Ticket {
 }
 
 // ── Cart / Order (web) ─────────────────────────────────────────────
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  idempotencyKey?: string | null;
+  email: string;
+  status: string;
+  paymentStatus: string;
+  total: number;
+}
 
 export interface CartItem {
   id: string;
