@@ -1,0 +1,52 @@
+[build]
+  command = "sh netlify-build.sh"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_CONFIG_CACHE = "/opt/buildhome/.npm"
+  NPM_CONFIG_OPTIONAL = "true"
+  NPM_CONFIG_AUDIT = "false"
+  NPM_CONFIG_FUND = "false"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = [
+    "@prisma/client",
+    "@prisma/engines",
+    ".prisma",
+    "bcryptjs",
+    "cors",
+    "dotenv",
+    "express",
+    "helmet",
+    "jsonwebtoken",
+    "multer",
+    "nodemailer",
+    "serverless-http",
+    "sharp",
+    "uuid",
+    "zod"
+  ]
+
+# Static assets must 404, not rewrite to SPA
+[[redirects]]
+  from = "/assets/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200
+
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/health"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

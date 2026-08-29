@@ -1,5 +1,6 @@
 // Shared frontend API client — custom backend (mirrors mobile/core/api/customClient.ts)
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// On Netlify, VITE_API_URL is empty and relative /api goes via /.netlify/functions/api redirect
+const BASE = import.meta.env.VITE_API_URL || '';
 
 async function req<T>(path: string, opts: RequestInit & { token?: string } = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any) };
