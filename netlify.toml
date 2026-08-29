@@ -1,5 +1,6 @@
 [build]
-  command = "sh netlify-build.sh"
+  # Robust to Netlify UI Base directory = "mobile" or "" — build script auto-detects repo root
+  command = "sh netlify-build.sh || sh ../netlify-build.sh"
   publish = "frontend/dist"
   functions = "netlify/functions"
 
