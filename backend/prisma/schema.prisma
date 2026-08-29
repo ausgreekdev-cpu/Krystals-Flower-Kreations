@@ -110,6 +110,7 @@ model User {
   posts          Post[]
   posSessions    PosSession[]
   stockMovements StockMovement[]
+  loyaltyAccount LoyaltyAccount?
 
   @@map("users")
 }
@@ -804,4 +805,31 @@ model Ticket {
   createdAt          DateTime        @default(now())
 
   @@map("tickets")
+}
+
+// ── Loyalty $0 (bloom points) ──────────────────────────────────────
+model LoyaltyAccount {
+  id        String   @id @default(cuid())
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  email     String   @unique
+  points    Int      @default(0)
+  tier      String   @default("seedling") // seedling | blossom | garden
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions LoyaltyTransaction[]
+  @@map("loyalty_accounts")
+}
+model LoyaltyTransaction {
+  id        String   @id @default(cuid())
+  accountId String
+  account   LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  pointsDelta Int
+  reason    String   // earn: purchase, review, referral, streak | burn: discount, redeem
+  orderId   String?
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+  @@map("loyalty_transactions")
 }

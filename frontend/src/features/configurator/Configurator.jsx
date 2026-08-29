@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useConfiguratorStore, estimateLocalPrice } from './useConfiguratorStore';
 import { ordersApi } from '../../lib/api/customClient';
+import ARViewer from '../../components/ARViewer';
 
 const TEXTURES = ['textured','smooth','pearl','linen'];
 const WEIGHTS = ['65lb','80lb','110lb'];
@@ -47,14 +48,20 @@ export default function Configurator(){
         <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+$22)</label>
       </section>
       <section className="bg-white p-4 rounded-2xl border">
-        <h3 className="font-bold">4 · Cricut Template</h3>
+        <h3 className="font-bold">4 · Cricut Template — $0 Inkscape SVG</h3>
         <div className="flex flex-wrap gap-2 mt-2">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} className={`px-3 py-2 rounded-full text-xs border ${spec.templateId===t.id?'bg-bloom-500 text-white':'bg-white'}`}>{t.label}</button>)}</div>
-        <div className="mt-4 bg-bloom-50 rounded-xl p-4 text-center border border-dashed">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label}</div>
+        <div className="mt-4 bg-white border rounded-xl overflow-hidden">
+          <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
+          <div style={{display:'none'}} className="bg-bloom-50 rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label} (add /public/svg/{spec.templateId}.svg via Inkscape potrace, free)</div>
+        </div>
+        <div className="text-[11px] text-gray-500 mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>. No VectoSolve fees.</div>
       </section>
+      <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
       <div className="bg-bloom-700 text-white rounded-2xl p-5">
         <div className="flex justify-between"><span>Unit</span><span className="font-bold">${est.unitPrice.toFixed(2)} AUD</span></div>
         <div className="flex justify-between mt-1"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)}</span></div>
         <div className="flex justify-between mt-1 text-sm opacity-80"><span>Est. craft time</span><span>{est.estimatedMinutes} min</span></div>
+        <div className="text-xs opacity-60 mt-2">Live BOM: sheet cost × stems + labour $55/hr × minutes + 30% margin. Manual sheet price you set — no supplier API fees. Earn 1 Bloom pt per $1.</div>
         <button onClick={submit} className="w-full mt-4 bg-bloom-500 py-3 rounded-xl font-bold">Create Custom Order → Drafting/Proofing</button>
       </div>
     </div>

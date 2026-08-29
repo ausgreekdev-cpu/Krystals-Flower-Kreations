@@ -41,6 +41,7 @@ export default function App(){
             <Link to="/configurator" className="hover:text-bloom-500 py-2 hidden xl:inline">Configurator</Link>
             <Link to="/workshops" className="hover:text-bloom-500 py-2">Workshops</Link>
             <Link to="/blog" className="hover:text-bloom-500 py-2 hidden lg:inline">Journal</Link>
+            <Link to="/loyalty" className="hover:text-bloom-500 py-2 hidden lg:inline">Bloom Points</Link>
             <Link to="/cart" className="relative hover:text-bloom-500 py-2 flex items-center gap-1">
               Cart {cartCount>0 && <span className="bg-bloom-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">{cartCount}</span>}
             </Link>
@@ -60,6 +61,7 @@ export default function App(){
               <Link onClick={()=>setMobileOpen(false)} to="/configurator" className="bg-white border rounded-xl p-3">Configurator</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/workshops" className="bg-white border rounded-xl p-3">Workshops</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/blog" className="bg-white border rounded-xl p-3">Journal</Link>
+              <Link onClick={()=>setMobileOpen(false)} to="/loyalty" className="bg-white border rounded-xl p-3">Bloom Points</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/cart" className="bg-white border rounded-xl p-3 relative">Cart {cartCount>0 && <span className="absolute top-2 right-2 bg-bloom-500 text-white text-[10px] px-1.5 rounded-full">{cartCount}</span>}</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/kanban" className="bg-white border rounded-xl p-3">Kanban</Link>
             </div>

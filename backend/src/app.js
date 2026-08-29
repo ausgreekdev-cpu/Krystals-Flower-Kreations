@@ -15,6 +15,7 @@ import metaRoutes from './routes/meta.js';
 import bomRoutes from './routes/bom.js';
 import customOrderRoutes from './routes/customOrders.js';
 import ticketRoutes from './routes/tickets.js';
+import loyaltyRoutes from './routes/loyalty.js';
 
 import { requestLogger } from './middleware/request-log.js';
 import { globalRateLimit } from './middleware/rate-limit.js';
@@ -73,6 +74,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bom', bomRoutes);
 app.use('/api/custom-orders', customOrderRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/meta', metaRoutes);
 

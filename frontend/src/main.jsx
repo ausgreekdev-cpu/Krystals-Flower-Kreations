@@ -13,6 +13,7 @@ import Workshops from './pages/Workshops.jsx';
 import Admin from './pages/Admin.jsx';
 import Configurator from './features/configurator/Configurator.jsx';
 import Kanban from './features/kanban/Kanban.jsx';
+import Loyalty from './pages/Loyalty.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/workshops" element={<Workshops />} />
       <Route path="/configurator" element={<Configurator />} />
       <Route path="/kanban" element={<Kanban />} />
+      <Route path="/loyalty" element={<Loyalty />} />
       <Route path="/admin" element={<Admin />} />
     </Routes>
   </BrowserRouter>
