@@ -1,0 +1,13 @@
+node_modules
+.expo
+.expo-shared
+android
+ios
+web-build
+pc-api-key.json
+*.jks
+*.keystore
+.env
+.env.local
+dist
+coverage
