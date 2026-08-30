@@ -9,7 +9,7 @@ export interface ApiError extends Error {
   requestId?: string;
 }
 
-async function req<T>(path: string, opts: RequestInit & { token?: string; idempotencyKey?: string } = {}): Promise<T> {
+export async function req<T>(path: string, opts: RequestInit & { token?: string; idempotencyKey?: string } = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any) };
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;

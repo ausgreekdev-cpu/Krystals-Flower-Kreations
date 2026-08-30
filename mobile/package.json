@@ -9,7 +9,11 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:android": "eas build --platform android",
-    "build:ios": "eas build --platform ios"
+    "build:ios": "eas build --platform ios",
+    "android:apk": "expo prebuild --platform android --clean && cd android && ./gradlew assembleDebug",
+    "android:bundle": "expo prebuild --platform android --clean && cd android && ./gradlew bundleRelease",
+    "prebuild": "expo prebuild --clean",
+    "doctor": "expo-doctor"
   },
   "dependencies": {
     "expo": "~52.0.11",
