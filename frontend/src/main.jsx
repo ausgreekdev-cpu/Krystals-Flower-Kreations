@@ -14,6 +14,7 @@ import Admin from './pages/Admin.jsx';
 import Configurator from './features/configurator/Configurator.jsx';
 import Kanban from './features/kanban/Kanban.jsx';
 import Loyalty from './pages/Loyalty.jsx';
+import POS from './pages/POS.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
@@ -29,6 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/configurator" element={<Configurator />} />
       <Route path="/kanban" element={<Kanban />} />
       <Route path="/loyalty" element={<Loyalty />} />
+      <Route path="/pos" element={<POS />} />
       <Route path="/admin" element={<Admin />} />
     </Routes>
   </BrowserRouter>

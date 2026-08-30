@@ -119,8 +119,22 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   });
 
   const checkoutUrl = null; // Stripe disabled
-  // stripe block kept for future re-enable
   if (stripe) { /* manual */ }
+
+  // $0 loyalty: earn 1pt per $1 on paid orders (cash), plus manual pickup/bank will earn when later marked paid via PATCH
+  if (order.paymentStatus === 'paid' || order.status === 'paid') {
+    try {
+      const pts = Math.floor(Number(order.total));
+      if (pts > 0) {
+        let acc = await prisma.loyaltyAccount.findUnique({ where: { email: order.email } });
+        if (!acc) acc = await prisma.loyaltyAccount.create({ data: { email: order.email, points: 0, tier: 'seedling' } });
+        const newPoints = acc.points + pts;
+        const tier = newPoints >= 500 ? 'garden' : newPoints >= 100 ? 'blossom' : 'seedling';
+        await prisma.loyaltyAccount.update({ where: { id: acc.id }, data: { points: newPoints, tier } });
+        await prisma.loyaltyTransaction.create({ data: { accountId: acc.id, pointsDelta: pts, reason: 'purchase', orderId: order.id } });
+      }
+    } catch {}
+  }
 
   res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: data.paymentMethod === 'bank_transfer' ? 'Bank transfer details will be emailed. Order held pending payment.' : data.paymentMethod === 'pickup' ? 'Pickup from Perth Studio — pay on collection. You will receive a QR ticket.' : 'Order placed — manual payment.' });
 }));
@@ -150,8 +164,22 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   if (!status || typeof status !== 'string' || status.length > 50) return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
   const current = await prisma.order.findUnique({ where: { id: req.params.id } });
   if (!current) return res.status(404).json({ error: 'Not found', code: 'not_found' });
-  const order = await prisma.order.update({ where: { id: req.params.id }, data: { status } });
+  const order = await prisma.order.update({ where: { id: req.params.id }, data: { status, paymentStatus: status==='paid' ? 'paid' : undefined } });
   await prisma.orderStatusHistory.create({ data: { orderId: order.id, fromStatus: current.status, toStatus: status, note: note ? String(note).slice(0,500) : null } });
+  // Earn loyalty when marked paid (for bank_transfer/pickup later paid at POS)
+  if (status === 'paid' && current.status !== 'paid') {
+    try {
+      const pts = Math.floor(Number(order.total));
+      if (pts>0) {
+        let acc = await prisma.loyaltyAccount.findUnique({ where:{ email: order.email } });
+        if(!acc) acc = await prisma.loyaltyAccount.create({ data:{ email: order.email, points:0, tier:'seedling' } });
+        const newPoints = acc.points + pts;
+        const tier = newPoints>=500?'garden': newPoints>=100?'blossom':'seedling';
+        await prisma.loyaltyAccount.update({ where:{ id:acc.id }, data:{ points:newPoints, tier } });
+        await prisma.loyaltyTransaction.create({ data:{ accountId:acc.id, pointsDelta:pts, reason:'purchase', orderId:order.id } });
+      }
+    } catch {}
+  }
   res.json(order);
 }));
 

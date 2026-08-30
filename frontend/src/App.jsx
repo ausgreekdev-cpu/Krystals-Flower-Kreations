@@ -7,9 +7,15 @@ export default function App(){
   const [q, setQ] = useState('');
   const nav = useNavigate();
   useEffect(()=>{
-    const id = localStorage.getItem('cartId');
-    if(!id) return;
-    fetch(`/api/cart`, { headers: { 'x-cart-id': id } }).then(r=>r.json()).then(d=> setCartCount(d?.cart?.items?.length || d?.items?.length || 0)).catch(()=>{});
+    function refresh(){
+      const id = localStorage.getItem('cartId');
+      if(!id){ setCartCount(0); return; }
+      fetch(`/api/cart`, { headers: { 'x-cart-id': id } }).then(r=>r.json()).then(d=> setCartCount(d?.cart?.items?.length || d?.items?.length || 0)).catch(()=>{});
+    }
+    refresh();
+    window.addEventListener('cart:updated', refresh);
+    window.addEventListener('storage', refresh);
+    return ()=>{ window.removeEventListener('cart:updated', refresh); window.removeEventListener('storage', refresh); };
   }, []);
   function onSearch(e){
     e.preventDefault();
@@ -42,6 +48,7 @@ export default function App(){
             <Link to="/workshops" className="hover:text-bloom-500 py-2">Workshops</Link>
             <Link to="/blog" className="hover:text-bloom-500 py-2 hidden lg:inline">Journal</Link>
             <Link to="/loyalty" className="hover:text-bloom-500 py-2 hidden lg:inline">Bloom Points</Link>
+            <Link to="/pos" className="hover:text-bloom-500 py-2 hidden xl:inline">POS</Link>
             <Link to="/cart" className="relative hover:text-bloom-500 py-2 flex items-center gap-1">
               Cart {cartCount>0 && <span className="bg-bloom-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">{cartCount}</span>}
             </Link>
@@ -62,6 +69,7 @@ export default function App(){
               <Link onClick={()=>setMobileOpen(false)} to="/workshops" className="bg-white border rounded-xl p-3">Workshops</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/blog" className="bg-white border rounded-xl p-3">Journal</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/loyalty" className="bg-white border rounded-xl p-3">Bloom Points</Link>
+              <Link onClick={()=>setMobileOpen(false)} to="/pos" className="bg-white border rounded-xl p-3">POS</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/cart" className="bg-white border rounded-xl p-3 relative">Cart {cartCount>0 && <span className="absolute top-2 right-2 bg-bloom-500 text-white text-[10px] px-1.5 rounded-full">{cartCount}</span>}</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/kanban" className="bg-white border rounded-xl p-3">Kanban</Link>
             </div>
