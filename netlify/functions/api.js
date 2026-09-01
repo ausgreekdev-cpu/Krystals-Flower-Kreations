@@ -14,7 +14,9 @@ export async function handler(event, context) {
   }
   if (!appHandler) {
     try {
-      const { default: app } = await import('../../backend/src/app.js');
+      let app;
+      try { app = (await import('../../backend/src/app.js')).default; }
+      catch { app = (await import('../../../backend/src/app.js')).default; }
       appHandler = serverless(app);
     } catch (err) {
       console.error('[netlify api] boot failed:', err);

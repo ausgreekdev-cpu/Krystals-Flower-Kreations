@@ -1,9 +1,11 @@
 export const config = { schedule: "0 * * * *" }; // hourly
 export async function handler(event, context){
   try{
-    const { default: app } = await import("../../backend/src/app.js");
+    let app;
+    try { app = (await import("../../backend/src/app.js")).default; } catch { app = (await import("../../../backend/src/app.js")).default; }
     // Run inventory reservation cleanup: delete carts older than 24h
-    const prisma = (await import("../../backend/src/lib/prisma.js")).default;
+    let prisma;
+    try { prisma = (await import("../../backend/src/lib/prisma.js")).default; } catch { prisma = (await import("../../../backend/src/lib/prisma.js")).default; }
     const dayAgo = new Date(Date.now() - 24*60*60*1000);
     const deleted = await prisma.cart.deleteMany({ where: { updatedAt: { lt: dayAgo } } }).catch(()=>({count:0}));
     console.log(`[scheduled] cleaned ${deleted.count||0} stale carts`);

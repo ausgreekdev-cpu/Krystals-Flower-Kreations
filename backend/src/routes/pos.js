@@ -121,6 +121,6 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
     return created;
   });
   res.status(201).json(order);
-});
+})); 
 
 export default router;
