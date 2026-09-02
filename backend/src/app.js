@@ -30,6 +30,8 @@ import orderStatusRoutes from './routes/orderStatus.js';
 import productVariantsRoutes from './routes/productVariants.js';
 import collectionsRoutes from './routes/collections.js';
 
+import path from 'path';
+import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
 import { globalRateLimit } from './middleware/rate-limit.js';
 import { notFound, errorHandler } from './middleware/error-handler.js';
@@ -71,6 +73,11 @@ app.use('/api', globalRateLimit(300, 1));
 // Body parsers — json 1mb (was 10mb) to limit abuse; multer handles file uploads separately
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Static uploads (product images) — $0 local filesystem, served via /uploads
+const uploadDir = path.resolve('backend/uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
+app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
 
 // Health (no auth, no rate-limit beyond global)
 app.get('/api/health', (req, res) => res.json({ ok: true, name: "Krystal's Flower Kreations", version: '1.0.0', env: process.env.NODE_ENV || 'development', requestId: req.id }));

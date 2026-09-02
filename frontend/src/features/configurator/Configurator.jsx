@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfiguratorStore, estimateLocalPrice } from './useConfiguratorStore';
 import { ordersApi } from '../../lib/api/customClient';
 import ARViewer from '../../components/ARViewer';
@@ -16,16 +16,19 @@ const TEMPLATES = [
 export default function Configurator(){
   const { spec, setSpec, unitPrice } = useConfiguratorStore();
   const est = estimateLocalPrice(spec);
+  const [form,setForm]=useState({ email:'', name:'', postcode:'6000' });
+  const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
   useEffect(()=>{ /* pricing derived */ }, [spec]);
   async function submit(){
-    const email = prompt('Email for custom order (Perth WA):', 'guest@krystal.local');
-    if(!email) return;
-    const name = prompt('Full name:', 'Perth Customer') || 'Perth Customer';
-    const postcode = prompt('Postcode (6000 for Perth metro):', '6000') || '6000';
+    setErr(''); setMsg('');
+    const email = form.email.trim(); const name = form.name.trim() || 'Perth Customer'; const postcode = form.postcode.trim() || '6000';
+    if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ setErr('Valid email required'); return; }
+    if(!/^6000|6\d{3}$/.test(postcode) && !/^\d{4}$/.test(postcode)){ setErr('Postcode must be 4 digits (e.g., 6000)'); return; }
+    if(name.length<2){ setErr('Full name required'); return; }
     try{
       const order = await ordersApi.customCreate({ customerEmail: email, customerName: name, spec, shippingPostcode: postcode });
-      alert(`Created ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR: ${order.ticket?.qrPayload || ''}\nView Kanban → /kanban`);
-    }catch(e){ alert(`Need backend running: ${e.message}`); }
+      setMsg(`Created ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR: ${order.ticket?.qrPayload || ''} — View Kanban → /kanban`);
+    }catch(e){ setErr(e.message || 'Failed — is backend running?'); }
   }
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
@@ -57,6 +60,14 @@ export default function Configurator(){
         <div className="text-[11px] text-gray-500 mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>. No VectoSolve fees.</div>
       </section>
       <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
+      <div className="bg-white border rounded-2xl p-4 space-y-3">
+        <h3 className="font-bold">Your details — for custom order</h3>
+        <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email*" type="email" className="w-full border rounded-xl px-3 py-2 text-sm" />
+        <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name*" className="w-full border rounded-xl px-3 py-2 text-sm" />
+        <input value={form.postcode} onChange={e=>setForm({...form,postcode:e.target.value})} placeholder="Postcode* (6000 Perth metro)" className="w-full border rounded-xl px-3 py-2 text-sm" />
+        {err && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{err}</div>}
+        {msg && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs">{msg}</div>}
+      </div>
       <div className="bg-bloom-700 text-white rounded-2xl p-5">
         <div className="flex justify-between"><span>Unit</span><span className="font-bold">${est.unitPrice.toFixed(2)} AUD</span></div>
         <div className="flex justify-between mt-1"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)}</span></div>

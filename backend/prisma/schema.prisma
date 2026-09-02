@@ -286,24 +286,27 @@ model InventoryLot {
 }
 
 model StockMovement {
-  id         String   @id @default(cuid())
-  productId  String
-  variantId  String?
-  locationId String?
-  type       String   // in, out, adjustment, sale, return, stocktake, po, bom_deduct
-  quantity   Int
-  reason     String?
-  reference  String? // order_id, po_id
-  userId     String?
+  id            String   @id @default(cuid())
+  productId     String
+  variantId     String?
+  locationId    String?
+  rawMaterialId String?
+  type          String   // in, out, adjustment, sale, return, stocktake, po, bom_deduct
+  quantity      Int
+  reason        String?
+  reference     String? // order_id, po_id
+  userId        String?
 
-  product  Product @relation(fields: [productId], references: [id])
-  location InventoryLocation? @relation(fields: [locationId], references: [id])
-  user     User? @relation(fields: [userId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
+  location    InventoryLocation? @relation(fields: [locationId], references: [id])
+  rawMaterial RawMaterial? @relation(fields: [rawMaterialId], references: [id])
+  user        User? @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
   @@index([productId])
   @@index([type])
+  @@index([rawMaterialId])
   @@map("stock_movements")
 }
 
@@ -708,6 +711,7 @@ model RawMaterial {
   locationId   String?
   location     InventoryLocation? @relation(fields: [locationId], references: [id])
   bomLines     BOMLine[]
+  stockMovements StockMovement[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

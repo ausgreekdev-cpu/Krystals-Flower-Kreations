@@ -122,15 +122,21 @@ router.get('/kanban', authenticate, requireRole('admin','developer','maker','sta
   res.json(counts);
 }));
 
-router.get('/:id', asyncHandler(async (req, res) => {
-  const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id }, include: { history: true, ticket: true, product: { include: { images: true } } } });
+router.get('/by-number/:orderNumber', authenticate, asyncHandler(async (req, res) => {
+  const orderNumber = String(req.params.orderNumber).slice(0,50);
+  const order = await prisma.customArtOrder.findUnique({ where: { orderNumber }, include: { history: true, ticket: true } });
   if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const isStaff = ['admin','developer','maker','staff'].includes(req.user.role);
+  if (!isStaff && order.customerEmail !== req.user.email) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   res.json(order);
 }));
 
-router.get('/by-number/:orderNumber', asyncHandler(async (req, res) => {
-  const order = await prisma.customArtOrder.findUnique({ where: { orderNumber: req.params.orderNumber }, include: { history: true, ticket: true } });
+router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const order = await prisma.customArtOrder.findUnique({ where: { id }, include: { history: true, ticket: true, product: { include: { images: true } } } });
   if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const isStaff = ['admin','developer','maker','staff'].includes(req.user.role);
+  if (!isStaff && order.customerEmail !== req.user.email) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   res.json(order);
 }));
 

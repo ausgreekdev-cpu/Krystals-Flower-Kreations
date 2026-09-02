@@ -7,7 +7,9 @@ export default function POS(){
   const [q,setQ]=useState('');
   const [cart,setCart]=useState([]);
   const [queue,setQueue]=useState([]);
+  const [toast,setToast]=useState(''); const [toastErr,setToastErr]=useState(false);
   const token = localStorage.getItem('token') || '';
+  function showToast(msg, isErr=false){ setToast(msg); setToastErr(isErr); setTimeout(()=>setToast(''), 4000); }
 
   async function loadProducts(){ fetch('/api/products?limit=50').then(r=>r.json()).then(d=> setProducts(d.products||d)).catch(()=>{}); }
   async function loadSession(){ if(!token) return; fetch('/api/pos/session/current', { headers:{ Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json():null).then(setSession).catch(()=>{}); }
@@ -17,7 +19,7 @@ export default function POS(){
 
   async function openSession(){
     const res = await fetch('/api/pos/session/open', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify({ location:'Perth Studio', openingCash: 50 }) });
-    if(res.ok){ setSession(await res.json()); } else alert('Need maker/admin login');
+    if(res.ok){ setSession(await res.json()); showToast('Till opened — Perth Studio $50'); } else showToast('Need maker/admin login — login as admin@krystal.local', true);
   }
   function addToCart(p){
     setCart(c=>{ const ex=c.find(i=>i.productId===p.id); if(ex) return c.map(i=> i.productId===p.id? {...i, quantity:i.quantity+1}:i); return [...c, { productId:p.id, title:p.title, price:Number(p.price), quantity:1 }]; });
@@ -27,21 +29,20 @@ export default function POS(){
     const body = { sessionId: session?.id, items: cart.map(c=> ({ productId:c.productId, quantity:c.quantity })), paymentMethod };
     if(!isOnline()){
       await queueRequest('/api/pos/sale', body, { Authorization: token?`Bearer ${token}`:'' });
-      alert('Offline — sale queued, will sync when online');
+      showToast('Offline — sale queued, will sync when online');
       setCart([]); refreshQueue(); return;
     }
     try{
       const res = await fetch('/api/pos/sale', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify(body) });
-      if(!res.ok){ const j=await res.json().catch(()=>({error:res.statusText})); throw new Error(j.error); }
+      if(!res.ok){ const j=await res.json().catch(()=>({error:res.statusText, code:res.status})); throw new Error(j.error || 'Sale failed'); }
       const order = await res.json();
-      alert(`Sale ${order.orderNumber} — $${Number(order.total).toFixed(2)} • ${order.lines?.length||cart.length} items`);
+      showToast(`Sale ${order.orderNumber} — $${Number(order.total).toFixed(2)} • ${order.lines?.length||cart.length} items`);
       setCart([]);
-      // loyalty earn already via backend if paid
     }catch(e){
       if(!isOnline()){
         await queueRequest('/api/pos/sale', body, { Authorization: token?`Bearer ${token}`:'' });
-        alert('Offline — queued');
-      } else alert(e.message);
+        showToast('Offline — queued for sync');
+      } else showToast(e.message, true);
     }
     refreshQueue();
   }
@@ -49,6 +50,7 @@ export default function POS(){
   const subtotal = cart.reduce((a,c)=> a + c.price*c.quantity, 0);
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
+      {toast && <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-bold shadow-lg ${toastErr?'bg-red-600 text-white':'bg-bloom-500 text-white'}`}>{toast}</div>}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-black text-bloom-700">POS — Perth Studio / Market</h1>
         <div className="text-xs flex gap-2">

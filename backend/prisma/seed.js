@@ -142,6 +142,20 @@ async function main() {
     console.log('Generic BOM handled via fallback in customOrders route');
   }
 
+  // Studio Settings (tax, labour, ABN) — for Admin hub
+  await prisma.setting.upsert({ where: { key: 'tax_gst_rate' }, update: { value: '0.10' }, create: { key: 'tax_gst_rate', value: '0.10' } });
+  await prisma.setting.upsert({ where: { key: 'labour_rate_per_hour' }, update: { value: '55' }, create: { key: 'labour_rate_per_hour', value: '55' } });
+  await prisma.setting.upsert({ where: { key: 'bom_margin' }, update: { value: '0.30' }, create: { key: 'bom_margin', value: '0.30' } });
+  await prisma.setting.upsert({ where: { key: 'abn' }, update: { value: 'XX XXX XXX XXX' }, create: { key: 'abn', value: 'XX XXX XXX XXX' } });
+  await prisma.setting.upsert({ where: { key: 'business_name' }, update: { value: "Krystal's Flower Kreations" }, create: { key: 'business_name', value: "Krystal's Flower Kreations" } });
+  await prisma.setting.upsert({ where: { key: 'business_address' }, update: { value: 'Perth WA 6000' }, create: { key: 'business_address', value: 'Perth WA 6000' } });
+  await prisma.setting.upsert({ where: { key: 'shipping_perth_metro' }, update: { value: '12' }, create: { key: 'shipping_perth_metro', value: '12' } });
+  await prisma.setting.upsert({ where: { key: 'shipping_free_over' }, update: { value: '150' }, create: { key: 'shipping_free_over', value: '150' } });
+
+  // Discounts with dates/minSpend enforced
+  await prisma.discount.update({ where: { code: 'BLOOM10' }, data: { minSpend: 50, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-08-01') } }).catch(()=>{});
+  await prisma.discount.update({ where: { code: 'PERTHFREE' }, data: { minSpend: 100, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-12-31') } }).catch(()=>{});
+
   // Blog posts
   const posts = [
     { title: '5 Paper Stocks That Make Roses Look Real', slug: 'paper-stocks-for-roses', excerpt: 'Canson, Colorplan & the one we use for Perth humidity — cut settings included.', content: '# 5 Paper Stocks\n\nPerth humidity is no joke. Here is what we use in the studio...', status: 'published', tags: 'cricut,tutorial,paper', publishedAt: new Date() },

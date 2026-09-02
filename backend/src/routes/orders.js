@@ -53,11 +53,21 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   }
 
   let discountTotal = 0;
+  let appliedDiscount = null;
   if (data.discountCode) {
     const disc = await prisma.discount.findUnique({ where: { code: data.discountCode.toUpperCase() } });
-    if (disc && disc.isActive && (!disc.maxUses || disc.usedCount < disc.maxUses)) {
-      if (disc.type === 'percent') discountTotal = subtotal * Number(disc.value) / 100;
-      else discountTotal = Number(disc.value);
+    if (disc && disc.isActive) {
+      const now = new Date();
+      if (disc.startsAt && now < new Date(disc.startsAt)) {/* not started */ }
+      else if (disc.endsAt && now > new Date(disc.endsAt)) {/* expired */ }
+      else if (disc.minSpend && subtotal < Number(disc.minSpend)) {/* min not met */ }
+      else if (disc.maxUses && disc.usedCount >= disc.maxUses) {/* max used */ }
+      else {
+        appliedDiscount = disc;
+        if (disc.type === 'percent') discountTotal = subtotal * Number(disc.value) / 100;
+        else discountTotal = Number(disc.value);
+        discountTotal = Math.min(discountTotal, subtotal); // cap
+      }
     }
   }
 
@@ -112,6 +122,11 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
     // Update ledger orderIds from pending to real
     await tx.inventoryLedger.updateMany({ where: { orderId: 'pending' }, data: { orderId: created.id } }).catch(()=>{});
 
+    // Increment discount usedCount
+    if (appliedDiscount) {
+      await tx.discount.update({ where: { id: appliedDiscount.id }, data: { usedCount: { increment: 1 } } }).catch(()=>{});
+    }
+
     // Clear cart
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
@@ -146,9 +161,13 @@ router.get('/my', authenticate, asyncHandler(async (req, res) => {
   res.json(orders);
 }));
 
-router.get('/:orderNumber', asyncHandler(async (req, res) => {
-  const order = await prisma.order.findUnique({ where: { orderNumber: req.params.orderNumber }, include: { lines: true, history: true, payments: true } });
+router.get('/:orderNumber', authenticate, asyncHandler(async (req, res) => {
+  const orderNumber = String(req.params.orderNumber).slice(0,50);
+  const order = await prisma.order.findUnique({ where: { orderNumber }, include: { lines: true, history: true, payments: true } });
   if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  // Gate: customer can only view own order via email, staff/maker/admin can view any
+  const isStaff = ['admin','developer','maker','staff'].includes(req.user.role);
+  if (!isStaff && order.email !== req.user.email) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   res.json(order);
 }));
 

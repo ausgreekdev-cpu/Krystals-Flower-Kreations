@@ -5,6 +5,10 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate, querySchemas } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
+import { upload } from '../middleware/upload.js';
+import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
 const requireAuth = authenticate;
 
 const router = Router();
@@ -84,6 +88,27 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
 router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
   await prisma.product.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+}));
+
+// Product images upload — $0 sharp resize 800x800, stored in backend/uploads/products, served via /uploads
+router.post('/:id/images', requireAuth, requireRole('admin','developer','maker','staff'), upload.array('images', 5), asyncHandler(async (req, res) => {
+  const productId = String(req.params.id).slice(0,100);
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
+  if (!req.files || req.files.length===0) return res.status(400).json({ error: 'No images', code: 'validation_failed' });
+  const uploadDir = path.resolve('backend/uploads/products');
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const created = [];
+  for (const file of req.files) {
+    const resized = await sharp(file.buffer).resize(800,800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    const filename = `${productId}-${Date.now()}-${Math.random().toString(36).slice(2,6)}.jpg`;
+    const filepath = path.join(uploadDir, filename);
+    fs.writeFileSync(filepath, resized);
+    const url = `/uploads/products/${filename}`;
+    const img = await prisma.productImage.create({ data: { productId, url, alt: file.originalname.slice(0,200), sortOrder: 0 } });
+    created.push(img);
+  }
+  res.status(201).json(created);
 }));
 
 export default router;
