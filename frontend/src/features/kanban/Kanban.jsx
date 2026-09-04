@@ -51,6 +51,7 @@ export default function Kanban(){
   const [orders,setOrders]=useState([]);
   const [filter,setFilter]=useState('all');
   const [error,setError]=useState('');
+  const [toast,setToast]=useState('');
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 }}), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 }}));
   async function load(){
     const token = localStorage.getItem('token') || '';
@@ -65,12 +66,11 @@ export default function Kanban(){
     if(!res.ok){
       const j=await res.json().catch(()=>({error:res.statusText, code: 'unknown'}));
       const msg = j.code ? `${j.code}: ${j.error}` : j.error;
-      setError(msg);
-      // inline DoD: show which move failed
-      alert(`${msg} — DoD: ${state} requires previous state, or BOM out of stock (422)`);
+      setError(`${msg} — DoD: ${state} requires previous state, or BOM out_of_stock (422)`);
       return;
     }
-    setError('');
+    setError(''); setToast(`Moved to ${LABEL[state]}`);
+    setTimeout(()=>setToast(''), 3000);
     load();
   }
   async function handleDragEnd(event){
@@ -86,7 +86,7 @@ export default function Kanban(){
     const token = localStorage.getItem('token') || '';
     const res = await fetch(`${(import.meta.env.VITE_API_URL||'')}/api/tickets/check-in`, { method:'POST', headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})}, body: JSON.stringify({qrPayload}) });
     const j=await res.json().catch(()=>({}));
-    if(res.ok) { alert(`Checked in ${qrPayload}`); load(); } else alert(j.error||'Check-in failed');
+    if(res.ok) { setToast(`Checked in ${qrPayload}`); setTimeout(()=>setToast(''), 3000); load(); } else setError(j.error||'Check-in failed');
   }
   const filtered = filter==='all'? orders : orders.filter(o=>o.state===filter);
   return (
@@ -94,6 +94,7 @@ export default function Kanban(){
       <div className="max-w-7xl mx-auto p-6">
         <h1 className="text-2xl font-black text-bloom-700">Custom Order Kanban — Admin</h1>
         <p className="text-xs text-gray-500 mt-1">Drag cards between columns (DoD enforced: 409 if skipping, 422 if BOM out_of_stock). Tap QR Check-in at POS.</p>
+        {toast && <div className="mt-3 bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs">{toast}</div>}
         {error && <div className="mt-3 bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-xs">{error} <button onClick={()=>setError('')} className="ml-2 underline">Dismiss</button></div>}
         <div className="flex gap-2 mt-3 flex-wrap">{['all',...STATES].map(s=> <button key={s} onClick={()=>setFilter(s)} className={`px-3 py-1 rounded-full text-xs border ${filter===s?'bg-bloom-500 text-white':'bg-white'}`}>{s==='all'?'All':LABEL[s]}</button>)}</div>
         {filter!=='all' ? (

@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
+import { sendWorkshopConfirmation } from '../services/email.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -79,8 +80,11 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
         data: { bookingId: booking.id, qrPayload, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrPayload)}` },
       });
     }
-    return { booking, ticket, status };
+    return { booking, ticket, status, workshop: session.workshop, session };
   });
+  if (result.status === 'confirmed') {
+    sendWorkshopConfirmation({ ...result.booking, ticket: result.ticket }, result.workshop, result.session).catch(()=>{});
+  }
   res.status(201).json({ ...result.booking, ticket: result.ticket });
 }));
 
