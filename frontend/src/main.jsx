@@ -16,24 +16,27 @@ import Kanban from './features/kanban/Kanban.jsx';
 import Loyalty from './pages/Loyalty.jsx';
 import POS from './pages/POS.jsx';
 import NotFound from './pages/NotFound.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <BrowserRouter>
-    <Routes>
-      <Route path="/" element={<App />} />
-      <Route path="/shop" element={<Shop />} />
-      <Route path="/product/:slug" element={<Product />} />
-      <Route path="/cart" element={<Cart />} />
-      <Route path="/checkout" element={<Checkout />} />
-      <Route path="/blog" element={<Blog />} />
-      <Route path="/blog/:slug" element={<Post />} />
-      <Route path="/workshops" element={<Workshops />} />
-      <Route path="/configurator" element={<Configurator />} />
-      <Route path="/kanban" element={<Kanban />} />
-      <Route path="/loyalty" element={<Loyalty />} />
-      <Route path="/pos" element={<POS />} />
-      <Route path="/admin" element={<Admin />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  </BrowserRouter>
+  <ErrorBoundary>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/shop" element={<Shop />} />
+        <Route path="/product/:slug" element={<Product />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/:slug" element={<Post />} />
+        <Route path="/workshops" element={<Workshops />} />
+        <Route path="/configurator" element={<Configurator />} />
+        <Route path="/kanban" element={<Kanban />} />
+        <Route path="/loyalty" element={<Loyalty />} />
+        <Route path="/pos" element={<POS />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  </ErrorBoundary>
 );
