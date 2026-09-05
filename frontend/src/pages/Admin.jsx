@@ -7,6 +7,7 @@ const TABS = [
   { id: 'products', label: 'Products', icon: '🌹' },
   { id: 'pos', label: 'POS', icon: '💳' },
   { id: 'workshops', label: 'Workshops', icon: '🎨' },
+  { id: 'notebook', label: 'Notebook', icon: '📓' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📈' },
 ];
@@ -54,6 +55,13 @@ export default function AdminStudio(){
       } else if(tabId==='reports'){
         const stats = await fetch('/api/loyalty/leaderboard').then(r=>r.json()).catch(()=>[]);
         setData(s=> ({...s, leaderboard: stats}));
+      } else if(tabId==='notebook'){
+        const [settings, posts] = await Promise.all([
+          fetch('/api/settings').then(r=> r.ok? r.json():{}).catch(()=>({})),
+          fetch('/api/posts?tag=notebook').then(r=> r.ok? r.json():[]).catch(()=>[]),
+        ]);
+        const url = settings.notebooklm_url || settings.notebook_url || `https://notebooklm.google.com/notebook/459b06d5-2520-442a-ae3c-048b54c78902`;
+        setData(s=> ({...s, notebookUrl: url, notebookPosts: posts}));
       }
     } finally{ setLoading(false); }
   }
@@ -79,6 +87,7 @@ export default function AdminStudio(){
               {tab==='products' && <Products data={data} />}
               {tab==='pos' && <POS data={data} />}
               {tab==='workshops' && <Workshops data={data} />}
+              {tab==='notebook' && <NotebookAdmin data={data} onSave={(url)=> setData(s=>({...s, notebookUrl:url}))} />}
               {tab==='users' && <Users data={data} />}
               {tab==='reports' && <Reports data={data} />}
             </>
@@ -121,4 +130,34 @@ function Products({data}){ const products=data.products||[]; return <div><h3 cla
 function POS({data}){ const s=data.posSession; return <div><h3 className="font-bold">POS — Till</h3>{s ? <div className="mt-3 border rounded-xl p-4"><div className="font-bold text-sm">{s.location} — {s.status}</div><div className="text-xs text-gray-600">Opened {new Date(s.openedAt).toLocaleString()} • Float ${Number(s.openingCash).toFixed(2)} • {s.payments?.length||0} payments</div></div> : <div className="text-xs text-gray-400 mt-3">No open till — open via /pos</div>}<div className="mt-3 text-xs text-gray-500">Use POS page for sales — offline queue IndexedDB krystal-offline</div></div>; }
 function Workshops({data}){ const w=data.workshops||[]; return <div><h3 className="font-bold">Workshops — {w.length}</h3><div className="mt-3 space-y-2">{w.map(ws=> <div key={ws.id} className="border rounded-xl p-3"><div className="font-bold text-sm">{ws.title}</div><div className="text-xs text-gray-500">{ws.location} • {ws.capacity} cap • ${Number(ws.price).toFixed(2)}</div><div className="text-xs text-gray-400">{ws.sessions?.length||0} sessions</div></div>)}{w.length===0 && <div className="text-xs text-gray-400">No workshops</div>}</div></div>; }
 function Users({data}){ const users=data.users||[]; return <div><h3 className="font-bold">Users — {users.length}</h3><div className="text-xs text-gray-500">Requires developer role — if 403, login as admin@krystal.local / admin123 (seed)</div><div className="mt-3 space-y-1 max-h-[300px] overflow-auto">{users.map(u=> <div key={u.id} className="flex justify-between text-xs border rounded-lg p-2"><span>{u.name} • {u.email}</span><span className="bg-gray-100 rounded-full px-2 py-0.5">{u.role}</span></div>)}</div></div>; }
+function NotebookAdmin({data, onSave}){
+  const [url,setUrl]=useState(data.notebookUrl||'');
+  const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('');
+  useEffect(()=>{ if(data.notebookUrl) setUrl(data.notebookUrl); }, [data.notebookUrl]);
+  async function save(){
+    setSaving(true); setMsg('');
+    const token = localStorage.getItem('token')||'';
+    const res = await fetch('/api/settings', { method:'PUT', headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})}, body: JSON.stringify({ notebooklm_url: url }) });
+    if(res.ok){ setMsg('Saved — notebook URL updated'); onSave(url); } else { const j=await res.json().catch(()=>({error:'save failed'})); setMsg(j.error||'Failed'); }
+    setSaving(false);
+  }
+  return (
+    <div>
+      <h3 className="font-bold">Notebook — Curate Published URL</h3>
+      <p className="text-xs text-gray-500 mt-1">Store NotebookLM published URL as Setting <code>notebooklm_url</code> (maker+). Public page reads it; fallback is hardcoded 459b06d5…</p>
+      <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://notebooklm.google.com/notebook/459b06d5..." className="mt-3 w-full border rounded-xl px-3 py-2 text-sm" />
+      <button onClick={save} disabled={saving} className="mt-2 bg-bloom-500 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50">{saving?'Saving…':'Save URL'}</button>
+      {msg && <div className="mt-2 text-xs bg-bloom-50 border border-bloom-100 rounded-xl p-2">{msg}</div>}
+      <div className="mt-4 border rounded-xl p-3">
+        <div className="font-bold text-xs">Preview</div>
+        <div className="mt-2 bg-gray-50 rounded-xl p-2 text-xs break-all">{url || '—'}</div>
+        <a href={url} target="_blank" rel="noopener" className="mt-2 inline-block text-xs underline">Open in NotebookLM →</a>
+      </div>
+      <div className="mt-4">
+        <h4 className="font-bold text-xs">Posts tagged notebook ({(data.notebookPosts||[]).length})</h4>
+        <div className="mt-2 space-y-1">{(data.notebookPosts||[]).map(p=> <div key={p.id} className="text-xs border rounded-lg p-2"><span className="font-bold">{p.title}</span> <span className="text-gray-500">— {p.slug}</span></div>)}{(!data.notebookPosts||data.notebookPosts.length===0) && <div className="text-xs text-gray-400">No posts with tag notebook — create via Blog → tag notebook</div>}</div>
+      </div>
+    </div>
+  );
+}
 function Reports({data}){ const board=data.leaderboard||[]; return <div><h3 className="font-bold">Reports — Loyalty Leaderboard</h3><div className="mt-3 space-y-1">{board.map((b,i)=> <div key={i} className="flex justify-between text-xs border rounded-lg p-2"><span>#{i+1} {b.email}</span><span>{b.points} pts • {b.tier}</span></div>)}{board.length===0 && <div className="text-xs text-gray-400">No points yet</div>}</div></div>; }

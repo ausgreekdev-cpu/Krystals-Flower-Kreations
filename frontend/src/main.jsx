@@ -15,6 +15,7 @@ import Configurator from './features/configurator/Configurator.jsx';
 import Kanban from './features/kanban/Kanban.jsx';
 import Loyalty from './pages/Loyalty.jsx';
 import POS from './pages/POS.jsx';
+import Notebook from './pages/Notebook.jsx';
 import NotFound from './pages/NotFound.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
@@ -34,6 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/kanban" element={<Kanban />} />
         <Route path="/loyalty" element={<Loyalty />} />
         <Route path="/pos" element={<POS />} />
+        <Route path="/notebook" element={<Notebook />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

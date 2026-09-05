@@ -142,7 +142,7 @@ async function main() {
     console.log('Generic BOM handled via fallback in customOrders route');
   }
 
-  // Studio Settings (tax, labour, ABN) — for Admin hub
+  // Studio Settings (tax, labour, ABN) — for Admin hub + notebook
   await prisma.setting.upsert({ where: { key: 'tax_gst_rate' }, update: { value: '0.10' }, create: { key: 'tax_gst_rate', value: '0.10' } });
   await prisma.setting.upsert({ where: { key: 'labour_rate_per_hour' }, update: { value: '55' }, create: { key: 'labour_rate_per_hour', value: '55' } });
   await prisma.setting.upsert({ where: { key: 'bom_margin' }, update: { value: '0.30' }, create: { key: 'bom_margin', value: '0.30' } });
@@ -151,6 +151,7 @@ async function main() {
   await prisma.setting.upsert({ where: { key: 'business_address' }, update: { value: 'Perth WA 6000' }, create: { key: 'business_address', value: 'Perth WA 6000' } });
   await prisma.setting.upsert({ where: { key: 'shipping_perth_metro' }, update: { value: '12' }, create: { key: 'shipping_perth_metro', value: '12' } });
   await prisma.setting.upsert({ where: { key: 'shipping_free_over' }, update: { value: '150' }, create: { key: 'shipping_free_over', value: '150' } });
+  await prisma.setting.upsert({ where: { key: 'notebooklm_url' }, update: {}, create: { key: 'notebooklm_url', value: 'https://notebooklm.google.com/notebook/459b06d5-2520-442a-ae3c-048b54c78902' } });
 
   // Discounts with dates/minSpend enforced
   await prisma.discount.update({ where: { code: 'BLOOM10' }, data: { minSpend: 50, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-08-01') } }).catch(()=>{});

@@ -14,6 +14,7 @@ router.get('/sitemap.xml', asyncHandler(async (req, res) => {
     { loc: `${origin}/configurator`, changefreq: 'weekly', priority: '0.9' },
     { loc: `${origin}/workshops`, changefreq: 'weekly', priority: '0.8' },
     { loc: `${origin}/blog`, changefreq: 'weekly', priority: '0.6' },
+    { loc: `${origin}/notebook`, changefreq: 'weekly', priority: '0.7' },
     ...products.map(p => ({ loc: `${origin}/product/${p.slug}`, lastmod: p.updatedAt.toISOString().slice(0,10), changefreq: 'weekly', priority: '0.7' }))
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u=> `<url><loc>${u.loc}</loc>${u.lastmod?`<lastmod>${u.lastmod}</lastmod>`:''}<changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`).join('')}</urlset>`;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import NotebookPanel from '../components/NotebookPanel';
 export default function Workshops(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -33,6 +34,10 @@ export default function Workshops(){
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-black text-bloom-700">Workshops — Perth Studio</h1>
       <p className="text-gray-600 mt-2">Cricut Blooms 101, Origami Bouquet & Armature Art. Max 12, kits included.</p>
+      <div className="mt-4 bg-bloom-50 border border-bloom-100 rounded-xl px-4 py-3 flex justify-between items-center">
+        <span className="text-sm text-bloom-700">Before you book, explore Notebook guide — supplies & folding previews</span>
+        <a href="/notebook?workshop=cricut-blooms-101" className="text-xs bg-white border rounded-full px-3 py-1 hover:bg-bloom-50">Notebook →</a>
+      </div>
       <div className="mt-6 bg-white border rounded-2xl p-4">
         <h3 className="font-bold text-sm">Book a session</h3>
         <div className="mt-3 grid md:grid-cols-2 gap-3">
@@ -58,6 +63,7 @@ export default function Workshops(){
             <p className="text-sm text-gray-600 mt-2">{w.description}</p>
             <div className="text-sm font-bold text-bloom-500 mt-2">${Number(w.price).toFixed(2)} • {w.durationMinutes} min • {w.level || 'beginner'}</div>
             <div className="mt-3 space-y-1">{(w.sessions||[]).map(s=> <div key={s.id} className={`text-xs rounded-lg px-3 py-2 flex justify-between ${s.capacity - s.bookedCount<=0?'bg-red-50 border border-red-200 text-red-700':'bg-bloom-50'}`}><span>{new Date(s.startsAt).toLocaleString('en-AU', { timeZone:'Australia/Perth', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span><span>{Math.max(0,s.capacity - s.bookedCount)} spots left {s.capacity - s.bookedCount<=0 && '• Waitlist'}</span></div>)}</div>
+            <div className="mt-3"><NotebookPanel compact query={`${w.slug} ${w.title}`} /></div>
           </div>
         ))}
       </div>

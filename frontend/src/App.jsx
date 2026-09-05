@@ -47,6 +47,7 @@ export default function App(){
             <Link to="/configurator" className="hover:text-bloom-500 py-2 hidden xl:inline">Configurator</Link>
             <Link to="/workshops" className="hover:text-bloom-500 py-2">Workshops</Link>
             <Link to="/blog" className="hover:text-bloom-500 py-2 hidden lg:inline">Journal</Link>
+            <Link to="/notebook" className="hover:text-bloom-500 py-2 hidden lg:inline">Notebook</Link>
             <Link to="/loyalty" className="hover:text-bloom-500 py-2 hidden lg:inline">Bloom Points</Link>
             <Link to="/pos" className="hover:text-bloom-500 py-2 hidden xl:inline">POS</Link>
             <Link to="/cart" className="relative hover:text-bloom-500 py-2 flex items-center gap-1">
@@ -68,6 +69,7 @@ export default function App(){
               <Link onClick={()=>setMobileOpen(false)} to="/configurator" className="bg-white border rounded-xl p-3">Configurator</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/workshops" className="bg-white border rounded-xl p-3">Workshops</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/blog" className="bg-white border rounded-xl p-3">Journal</Link>
+              <Link onClick={()=>setMobileOpen(false)} to="/notebook" className="bg-white border rounded-xl p-3">Notebook</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/loyalty" className="bg-white border rounded-xl p-3">Bloom Points</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/pos" className="bg-white border rounded-xl p-3">POS</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/cart" className="bg-white border rounded-xl p-3 relative">Cart {cartCount>0 && <span className="absolute top-2 right-2 bg-bloom-500 text-white text-[10px] px-1.5 rounded-full">{cartCount}</span>}</Link>
@@ -85,6 +87,7 @@ export default function App(){
             <div className="mt-6 flex flex-wrap gap-3">
               <Link to="/shop" className="bg-white text-bloom-700 px-6 py-3 rounded-xl font-bold shadow hover:shadow-lg">Shop Bouquets</Link>
               <Link to="/configurator" className="bg-bloom-50 text-bloom-700 px-6 py-3 rounded-xl font-bold hover:bg-white">Design Custom Bouquet</Link>
+              <Link to="/notebook" className="bg-white/15 border border-white text-white px-6 py-3 rounded-xl font-bold hover:bg-white/25">Notebook Research</Link>
               <Link to="/workshops" className="bg-transparent border border-white text-white px-6 py-3 rounded-xl font-bold hover:bg-white/10">Book Workshop</Link>
             </div>
             <p className="mt-6 text-xs md:text-sm text-white/80">Meta Catalog → Facebook & Instagram Shopping • POS studio & markets • Blog Cricut settings • Inventory + kits</p>
@@ -102,10 +105,11 @@ export default function App(){
           </div>
         </div>
       </section>
-      <section className="max-w-7xl mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <section className="max-w-7xl mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card title="Shop" desc="Paper bouquets, armatures, origami, Cricut SVGs + custom commissions. Made-to-order from Perth studio." to="/shop" />
         <Card title="Configurator" desc="Design your bloom — colour/texture/stems/armature + Cricut template with live AUD price + ETA." to="/configurator" />
         <Card title="Workshops" desc="Small groups, all materials included. Take home your bloom. Perth studio + online kits." to="/workshops" />
+        <Card title="Notebook" desc="Perth studio research + NotebookLM sources — Cricut settings, armature guides, BOM." to="/notebook" />
         <Card title="Kanban" desc="Custom order pipeline — Drafting → Cricut → Folding → QC → Dispatched. Studio admin." to="/kanban" />
       </section>
       <section className="max-w-7xl mx-auto px-4 pb-10">
@@ -119,7 +123,7 @@ export default function App(){
         <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-8 text-sm">
           <div><div className="font-black text-bloom-700">Krystal's Flower Kreations</div><div className="text-gray-600 mt-2">Perth WA • Handmade • GST inclusive</div><div className="text-gray-500 mt-1">Follow @krystalsflowerkreations</div></div>
           <div><div className="font-bold">Shop</div><div className="mt-2 space-y-1 text-gray-600"><Link to="/shop" className="hover:text-bloom-500 block">All bouquets</Link><Link to="/configurator" className="hover:text-bloom-500 block">Custom</Link><Link to="/workshops" className="hover:text-bloom-500 block">Workshops</Link></div></div>
-          <div><div className="font-bold">Help</div><div className="mt-2 space-y-1 text-gray-600"><Link to="/blog" className="hover:text-bloom-500 block">Journal</Link><a href="/privacy" className="hover:text-bloom-500 block">Privacy</a><span className="block">krystal@krystalsflowerkreations.com.au</span></div></div>
+          <div><div className="font-bold">Help</div><div className="mt-2 space-y-1 text-gray-600"><Link to="/blog" className="hover:text-bloom-500 block">Journal</Link><Link to="/notebook" className="hover:text-bloom-500 block">Notebook</Link><a href="/privacy" className="hover:text-bloom-500 block">Privacy</a><span className="block">krystal@krystalsflowerkreations.com.au</span></div></div>
         </div>
         <div className="border-t py-4 text-center text-xs text-gray-500">© {new Date().getFullYear()} Krystal's Flower Kreations — Perth WA • ABN on invoices</div>
       </footer>

@@ -50,7 +50,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-      frameSrc: ["https://js.stripe.com"],
+      frameSrc: ["https://js.stripe.com", "https://notebooklm.google.com", "https://*.google.com", "https://*.googleusercontent.com", "https://api.qrserver.com"],
     },
   },
   crossOriginEmbedderPolicy: false,

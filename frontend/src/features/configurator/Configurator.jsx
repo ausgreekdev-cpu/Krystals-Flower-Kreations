@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useConfiguratorStore, estimateLocalPrice } from './useConfiguratorStore';
 import { ordersApi } from '../../lib/api/customClient';
 import ARViewer from '../../components/ARViewer';
+import NotebookPanel from '../../components/NotebookPanel';
 
 const TEXTURES = ['textured','smooth','pearl','linen'];
 const WEIGHTS = ['65lb','80lb','110lb'];
@@ -60,6 +61,7 @@ export default function Configurator(){
         <div className="text-[11px] text-gray-500 mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>. No VectoSolve fees.</div>
       </section>
       <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
+      <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
       <div className="bg-white border rounded-2xl p-4 space-y-3">
         <h3 className="font-bold">Your details — for custom order</h3>
         <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email*" type="email" className="w-full border rounded-xl px-3 py-2 text-sm" />
