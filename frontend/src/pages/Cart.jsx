@@ -43,7 +43,7 @@ export default function Cart(){
       <div className="mt-6 space-y-3">
         {items.map(it=> (
           <div key={it.id} className="bg-white p-4 rounded-2xl border flex gap-4 hover:shadow-sm">
-            <img loading="lazy" src={it.product?.images?.[0]?.url || `https://picsum.photos/seed/${it.productId}/200/200`} alt={it.product?.title} width="80" height="80" className="w-20 h-20 rounded-xl object-cover" />
+            <img loading="lazy" src={it.product?.images?.[0]?.url || `/placeholder-bloom.jpg`} alt={it.product?.title} width="80" height="80" className="w-20 h-20 rounded-xl object-cover" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
             <div className="flex-1">
               <div className="font-bold text-bloom-700 text-sm">{it.product?.title || it.title} {it.variant? `— ${it.variant.title}`:''}</div>
               <div className="text-sm text-gray-600">${Number(it.priceSnapshot).toFixed(2)} × {it.quantity} = <span className="font-bold">${ (Number(it.priceSnapshot)*it.quantity).toFixed(2) }</span></div>

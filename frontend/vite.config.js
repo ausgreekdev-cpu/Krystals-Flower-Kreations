@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   plugins: [react(), VitePWA({
     registerType: 'autoUpdate',
-    includeAssets: ['favicon.png','apple-touch-icon.png','og-cover.jpg','svg/*.svg'],
+    includeAssets: ['favicon.png','apple-touch-icon.png','og-cover.jpg','placeholder-bloom.jpg','svg/*.svg'],
     manifest: {
       name: "Krystal's Flower Kreations",
       short_name: 'Krystal Bloom',

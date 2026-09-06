@@ -29,7 +29,7 @@ export default function Shop(){
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filtered.map(p=> (
             <Link key={p.id} to={`/product/${p.slug}`} className="bg-white rounded-2xl overflow-hidden border hover:shadow-lg hover:border-bloom-100 transition group">
-              <div className="relative overflow-hidden"><img loading="lazy" decoding="async" src={p.images?.[0]?.url || `https://picsum.photos/seed/${p.slug}/400/400`} alt={p.title} width="400" height="400" className="h-44 md:h-52 w-full object-cover group-hover:scale-105 transition duration-300" /><span className="absolute top-2 left-2 bg-white/90 backdrop-blur text-[10px] font-bold px-2 py-1 rounded-full">{p.stockMode==='made_to_order'?'Made to order': p.type==='digital_template'?'SVG • Instant':'In stock'}</span></div>
+              <div className="relative overflow-hidden"><img loading="lazy" decoding="async" src={p.images?.[0]?.url || `/placeholder-bloom.jpg`} alt={p.title} width="400" height="400" className="h-44 md:h-52 w-full object-cover group-hover:scale-105 transition duration-300" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} /><span className="absolute top-2 left-2 bg-white/90 backdrop-blur text-[10px] font-bold px-2 py-1 rounded-full">{p.stockMode==='made_to_order'?'Made to order': p.type==='digital_template'?'SVG • Instant':'In stock'}</span></div>
               <div className="p-3">
                 <div className="font-bold text-bloom-700 line-clamp-2 text-sm md:text-[15px] leading-tight">{p.title}</div>
                 <div className="text-bloom-500 font-bold mt-1.5">${Number(p.price).toFixed(2)} <span className="text-xs font-normal text-gray-500">AUD</span></div>

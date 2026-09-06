@@ -17,7 +17,7 @@ export default function Shop() {
         renderItem={({item})=> (
           <Link href={`/product/${item.slug}`} asChild>
             <Pressable style={{ flex: 1, backgroundColor: 'white', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E8CFCF' }}>
-              <Image source={{ uri: item.images?.[0]?.url || `https://picsum.photos/seed/${item.slug}/400/400` }} style={{ height: 140 }} />
+              <Image source={{ uri: item.images?.[0]?.url || `${API}/placeholder-bloom.jpg` }} style={{ height: 140 }} />
               <View style={{ padding: 10 }}>
                 <Text style={{ fontWeight: '700', color: '#4A2C2A' }} numberOfLines={2}>{item.title}</Text>
                 <Text style={{ color: '#B85C5C', marginTop: 4, fontWeight: '700' }}>${Number(item.price).toFixed(2)} AUD</Text>

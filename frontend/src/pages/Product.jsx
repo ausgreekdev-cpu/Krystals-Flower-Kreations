@@ -27,8 +27,8 @@ export default function Product(){
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 grid md:grid-cols-2 gap-8">
       <div className="space-y-3">
-        <img loading="eager" decoding="async" src={p.images?.[0]?.url || `https://picsum.photos/seed/${p.slug}/800/800`} alt={p.title} width="800" height="800" className="rounded-2xl w-full shadow-sm" />
-        {p.images?.length>1 && <div className="flex gap-2 overflow-auto">{p.images.slice(1,5).map(im=><img key={im.id} src={im.url} alt="" loading="lazy" className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
+        <img loading="eager" decoding="async" src={p.images?.[0]?.url || `/placeholder-bloom.jpg`} alt={p.title} width="800" height="800" className="rounded-2xl w-full shadow-sm" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
+        {p.images?.length>1 && <div className="flex gap-2 overflow-auto">{p.images.slice(1,5).map(im=><img key={im.id} src={im.url} alt="" loading="lazy" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
         <div className="hidden md:flex gap-2 text-xs">
           <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" className="border rounded-full px-3 py-1.5 hover:bg-bloom-50">Share FB</a>
           <a href={`https://www.instagram.com/`} target="_blank" className="border rounded-full px-3 py-1.5 hover:bg-bloom-50">IG Story</a>

@@ -51,10 +51,10 @@ async function main() {
   ];
   for (const p of products) {
     const prod = await prisma.product.upsert({ where: { slug: p.slug }, update: {}, create: p });
-    // Add placeholder image
+    // Local placeholder image (no external picsum — $0, offline, no 404)
     const hasImage = await prisma.productImage.findFirst({ where: { productId: prod.id } });
     if (!hasImage) {
-      await prisma.productImage.create({ data: { productId: prod.id, url: `https://picsum.photos/seed/${prod.slug}/800/800`, alt: prod.title, sortOrder: 0 } });
+      await prisma.productImage.create({ data: { productId: prod.id, url: `/placeholder-bloom.jpg`, alt: prod.title, sortOrder: 0 } });
     }
     // Ensure inventory level
     await prisma.inventoryLevel.upsert({
