@@ -29,6 +29,8 @@ import customOrderWorkflowRoutes from './routes/customOrderWorkflow.js';
 import orderStatusRoutes from './routes/orderStatus.js';
 import productVariantsRoutes from './routes/productVariants.js';
 import collectionsRoutes from './routes/collections.js';
+import reviewsRoutes from './routes/reviews.js';
+import discountsRoutes from './routes/discounts.js';
 
 import path from 'path';
 import fs from 'fs';
@@ -111,6 +113,8 @@ app.use('/api/custom-orders/workflow', customOrderWorkflowRoutes); // kanban + s
 app.use('/api/orders/status', orderStatusRoutes); // PATCH /:id/status
 app.use('/api/variants', productVariantsRoutes); // was implicit in products
 app.use('/api/collections', collectionsRoutes); // was inline below (now via file, keep compat alias)
+app.use('/api/reviews', reviewsRoutes);
+app.use('/api/discounts', discountsRoutes);
 
 // Collections (thin) — kept for compat, now also via collectionsRoutes at /api/collections
 app.get('/api/collections-legacy', async (req, res, next) => {

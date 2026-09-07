@@ -52,4 +52,17 @@ router.post('/locations', validate(locationSchema), asyncHandler(async (req, res
   res.status(201).json(loc);
 }));
 
+// Reconciliation: compare InventoryLevel.onHand vs sum(InventoryLedger.delta) per variant
+router.get('/reconciliation', asyncHandler(async (req, res) => {
+  const variants = await prisma.productVariant.findMany({ select: { id: true, title: true, inventoryQuantity: true, product: { select: { title: true } } }, take: 100 });
+  const ledgerSums = await prisma.inventoryLedger.groupBy({ by: ['variantId'], _sum: { delta: true } });
+  const ledgerMap = Object.fromEntries(ledgerSums.map(l=> [l.variantId, l._sum.delta||0]));
+  const rows = variants.map(v=> {
+    const ledgerTotal = ledgerMap[v.id]||0;
+    const drift = v.inventoryQuantity - ledgerTotal;
+    return { variantId: v.id, title: v.title, product: v.product.title, inventoryQuantity: v.inventoryQuantity, ledgerTotal, drift, ok: drift===0 };
+  });
+  res.json(rows);
+}));
+
 export default router;
