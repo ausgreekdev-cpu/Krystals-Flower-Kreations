@@ -2,13 +2,20 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export default function Shop(){
-  const [q,setQ]=useState(new URLSearchParams(window.location.search).get('q') || ''); const [products,setProducts]=useState([]); const [filter,setFilter]=useState('all'); const [loading,setLoading]=useState(true);
+  const [q,setQ]=useState(new URLSearchParams(window.location.search).get('q') || ''); const [products,setProducts]=useState([]); const [filter,setFilter]=useState('all'); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
   useEffect(()=>{
-    setLoading(true);
-    const id = setTimeout(()=>{ fetch(`/api/products?q=${encodeURIComponent(q)}`).then(r=>r.json()).then(d=> setProducts(d.products||d)).catch(()=>{}).finally(()=>setLoading(false)); }, q?300:0);
+    setLoading(true); setError('');
+    const id = setTimeout(()=>{
+      fetch(`/api/products?q=${encodeURIComponent(q)}`)
+        .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then(d=>{ const arr = Array.isArray(d) ? d : (Array.isArray(d.products) ? d.products : []); setProducts(arr); if(!Array.isArray(d) && !Array.isArray(d.products) && d.error) { throw new Error(d.error); } })
+        .catch(e=>{ setError(e.message); setProducts([]); })
+        .finally(()=>setLoading(false));
+    }, q?300:0);
     return ()=>clearTimeout(id);
   }, [q]);
-  const filtered = filter==='all' ? products : products.filter(p=> filter==='made_to_order' ? p.stockMode==='made_to_order' : filter==='digital' ? p.type==='digital_template' : p.type===filter);
+  const productsArr = Array.isArray(products) ? products : [];
+  const filtered = filter==='all' ? productsArr : productsArr.filter(p=> filter==='made_to_order' ? p.stockMode==='made_to_order' : filter==='digital' ? p.type==='digital_template' : p.type===filter);
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -39,11 +46,12 @@ export default function Shop(){
           ))}
         </div>
       )}
+      {error && <div className="mt-4 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">Failed to load products: {error} <button onClick={()=>{ setQ(q); }} className="ml-2 underline">Retry</button></div>}
       <div className="mt-6 flex justify-between items-center text-sm">
         <span className="text-gray-600">{filtered.length} blooms</span>
         <span className="text-gray-500 hidden md:inline">Optimised for desktop — hover for zoom • Configurator for custom</span>
       </div>
-      {filtered.length===0 && <p className="text-center text-gray-500 mt-8 py-12 bg-white border rounded-2xl">No blooms yet — seed the backend and refresh.</p>}
+      {filtered.length===0 && !loading && !error && <p className="text-center text-gray-500 mt-8 py-12 bg-white border rounded-2xl">No blooms yet — seed the backend and refresh.</p>}
     </div>
   );
 }
