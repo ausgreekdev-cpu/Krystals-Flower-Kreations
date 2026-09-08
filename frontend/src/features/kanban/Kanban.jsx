@@ -27,17 +27,18 @@ function DraggableCard({ order, onCheckIn }){
 }
 function DroppableColumn({ state, orders, onCheckIn, onMove }){
   const { setNodeRef, isOver } = useDroppable({ id: state });
+  const safeOrders = Array.isArray(orders) ? orders : [];
   return (
     <div ref={setNodeRef} className={`bg-white rounded-2xl border p-3 min-h-[200px] ${isOver?'bg-bloom-50 border-bloom-200':''}`}>
-      <div className="flex justify-between items-center"><h3 className="font-bold text-xs text-bloom-700">{LABEL[state]}</h3><span className="text-[11px] bg-gray-100 rounded-full px-2 py-0.5">{orders.length}</span></div>
+      <div className="flex justify-between items-center"><h3 className="font-bold text-xs text-bloom-700">{LABEL[state]}</h3><span className="text-[11px] bg-gray-100 rounded-full px-2 py-0.5">{safeOrders.length}</span></div>
       <div className="text-[11px] text-gray-500 mt-1">{STATE_HINT[state]||''}</div>
       <div className="mt-3 space-y-3">
-        {orders.map(o=> <DraggableCard key={o.id} order={o} onCheckIn={onCheckIn} />)}
-        {orders.length===0 && <div className="text-xs text-gray-400 py-6 text-center border-2 border-dashed rounded-xl">Drop here</div>}
+        {(safeOrders).map(o=> <DraggableCard key={o.id} order={o} onCheckIn={onCheckIn} />)}
+        {safeOrders.length===0 && <div className="text-xs text-gray-400 py-6 text-center border-2 border-dashed rounded-xl">Drop here</div>}
       </div>
       {/* Fallback button for non-drag */}
       <div className="mt-2 flex flex-col gap-1">
-        {orders.slice(0,2).map(o=>{
+        {safeOrders.slice(0,2).map(o=>{
           const nextIdx = STATES.indexOf(state)+1;
           const next = STATES[nextIdx];
           return next ? <button key={o.id} onClick={()=>onMove(o.id, next)} className="text-[11px] bg-bloom-500 text-white px-2 py-1 rounded">→ {LABEL[next]}</button> : null;
@@ -56,8 +57,10 @@ export default function Kanban(){
   async function load(){
     const token = localStorage.getItem('token') || '';
     const res = await fetch(`${(import.meta.env.VITE_API_URL||'')}/api/custom-orders`, { headers: token? {Authorization:`Bearer ${token}`}:{} });
-    if(res.ok) setOrders(await res.json());
-    else { const j=await res.json().catch(()=>({error:res.statusText, code:res.status})); setError(`${j.code||res.status}: ${j.error}`); }
+    if(res.ok) {
+      const d = await res.json();
+      setOrders(Array.isArray(d) ? d : (Array.isArray(d.orders) ? d.orders : []));
+    } else { const j=await res.json().catch(()=>({error:res.statusText, code:res.status})); setError(`${j.code||res.status}: ${j.error}`); }
   }
   useEffect(()=>{ load(); }, []);
   async function move(id, state){
@@ -88,7 +91,8 @@ export default function Kanban(){
     const j=await res.json().catch(()=>({}));
     if(res.ok) { setToast(`Checked in ${qrPayload}`); setTimeout(()=>setToast(''), 3000); load(); } else setError(j.error||'Check-in failed');
   }
-  const filtered = filter==='all'? orders : orders.filter(o=>o.state===filter);
+  const ordersArr = Array.isArray(orders) ? orders : [];
+  const filtered = filter==='all'? ordersArr : ordersArr.filter(o=>o.state===filter);
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="max-w-7xl mx-auto p-6">

@@ -11,7 +11,7 @@ export default function POS(){
   const token = localStorage.getItem('token') || '';
   function showToast(msg, isErr=false){ setToast(msg); setToastErr(isErr); setTimeout(()=>setToast(''), 4000); }
 
-  async function loadProducts(){ fetch('/api/products?limit=50').then(r=>r.json()).then(d=> setProducts(d.products||d)).catch(()=>{}); }
+  async function loadProducts(){ fetch('/api/products?limit=50').then(r=>r.json()).then(d=> setProducts(Array.isArray(d)?d: (Array.isArray(d.products)?d.products:[]))).catch(()=> setProducts([])); }
   async function loadSession(){ if(!token) return; fetch('/api/pos/session/current', { headers:{ Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json():null).then(setSession).catch(()=>{}); }
   async function refreshQueue(){ setQueue(await getQueue()); }
 
@@ -68,7 +68,7 @@ export default function POS(){
         <div className="bg-white border rounded-2xl p-4">
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Scan barcode or search — rose, banksia" className="w-full border rounded-xl px-3 py-2 text-sm" />
           <div className="mt-3 grid grid-cols-2 gap-2 max-h-[400px] overflow-auto">
-            {products.filter(p=> !q || p.title.toLowerCase().includes(q.toLowerCase()) || p.sku?.toLowerCase().includes(q.toLowerCase())).slice(0,12).map(p=> (
+            {(Array.isArray(products)?products:[]).filter(p=> !q || p.title.toLowerCase().includes(q.toLowerCase()) || p.sku?.toLowerCase().includes(q.toLowerCase())).slice(0,12).map(p=> (
               <button key={p.id} onClick={()=>addToCart(p)} className="border rounded-xl p-3 text-left hover:bg-bloom-50">
                 <div className="font-bold text-sm text-bloom-700 line-clamp-1">{p.title}</div>
                 <div className="text-xs text-gray-500">{p.sku || 'No SKU'}</div>

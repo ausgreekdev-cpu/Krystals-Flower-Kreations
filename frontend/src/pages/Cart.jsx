@@ -31,7 +31,7 @@ export default function Cart(){
     load();
   }
   if(loading) return <div className="p-8 text-center"><div className="animate-pulse bg-white border rounded-2xl p-6">Loading cart…</div></div>;
-  const items = cart?.items || [];
+  const items = Array.isArray(cart?.items) ? cart.items : [];
   const subtotal = items.reduce((a,it)=> a + Number(it.priceSnapshot||it.unitPrice||0)*it.quantity, 0);
   if(items.length===0) return <div className="max-w-3xl mx-auto px-4 py-8 text-center"><h1 className="text-2xl font-black text-bloom-700">Your cart is empty</h1><p className="text-gray-600 mt-2">Browse paper bouquets or design a custom bloom.</p><div className="mt-4 flex gap-3 justify-center"><Link to="/shop" className="bg-bloom-500 text-white px-6 py-2 rounded-full">Shop</Link><Link to="/configurator" className="border px-6 py-2 rounded-full">Configurator</Link></div></div>;
   const gst = subtotal * 0.10 / 1.10;
