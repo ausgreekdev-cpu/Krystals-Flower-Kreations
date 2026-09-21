@@ -16,6 +16,7 @@ import Kanban from './features/kanban/Kanban.jsx';
 import Loyalty from './pages/Loyalty.jsx';
 import POS from './pages/POS.jsx';
 import Notebook from './pages/Notebook.jsx';
+import Privacy from './pages/Privacy.jsx';
 import NotFound from './pages/NotFound.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/loyalty" element={<Loyalty />} />
         <Route path="/pos" element={<POS />} />
         <Route path="/notebook" element={<Notebook />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

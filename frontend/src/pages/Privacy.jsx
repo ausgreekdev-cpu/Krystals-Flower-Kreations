@@ -1,0 +1,19 @@
+import { useEffect, useState } from 'react';
+
+export default function Privacy(){
+  const [html,setHtml]=useState('Loading privacy policy…');
+  useEffect(()=>{
+    fetch('/PRIVACY_POLICY.md').then(r=> r.ok? r.text() : fetch('/privacy-policy.md').then(r2=> r2.ok? r2.text() : null)).then(t=>{
+      if(t) setHtml(t);
+      else fetch('/docs/PRIVACY_POLICY.md').then(r=> r.ok? r.text(): 'Privacy policy not yet hosted at /privacy. See docs/PRIVACY_POLICY.md in repo.').then(setHtml).catch(()=> setHtml('Privacy policy — contact krystal@krystalsflowerkreations.com.au'));
+    }).catch(()=> setHtml('Privacy policy — contact krystal@krystalsflowerkreations.com.au'));
+  }, []);
+  return (
+    <div className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-black text-bloom-700">Privacy Policy</h1>
+      <p className="text-xs text-gray-500 mt-1">Perth WA • ABN on invoice • Hosted at https://krystalsflowerkreations.netlify.app/privacy and https://krystalsflowerkreations.com.au/privacy</p>
+      <div className="mt-6 bg-white border rounded-2xl p-6 prose prose-sm max-w-none whitespace-pre-wrap text-sm text-gray-700">{html}</div>
+      <div className="mt-6 text-xs text-gray-500">Last updated 29 August 2026 — For Play Store Data Safety: collected email/name/address/purchase history, encrypted in transit, not shared, deletion via krystal@krystalsflowerkreations.com.au or app Settings → Delete account.</div>
+    </div>
+  );
+}

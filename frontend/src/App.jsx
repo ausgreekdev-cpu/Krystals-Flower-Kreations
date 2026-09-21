@@ -28,7 +28,7 @@ export default function App(){
       <div className="hidden md:block bg-bloom-700 text-white text-xs">
         <div className="max-w-7xl mx-auto px-4 py-1.5 flex justify-between">
           <span>Perth WA studio • Made-to-order 3-7 days • Free Perth delivery over $150</span>
-          <span className="flex gap-4"><a href="tel:+61800000000" className="hover:underline">+61 8 XXXX XXXX</a><a href="mailto:krystal@krystalsflowerkreations.com.au" className="hover:underline">krystal@krystalsflowerkreations.com.au</a></span>
+          <span className="flex gap-4"><a href={`tel:${import.meta.env.VITE_PHONE || '+61800000000'}`} className="hover:underline">{import.meta.env.VITE_PHONE || '+61 8 XXXX XXXX'}</a><a href="mailto:krystal@krystalsflowerkreations.com.au" className="hover:underline">krystal@krystalsflowerkreations.com.au</a></span>
         </div>
       </div>
       <header className="bg-white/95 backdrop-blur border-b sticky top-0 z-20">
@@ -123,9 +123,9 @@ export default function App(){
         <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-8 text-sm">
           <div><div className="font-black text-bloom-700">Krystal's Flower Kreations</div><div className="text-gray-600 mt-2">Perth WA • Handmade • GST inclusive</div><div className="text-gray-500 mt-1">Follow @krystalsflowerkreations</div></div>
           <div><div className="font-bold">Shop</div><div className="mt-2 space-y-1 text-gray-600"><Link to="/shop" className="hover:text-bloom-500 block">All bouquets</Link><Link to="/configurator" className="hover:text-bloom-500 block">Custom</Link><Link to="/workshops" className="hover:text-bloom-500 block">Workshops</Link></div></div>
-          <div><div className="font-bold">Help</div><div className="mt-2 space-y-1 text-gray-600"><Link to="/blog" className="hover:text-bloom-500 block">Journal</Link><Link to="/notebook" className="hover:text-bloom-500 block">Notebook</Link><a href="/privacy" className="hover:text-bloom-500 block">Privacy</a><span className="block">krystal@krystalsflowerkreations.com.au</span></div></div>
+          <div><div className="font-bold">Help</div><div className="mt-2 space-y-1 text-gray-600"><Link to="/blog" className="hover:text-bloom-500 block">Journal</Link><Link to="/notebook" className="hover:text-bloom-500 block">Notebook</Link><Link to="/privacy" className="hover:text-bloom-500 block">Privacy</Link><span className="block">krystal@krystalsflowerkreations.com.au</span></div></div>
         </div>
-        <div className="border-t py-4 text-center text-xs text-gray-500">© {new Date().getFullYear()} Krystal's Flower Kreations — Perth WA • ABN on invoices</div>
+        <div className="border-t py-4 text-center text-xs text-gray-500">© {new Date().getFullYear()} Krystal's Flower Kreations — Perth WA • ABN {import.meta.env.VITE_ABN || 'XX XXX XXX XXX'} on invoices</div>
       </footer>
     </div>
   );
