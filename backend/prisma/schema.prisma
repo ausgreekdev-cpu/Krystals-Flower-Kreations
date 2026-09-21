@@ -60,6 +60,8 @@ enum PaymentMethod {
   cash
   eftpos
   bank_transfer
+  pickup
+  manual
 }
 
 enum PostStatus {

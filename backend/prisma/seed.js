@@ -56,12 +56,16 @@ async function main() {
     if (!hasImage) {
       await prisma.productImage.create({ data: { productId: prod.id, url: `/placeholder-bloom.jpg`, alt: prod.title, sortOrder: 0 } });
     }
-    // Ensure inventory level
-    await prisma.inventoryLevel.upsert({
-      where: { productId_variantId_locationId: { productId: prod.id, variantId: null, locationId: studio.id } },
-      update: {},
-      create: { productId: prod.id, variantId: null, locationId: studio.id, onHand: p.stockMode === 'tracked' ? 10 : 0 },
+    // Ensure inventory level (findFirst+create — Prisma upsert rejects null on
+    // the @@unique([productId, variantId, locationId]) nullable member)
+    const hasLevel = await prisma.inventoryLevel.findFirst({
+      where: { productId: prod.id, variantId: null, locationId: studio.id },
     });
+    if (!hasLevel) {
+      await prisma.inventoryLevel.create({
+        data: { productId: prod.id, variantId: null, locationId: studio.id, onHand: p.stockMode === 'tracked' ? 10 : 0 },
+      });
+    }
   }
 
   // Shipping zones (Perth WA)
