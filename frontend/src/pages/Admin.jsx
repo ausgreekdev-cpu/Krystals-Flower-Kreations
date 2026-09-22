@@ -17,11 +17,12 @@ export default function AdminStudio(){
   const initial = params.get('tab') || 'overview';
   const [tab,setTab]=useState(initial);
   const [data,setData]=useState({}); const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState('');
   const token = localStorage.getItem('token') || '';
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
   async function load(tabId){
-    setLoading(true);
+    setLoading(true); setErr('');
     try{
       if(tabId==='overview'){
         const [orders, low, workshops] = await Promise.all([
@@ -64,7 +65,8 @@ export default function AdminStudio(){
         const url = settings.notebooklm_url || settings.notebook_url || `https://notebooklm.google.com/notebook/459b06d5-2520-442a-ae3c-048b54c78902`;
         setData(s=> ({...s, notebookUrl: url, notebookPosts: posts}));
       }
-    } finally{ setLoading(false); }
+    } catch(e){ setErr(e?.message || 'Failed to load'); }
+    finally{ setLoading(false); }
   }
 
   useEffect(()=>{ load(tab); window.history.replaceState(null,'',`?tab=${tab}`); }, [tab]);
@@ -75,6 +77,7 @@ export default function AdminStudio(){
         <h1 className="text-2xl font-black text-bloom-700">Studio Manager — Admin</h1>
         <a href="/api/health" target="_blank" className="text-xs border rounded-full px-3 py-1 hover:bg-bloom-50">Health</a>
       </div>
+      {err && <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{err}</div>}
       <div className="mt-6 flex flex-col lg:flex-row gap-6">
         <nav className="lg:w-56 shrink-0 flex lg:flex-col gap-2 overflow-auto">
           {TABS.map(t=> <button key={t.id} onClick={()=>setTab(t.id)} className={`px-4 py-2 rounded-xl text-sm font-bold text-left border ${tab===t.id?'bg-bloom-500 text-white border-bloom-500':'bg-white hover:bg-bloom-50'}`}>{t.icon} {t.label}</button>)}
@@ -155,10 +158,10 @@ function NotebookAdmin({data, onSave}){
         <a href={url} target="_blank" rel="noopener" className="mt-2 inline-block text-xs underline">Open in NotebookLM →</a>
       </div>
       <div className="mt-4">
-        <h4 className="font-bold text-xs">Posts tagged notebook ({(data.notebookPosts||[]).length})</h4>
-        <div className="mt-2 space-y-1">{(data.notebookPosts||[]).map(p=> <div key={p.id} className="text-xs border rounded-lg p-2"><span className="font-bold">{p.title}</span> <span className="text-gray-500">— {p.slug}</span></div>)}{(!data.notebookPosts||data.notebookPosts.length===0) && <div className="text-xs text-gray-400">No posts with tag notebook — create via Blog → tag notebook</div>}</div>
+        <h4 className="font-bold text-xs">Posts tagged notebook ({(Array.isArray(data.notebookPosts)?data.notebookPosts:[]).length})</h4>
+        <div className="mt-2 space-y-1">{(Array.isArray(data.notebookPosts)?data.notebookPosts:[]).map(p=> <div key={p.id} className="text-xs border rounded-lg p-2"><span className="font-bold">{p.title}</span> <span className="text-gray-500">— {p.slug}</span></div>)}{(!Array.isArray(data.notebookPosts)||data.notebookPosts.length===0) && <div className="text-xs text-gray-400">No posts with tag notebook — create via Blog → tag notebook</div>}</div>
       </div>
     </div>
   );
 }
-function Reports({data}){ const board=data.leaderboard||[]; return <div><h3 className="font-bold">Reports — Loyalty Leaderboard</h3><div className="mt-3 space-y-1">{board.map((b,i)=> <div key={i} className="flex justify-between text-xs border rounded-lg p-2"><span>#{i+1} {b.email}</span><span>{b.points} pts • {b.tier}</span></div>)}{board.length===0 && <div className="text-xs text-gray-400">No points yet</div>}</div></div>; }
+function Reports({data}){ const board=Array.isArray(data.leaderboard)?data.leaderboard:[]; return <div><h3 className="font-bold">Reports — Loyalty Leaderboard</h3><div className="mt-3 space-y-1">{(Array.isArray(board)?board:[]).map((b,i)=> <div key={i} className="flex justify-between text-xs border rounded-lg p-2"><span>#{i+1} {b.email}</span><span>{b.points} pts • {b.tier}</span></div>)}{(!Array.isArray(board)||board.length===0) && <div className="text-xs text-gray-400">No points yet</div>}</div></div>; }

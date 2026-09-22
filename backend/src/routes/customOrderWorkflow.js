@@ -30,7 +30,7 @@ router.patch('/:id/state', requireAuth, requireRole('admin','developer','maker')
     for (const line of (order.bomSnapshot || [])) {
       try {
         await prisma.rawMaterial.update({ where: { id: line.rawMaterialId }, data: { onHand: { decrement: line.effectiveQty } } });
-        await prisma.stockMovement.create({ data: { productId: order.productId || 'custom', rawMaterialId: line.rawMaterialId, type: 'bom_deduct', quantity: -Math.round(line.effectiveQty), reason: `Custom order ${order.orderNumber} → Cricut Cutting`, reference: order.id, userId: req.user.id } });
+        await prisma.stockMovement.create({ data: { productId: order.productId || undefined, rawMaterialId: line.rawMaterialId, type: 'bom_deduct', quantity: -Math.round(line.effectiveQty), reason: `Custom order ${order.orderNumber} → Cricut Cutting`, reference: order.id, userId: req.user.id } });
       } catch {}
     }
   }

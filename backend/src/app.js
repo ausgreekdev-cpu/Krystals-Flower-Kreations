@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
@@ -31,8 +33,9 @@ import productVariantsRoutes from './routes/productVariants.js';
 import collectionsRoutes from './routes/collections.js';
 import reviewsRoutes from './routes/reviews.js';
 import discountsRoutes from './routes/discounts.js';
+import usersRoutes from './routes/users.js';
+import settingsRoutes from './routes/settings.js';
 
-import path from 'path';
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
 import { globalRateLimit } from './middleware/rate-limit.js';
@@ -76,8 +79,10 @@ app.use('/api', globalRateLimit(300, 1));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Static uploads (product images) — $0 local filesystem, served via /uploads
-const uploadDir = path.resolve('backend/uploads');
+// Static uploads (product images) — $0 local filesystem, served via /uploads.
+// Resolve relative to this module so uploads work regardless of CWD.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadDir = path.resolve(__dirname, '../uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
 
@@ -115,6 +120,8 @@ app.use('/api/variants', productVariantsRoutes); // was implicit in products
 app.use('/api/collections', collectionsRoutes); // was inline below (now via file, keep compat alias)
 app.use('/api/reviews', reviewsRoutes);
 app.use('/api/discounts', discountsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Collections (thin) — kept for compat, now also via collectionsRoutes at /api/collections
 app.get('/api/collections-legacy', async (req, res, next) => {

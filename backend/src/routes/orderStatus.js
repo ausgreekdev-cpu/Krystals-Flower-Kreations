@@ -3,12 +3,14 @@ import prisma from '../lib/prisma.js';
 import { authenticate } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 
+const ORDER_STATUSES = ['draft','pending_payment','paid','making','ready','shipped','delivered','cancelled','refunded','partially_refunded'];
+
 const router = Router();
 
 router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   if (!['admin','developer','maker','staff'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   const { status, note } = req.body;
-  if (!status || typeof status !== 'string' || status.length > 50) return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
+  if (!ORDER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
   const current = await prisma.order.findUnique({ where: { id: req.params.id } });
   if (!current) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   const order = await prisma.order.update({ where: { id: req.params.id }, data: { status, paymentStatus: status==='paid' ? 'paid' : undefined } });

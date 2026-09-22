@@ -80,7 +80,6 @@ router.post('/materials/:id/adjust', requireAuth, requireRole('admin','developer
   const mat = await prisma.rawMaterial.update({ where: { id: req.params.id }, data: { onHand: { increment: qty } } });
   await prisma.stockMovement.create({
     data: {
-      productId: 'raw',
       rawMaterialId: mat.id,
       type: qty >= 0 ? 'in' : 'out',
       quantity: qty,

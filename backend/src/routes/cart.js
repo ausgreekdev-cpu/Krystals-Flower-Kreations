@@ -14,12 +14,12 @@ function getCartId(req) {
   return req.headers['x-cart-id'] || req.cookies?.cartId;
 }
 
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const cartId = getCartId(req);
   if (!cartId) return res.json({ cart: null, items: [] });
   const cart = await prisma.cart.findUnique({ where: { id: cartId }, include: { items: { include: { product: { include: { images: true } }, variant: true } } } });
   res.json(cart || { cart: null, items: [] });
-});
+}));
 
 router.post('/add', cartAddLimit, validate(z.object({ productId: z.string().min(8).max(100), variantId: z.string().min(8).max(100).optional().nullable(), quantity: z.number().int().finite().min(1).max(99).default(1), cartId: z.string().min(8).max(100).optional().nullable() })), asyncHandler(async (req, res) => {
   const { productId, variantId, quantity, cartId: incomingId } = req.validated;
@@ -67,10 +67,10 @@ router.post('/update', validate(z.object({ itemId: z.string().min(8).max(100), q
   res.json({ ok: true });
 }));
 
-router.delete('/:cartId', async (req, res) => {
+router.delete('/:cartId', asyncHandler(async (req, res) => {
   await prisma.cartItem.deleteMany({ where: { cartId: req.params.cartId } });
   await prisma.cart.delete({ where: { id: req.params.cartId } }).catch(()=>{});
   res.json({ ok: true });
-});
+}));
 
 export default router;

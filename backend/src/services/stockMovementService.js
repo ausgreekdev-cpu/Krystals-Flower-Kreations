@@ -5,7 +5,7 @@ export async function recordMovement(txOrPrisma, { productId, variantId, locatio
   if (!Number.isFinite(quantity) || quantity === 0) throw new Error('quantity must be finite non-zero');
   return p.stockMovement.create({
     data: {
-      productId: productId || 'raw',
+      productId: productId || undefined,
       variantId: variantId || null,
       locationId: locationId || null,
       rawMaterialId: rawMaterialId || null,

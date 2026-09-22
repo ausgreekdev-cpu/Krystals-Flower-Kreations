@@ -27,12 +27,13 @@ const adjustSchema = z.object({
 router.post('/adjust', adjustLimit, validate(adjustSchema), asyncHandler(async (req, res) => {
   const { productId, variantId, locationId, quantity, reason } = req.validated;
   if (!Number.isFinite(quantity) || quantity===0) return res.status(400).json({ error: 'quantity must be finite non-zero', code: 'validation_failed' });
-  const level = await prisma.inventoryLevel.upsert({
-    where: { productId_variantId_locationId: { productId, variantId: variantId || null, locationId } },
-    create: { productId, variantId: variantId || null, locationId, onHand: quantity },
-    update: { onHand: { increment: quantity } },
-  });
-  await prisma.stockMovement.create({ data: { productId, variantId: variantId || null, locationId, type: quantity >= 0 ? 'in' : 'out', quantity, reason: reason?.slice(0,500), userId: req.user.id } });
+  // Prisma upsert rejects null on the @@unique nullable variantId member.
+  const vId = variantId || null;
+  const existing = await prisma.inventoryLevel.findFirst({ where: { productId, variantId: vId, locationId } });
+  const level = existing
+    ? await prisma.inventoryLevel.update({ where: { id: existing.id }, data: { onHand: { increment: quantity } } })
+    : await prisma.inventoryLevel.create({ data: { productId, variantId: vId, locationId, onHand: quantity } });
+  await prisma.stockMovement.create({ data: { productId, variantId: vId, locationId, type: quantity >= 0 ? 'in' : 'out', quantity, reason: reason?.slice(0,500), userId: req.user.id } });
   // also update variant inventoryQuantity atomically
   if (variantId) {
     await prisma.productVariant.update({ where: { id: variantId }, data: { inventoryQuantity: { increment: quantity } } }).catch(()=>{});

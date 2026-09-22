@@ -7,7 +7,7 @@ const ALLOWED_MIME = new Set([
 
 export const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 3 }, // 5MB per file, max 3 files (was 50MB)
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 }, // 5MB per file, max 5 files (matches products upload.array('images', 5))
   fileFilter: (req, file, cb) => {
     if (ALLOWED_MIME.has(file.mimetype)) return cb(null, true);
     cb(new Error('File type not allowed'));

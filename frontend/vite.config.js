@@ -14,9 +14,9 @@ export default defineConfig({
       display: 'standalone',
       start_url: '/',
       icons: [
-        { src: 'favicon.png', sizes: '48x48', type: 'image/png' },
-        { src: 'apple-touch-icon.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: 'apple-touch-icon.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        { src: 'favicon.png', sizes: '1024x1024', type: 'image/png' },
+        { src: 'apple-touch-icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' },
+        { src: 'apple-touch-icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'maskable' }
       ]
     },
     workbox: {

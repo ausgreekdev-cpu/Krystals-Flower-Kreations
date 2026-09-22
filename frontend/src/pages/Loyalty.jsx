@@ -17,7 +17,7 @@ export default function Loyalty(){
       <h1 className="text-2xl font-black text-bloom-700">Bloom Points — $0 Loyalty</h1>
       <p className="text-sm text-gray-600">1 pt per $1. Earn for review, referral, streak. No paid gamification — all free Postgres.</p>
       <div className="bg-white border rounded-2xl p-6">
-        {!me ? <div className="text-sm text-gray-600">Login to see your points. <a href="/login" className="underline text-bloom-500">Login</a> or continue as guest for leaderboard.</div> : (
+        {!me ? <div className="text-sm text-gray-600">Login to see your points. <a href="/admin" className="underline text-bloom-500">Staff login</a> or continue as guest for leaderboard.</div> : (
           <div>
             <div className="flex justify-between items-center"><span className="font-bold text-bloom-700">{me.email}</span><span className={`px-3 py-1 rounded-full text-xs font-bold ${tierColor[me.tier]||'bg-gray-100'}`}>{me.tier} • {me.points} pts</span></div>
             <div className="mt-3 text-xs text-gray-500">Tier: seedling 0 → blossom 100 → garden 500. Redeem 100 pts = $5 off. Garden gets early lamp drops.</div>

@@ -49,7 +49,7 @@ router.post('/:id/adjust', requireAuth, requireRole('admin','developer','maker',
   if (typeof qty !== 'number' || !Number.isFinite(qty)) return res.status(400).json({ error: 'qty must be finite number', code: 'validation_failed' });
   const id = String(req.params.id).slice(0,100);
   const mat = await prisma.rawMaterial.update({ where: { id }, data: { onHand: { increment: qty } } });
-  await prisma.stockMovement.create({ data: { productId: 'raw', rawMaterialId: mat.id, type: qty >= 0 ? 'in' : 'out', quantity: qty, reason: String(reason || 'manual adjustment').slice(0,500), userId: req.user.id } });
+  await prisma.stockMovement.create({ data: { rawMaterialId: mat.id, type: qty >= 0 ? 'in' : 'out', quantity: qty, reason: String(reason || 'manual adjustment').slice(0,500), userId: req.user.id } });
   res.json(mat);
 }));
 

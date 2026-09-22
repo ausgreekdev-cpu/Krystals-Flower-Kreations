@@ -40,6 +40,8 @@ export const catalogApi = {
 export const cartApi = {
   get: (cartId?: string) => req<any>(`/api/cart`, { headers: cartId ? { 'x-cart-id': cartId } : undefined }),
   add: (body: any) => req<{ cartId: string; cart: any }>('/api/cart/add', { method: 'POST', body: JSON.stringify(body) }),
+  update: (body: any) => req<any>('/api/cart/update', { method: 'POST', body: JSON.stringify(body) }),
+  clear: (cartId: string) => req<any>(`/api/cart/${cartId}`, { method: 'DELETE' }),
 };
 export const ordersApi = {
   checkout: (body: any, idempotencyKey?: string) => req<any>('/api/orders/checkout', { method: 'POST', body: JSON.stringify(body), idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),

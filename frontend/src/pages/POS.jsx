@@ -11,8 +11,8 @@ export default function POS(){
   const token = localStorage.getItem('token') || '';
   function showToast(msg, isErr=false){ setToast(msg); setToastErr(isErr); setTimeout(()=>setToast(''), 4000); }
 
-  async function loadProducts(){ fetch('/api/products?limit=50').then(r=>r.json()).then(d=> setProducts(Array.isArray(d)?d: (Array.isArray(d.products)?d.products:[]))).catch(()=> setProducts([])); }
-  async function loadSession(){ if(!token) return; fetch('/api/pos/session/current', { headers:{ Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json():null).then(setSession).catch(()=>{}); }
+  async function loadProducts(){ fetch('/api/products?limit=50').then(r=>r.json()).then(d=> setProducts(Array.isArray(d)?d: (Array.isArray(d.products)?d.products:[]))).catch(()=>{ setProducts([]); showToast('Failed to load products', true); }); }
+  async function loadSession(){ if(!token) return; fetch('/api/pos/session/current', { headers:{ Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json():null).then(setSession).catch(()=>{ showToast('Failed to load till session', true); }); }
   async function refreshQueue(){ setQueue(await getQueue()); }
 
   useEffect(()=>{ loadProducts(); loadSession(); refreshQueue(); const off=onOnline(()=>{ flushQueue(token).then(refreshQueue); }); return off; }, []);

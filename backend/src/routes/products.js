@@ -8,6 +8,9 @@ import { rateLimit } from '../middleware/rate-limit.js';
 import { upload } from '../middleware/upload.js';
 import sharp from 'sharp';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import fs from 'fs';
 const requireAuth = authenticate;
 
@@ -96,7 +99,7 @@ router.post('/:id/images', requireAuth, requireRole('admin','developer','maker',
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
   if (!req.files || req.files.length===0) return res.status(400).json({ error: 'No images', code: 'validation_failed' });
-  const uploadDir = path.resolve('backend/uploads/products');
+  const uploadDir = path.resolve(__dirname, '../../uploads/products');
   fs.mkdirSync(uploadDir, { recursive: true });
   const created = [];
   for (const file of req.files) {

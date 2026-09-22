@@ -11,6 +11,8 @@ import { sendOrderConfirmation } from '../services/email.js';
 
 const router = Router();
 
+const ORDER_STATUSES = ['draft','pending_payment','paid','making','ready','shipped','delivered','cancelled','refunded','partially_refunded'];
+
 function orderNumber() {
   const d = new Date();
   return `KFK-${d.getFullYear()}-${Math.random().toString(36).toUpperCase().slice(2,7)}${Date.now().toString().slice(-4)}`;
@@ -77,10 +79,13 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   const gst = calculateGstInclusive(total);
 
   // Atomic inventory deduction + order create in transaction
+  const pendingLedgerKey = `pending_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   const order = await prisma.$transaction(async (tx) => {
-    // Check and decrement variant stock for tracked items
+    // Check and decrement variant stock for tracked items (also covers tracked
+    // products without variants via the default-location InventoryLevel row)
     for (const it of cart.items) {
-      if (it.variantId && it.product.stockMode === 'tracked') {
+      if (it.product.stockMode !== 'tracked') continue;
+      if (it.variantId) {
         const updated = await tx.productVariant.updateMany({
           where: { id: it.variantId, inventoryQuantity: { gte: it.quantity } },
           data: { inventoryQuantity: { decrement: it.quantity } }
@@ -91,8 +96,19 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
         }
         // Ledger
         await tx.inventoryLedger.create({
-          data: { variantId: it.variantId, delta: -it.quantity, reason: 'sale', orderId: 'pending' }
+          data: { variantId: it.variantId, delta: -it.quantity, reason: 'sale', orderId: pendingLedgerKey }
         });
+      } else {
+        // Tracked product without a variant — use its default-location InventoryLevel
+        const loc = await tx.inventoryLocation.findFirst({ where: { isDefault: true } }) || await tx.inventoryLocation.findFirst();
+        const level = loc ? await tx.inventoryLevel.findFirst({ where: { productId: it.productId, variantId: null, locationId: loc.id } }) : null;
+        if (!level || level.onHand < it.quantity) {
+          throw Object.assign(new Error(`Insufficient stock for ${it.product.title}: only ${level?.onHand ?? 0} left`), { status: 422, code: 'out_of_stock' });
+        }
+        await tx.inventoryLevel.update({ where: { id: level.id }, data: { onHand: { decrement: it.quantity } } });
+        if (loc) {
+          await tx.stockMovement.create({ data: { productId: it.productId, variantId: null, locationId: loc.id, type: 'sale', quantity: -it.quantity, reference: 'checkout', userId: null } });
+        }
       }
     }
 
@@ -120,8 +136,9 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
       }, include: { lines: true }
     });
 
-    // Update ledger orderIds from pending to real
-    await tx.inventoryLedger.updateMany({ where: { orderId: 'pending' }, data: { orderId: created.id } }).catch(()=>{});
+    // Update ledger orderIds from pending to real (unique per checkout, so
+    // concurrent orders never steal each other's ledger rows)
+    await tx.inventoryLedger.updateMany({ where: { orderId: pendingLedgerKey }, data: { orderId: created.id } }).catch(()=>{});
 
     // Increment discount usedCount
     if (appliedDiscount) {
@@ -184,7 +201,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
 router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   if (!['admin','developer','maker','staff'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   const { status, note } = req.body;
-  if (!status || typeof status !== 'string' || status.length > 50) return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
+  if (!ORDER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
   const current = await prisma.order.findUnique({ where: { id: req.params.id } });
   if (!current) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   const order = await prisma.order.update({ where: { id: req.params.id }, data: { status, paymentStatus: status==='paid' ? 'paid' : undefined } });

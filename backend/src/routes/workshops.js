@@ -31,18 +31,18 @@ const workshopSchema = z.object({
   location: z.string().optional().nullable(), durationMinutes: z.number().int().optional().nullable(),
 });
 
-router.post('/', requireAuth, requireRole('admin','developer','maker'), async (req, res) => {
+router.post('/', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
   const data = workshopSchema.parse(req.body);
   const w = await prisma.workshop.create({ data });
   res.status(201).json(w);
-});
+}));
 
-router.post('/:id/sessions', requireAuth, requireRole('admin','developer','maker'), async (req, res) => {
+router.post('/:id/sessions', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
   const schema = z.object({ startsAt: z.string(), endsAt: z.string(), capacity: z.number().int().optional() });
   const data = schema.parse(req.body);
   const session = await prisma.workshopSession.create({ data: { workshopId: req.params.id, startsAt: new Date(data.startsAt), endsAt: new Date(data.endsAt), capacity: data.capacity || 12 } });
   res.status(201).json(session);
-});
+}));
 
 // Book a session — atomic capacity check + QR ticket generation
 router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res) => {
@@ -89,10 +89,10 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
 }));
 
 // Ticket lookup for workshop check-in at POS
-router.get('/tickets/:qrPayload', async (req, res) => {
+router.get('/tickets/:qrPayload', asyncHandler(async (req, res) => {
   const ticket = await prisma.ticket.findUnique({ where: { qrPayload: req.params.qrPayload }, include: { booking: { include: { session: { include: { workshop: true } } } } } });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
   res.json(ticket);
-});
+}));
 
 export default router;

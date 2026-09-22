@@ -13,7 +13,8 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     quantity: z.number().int().finite().min(1).max(10).default(1),
     kitAddOn: z.boolean().default(false),
     totalPaid: z.number().finite().nonnegative().max(100000).optional(),
-  }).strict();
+    sessionId: z.string().min(8).max(100).optional(), // accepted for convenience (route param is authoritative)
+  });
   const data = schema.parse(req.body);
   const result = await prisma.$transaction(async (tx) => {
     const session = await tx.workshopSession.findUnique({ where: { id: req.params.sessionId }, include: { workshop: true } });

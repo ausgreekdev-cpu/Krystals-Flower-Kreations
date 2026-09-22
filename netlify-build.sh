@@ -15,10 +15,12 @@ rm -rf frontend/dist
 echo "=== Backend deps (for function bundling) + Prisma ==="
 cd backend
 # ci fails if lock out of sync — fall back to install to auto-sync (fixes Missing: serverless-http, react-native-web etc.)
+# Keep dev deps (prisma CLI) installed so `npx prisma generate` works; esbuild
+# only bundles imported modules into the function so dev deps don't bloat it.
 if [ -f package-lock.json ]; then
-  npm ci --prefer-offline --no-audit --omit=dev 2>&1 || npm install --omit=dev --no-audit 2>&1
+  npm ci --prefer-offline --no-audit 2>&1 || npm install --no-audit 2>&1
 else
-  npm install --omit=dev --no-audit 2>&1
+  npm install --no-audit 2>&1
 fi
 echo ">>> Prisma generate"
 npx prisma generate 2>&1

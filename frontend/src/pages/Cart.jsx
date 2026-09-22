@@ -4,28 +4,28 @@ import { cartApi } from '../lib/api/customClient';
 
 export default function Cart(){
   const nav=useNavigate();
-  const [cart,setCart]=useState(null); const [loading,setLoading]=useState(true);
+  const [cart,setCart]=useState(null); const [loading,setLoading]=useState(true); const [err,setErr]=useState('');
   async function load(){
+    setErr('');
     const cartId = localStorage.getItem('cartId');
     if(!cartId){ setCart(null); setLoading(false); return; }
-    try{ const data = await cartApi.get(cartId); setCart(data.cart || data); }catch{ setCart(null); }
+    try{ const data = await cartApi.get(cartId); setCart(data.cart || data); }
+    catch(e){ setErr(e.message||'Failed to load cart'); setCart(null); }
     setLoading(false);
   }
   useEffect(()=>{ load(); }, []);
-  const [err,setErr]=useState('');
   async function updateQty(itemId, qty){
     setErr('');
     try{
-      if(qty<=0){ await fetch(`/api/cart/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({itemId, quantity:0})}); }
-      else { await fetch(`/api/cart/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({itemId, quantity:qty})}); }
+      await cartApi.update({ itemId, quantity: qty });
       window.dispatchEvent(new CustomEvent('cart:updated'));
-    }catch(e){ setErr(e.message); }
+    }catch(e){ setErr(e.message||'Update failed'); }
     load();
   }
   async function clearCart(){
     const cartId = localStorage.getItem('cartId');
     if(!cartId) return;
-    await fetch(`/api/cart/${cartId}`, {method:'DELETE'}).catch(()=>{});
+    try{ await cartApi.clear(cartId); }catch(e){ setErr(e.message||'Clear failed'); }
     localStorage.removeItem('cartId');
     window.dispatchEvent(new CustomEvent('cart:updated'));
     load();
