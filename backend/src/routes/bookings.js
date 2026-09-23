@@ -1,11 +1,28 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
+import { requireAuth, requireRole } from '../lib/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 
 const router = Router();
 const bookLimit = rateLimit('workshop_book', 10, 1);
+
+// Admin: list bookings, optionally filtered by session or status
+router.get('/', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const sessionId = req.query.sessionId ? String(req.query.sessionId).slice(0,100) : undefined;
+  const status = req.query.status ? String(req.query.status).slice(0,20) : undefined;
+  const where = {};
+  if (sessionId) where.sessionId = sessionId;
+  if (status) where.status = status;
+  const bookings = await prisma.booking.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: { session: { include: { workshop: { select: { id: true, title: true } } } }, ticket: true },
+  });
+  res.json(bookings);
+}));
 
 router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res) => {
   const schema = z.object({

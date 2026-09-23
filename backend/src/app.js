@@ -30,7 +30,7 @@ import customOrderWorkflowRoutes from './routes/customOrderWorkflow.js';
 import productVariantsRoutes from './routes/productVariants.js';
 import collectionsRoutes from './routes/collections.js';
 import reviewsRoutes from './routes/reviews.js';
-import discountsRoutes from './routes/discounts.js';
+import discountsRoutes, { adminDiscountsRouter } from './routes/discounts.js';
 import usersRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 
@@ -116,6 +116,7 @@ app.use('/api/variants', productVariantsRoutes); // was implicit in products
 app.use('/api/collections', collectionsRoutes); // was inline below (now via file, keep compat alias)
 app.use('/api/reviews', reviewsRoutes);
 app.use('/api/discounts', discountsRoutes);
+app.use('/api/discounts/admin', adminDiscountsRouter);
 app.use('/api/users', usersRoutes);
 app.use('/api/settings', settingsRoutes);
 

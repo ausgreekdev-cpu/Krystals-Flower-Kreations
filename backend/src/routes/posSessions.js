@@ -21,6 +21,27 @@ router.get('/current', asyncHandler(async (req, res) => {
   res.json(session);
 }));
 
+// Admin: session history (open + closed tills) with payment counts/values
+router.get('/', asyncHandler(async (req, res) => {
+  const sessions = await prisma.posSession.findMany({
+    orderBy: { openedAt: 'desc' },
+    take: 50,
+    include: { payments: { select: { id: true, amount: true, method: true } } },
+  });
+  res.json(sessions);
+}));
+
+// Admin: POS sales history — orders created via POS (paymentStatus paid, POS- order numbers)
+router.get('/sales', asyncHandler(async (req, res) => {
+  const sales = await prisma.order.findMany({
+    where: { orderNumber: { startsWith: 'POS-' } },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    include: { lines: { select: { title: true, quantity: true, unitPrice: true } }, payments: { select: { method: true, amount: true } } },
+  });
+  res.json(sales);
+}));
+
 const closeSchema = z.object({ closingCash: z.number().finite().nonnegative().max(100000) }).strict();
 router.post('/:id/close', validate(closeSchema), asyncHandler(async (req, res) => {
   const { closingCash } = req.validated;

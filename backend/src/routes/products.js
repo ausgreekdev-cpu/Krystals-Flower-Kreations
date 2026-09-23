@@ -123,4 +123,20 @@ router.post('/:id/images', requireAuth, requireRole('admin','developer','maker',
   res.status(201).json(created);
 }));
 
+// Delete a product image (removes file + DB row)
+router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const image = await prisma.productImage.findUnique({ where: { id: String(req.params.imageId).slice(0,100) } });
+  if (!image) return res.status(404).json({ error: 'Image not found', code: 'not_found' });
+  if (image.productId !== req.params.productId) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  await prisma.productImage.delete({ where: { id: image.id } });
+  try {
+    const name = image.url.split('/').pop();
+    if (name && /^[a-zA-Z0-9_-]+\.jpg$/.test(name)) {
+      const f = path.resolve(__dirname, '../../uploads/products', name);
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+  } catch {}
+  res.json({ ok: true });
+}));
+
 export default router;

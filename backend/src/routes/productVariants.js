@@ -29,13 +29,19 @@ router.post('/products/:productId/variants', requireAuth, requireRole('admin','d
   res.status(201).json(variant);
 }));
 
-router.patch('/variants/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(variantSchema.partial()), asyncHandler(async (req, res) => {
+// List variants for a product (staff+)
+router.get('/products/:productId/variants', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const variants = await prisma.productVariant.findMany({ where: { productId: String(req.params.productId).slice(0,100) }, orderBy: { title: 'asc' } });
+  res.json(variants);
+}));
+
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(variantSchema.partial()), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   const variant = await prisma.productVariant.update({ where: { id }, data: req.validated });
   res.json(variant);
 }));
 
-router.delete('/variants/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
   await prisma.productVariant.delete({ where: { id: String(req.params.id).slice(0,100) } });
   res.json({ ok: true });
 }));

@@ -77,6 +77,7 @@ export const adminApi = {
       Array.from(files).forEach((f) => fd.append('images', f));
       return req<any>(`/api/products/${id}/images`, { method: 'POST', body: fd as any, token, headers: {} as any });
     },
+    deleteImage: (productId: string, imageId: string, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'DELETE', token }),
   },
   inventory: {
     levels: (token: string) => req<any[]>('/api/inventory/levels', { token }),
@@ -124,5 +125,21 @@ export const adminApi = {
   },
   notebook: {
     posts: () => req<any[]>('/api/posts?tag=notebook'),
+  },
+  discounts: {
+    list: (token: string) => req<any[]>('/api/discounts/admin', { token }),
+    create: (body: any, token: string) => req<any>('/api/discounts/admin', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/discounts/admin/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/discounts/admin/${id}`, { method: 'DELETE', token }),
+  },
+  bookings: {
+    list: (token: string) => req<any[]>('/api/bookings', { token }),
+  },
+  pos: {
+    current: (token: string) => req<any>('/api/pos/session/current', { token }),
+    open: (body: any, token: string) => req<any>('/api/pos/session/open', { method: 'POST', body: JSON.stringify(body), token }),
+    close: (id: string, closingCash: number, token: string) => req<any>(`/api/pos/session/${id}/close`, { method: 'POST', body: JSON.stringify({ closingCash }), token }),
+    sessions: (token: string) => req<any[]>('/api/pos/sessions', { token }),
+    sales: (token: string) => req<any[]>('/api/pos/sessions/sales', { token }),
   },
 };

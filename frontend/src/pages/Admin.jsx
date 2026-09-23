@@ -11,8 +11,10 @@ const TABS = [
   { id: 'inventory', label: 'Inventory', icon: '📦' },
   { id: 'products', label: 'Products', icon: '🌹' },
   { id: 'workshops', label: 'Workshops', icon: '🎨' },
+  { id: 'bookings', label: 'Bookings', icon: '🎟️' },
   { id: 'reviews', label: 'Reviews', icon: '⭐' },
   { id: 'blog', label: 'Blog', icon: '📝' },
+  { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'pos', label: 'POS', icon: '💳' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📈' },
@@ -58,6 +60,12 @@ function AdminInner() {
       } else if (tabId === 'workshops') {
         const workshops = await adminApi.workshops.list().catch(() => []);
         setData((s) => ({ ...s, workshops }));
+      } else if (tabId === 'bookings') {
+        const bookings = await adminApi.bookings.list(token).catch(() => []);
+        setData((s) => ({ ...s, bookings }));
+      } else if (tabId === 'discounts') {
+        const discounts = await adminApi.discounts.list(token).catch(() => []);
+        setData((s) => ({ ...s, discounts }));
       } else if (tabId === 'reviews') {
         const reviews = await adminApi.reviews.pending(token).catch(() => []);
         setData((s) => ({ ...s, reviews }));
@@ -65,8 +73,12 @@ function AdminInner() {
         const posts = await adminApi.posts.list(token).catch(() => []);
         setData((s) => ({ ...s, posts }));
       } else if (tabId === 'pos') {
-        const posSession = await adminApi.pos.current(token).catch(() => null);
-        setData((s) => ({ ...s, posSession }));
+        const [posSession, posSessions, posSales] = await Promise.all([
+          adminApi.pos.current(token).catch(() => null),
+          adminApi.pos.sessions(token).catch(() => []),
+          adminApi.pos.sales(token).catch(() => []),
+        ]);
+        setData((s) => ({ ...s, posSession, posSessions, posSales }));
       } else if (tabId === 'users') {
         const users = await adminApi.users.list(token).catch(() => []);
         setData((s) => ({ ...s, users }));
@@ -141,10 +153,12 @@ function AdminInner() {
                   {tab === 'inventory' && <Inventory data={data} reload={() => load('inventory')} token={token} />}
                   {tab === 'products' && <Products data={data} reload={() => load('products')} token={token} />}
                   {tab === 'workshops' && <Workshops data={data} reload={() => load('workshops')} token={token} />}
+                  {tab === 'bookings' && <Bookings data={data} reload={() => load('bookings')} token={token} />}
+                  {tab === 'discounts' && <Discounts data={data} reload={() => load('discounts')} token={token} />}
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
-                  {tab === 'users' && <Users data={data} />}
+                  {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
                   {tab === 'notebook' && <NotebookAdmin data={data} onSave={(url) => setData((s) => ({ ...s, notebookUrl: url }))} token={token} />}
@@ -429,6 +443,21 @@ function ProductModal({ product, onClose, onSaved, token }) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} /> Featured</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active (visible in shop)</label>
       </div>
+      {product && (product.images || []).length > 0 && (
+        <div className="mt-4">
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Images</label>
+          <div className="flex flex-wrap gap-2">
+            {(product.images || []).map((img) => (
+              <div key={img.id} className="relative group">
+                <img src={img.url} alt={img.alt || product.title} className="w-16 h-16 rounded-lg object-cover border border-gray-200" loading="lazy" />
+                <button type="button" title="Delete image"
+                  onClick={async () => { try { await adminApi.products.deleteImage(product.id, img.id, token); onSaved(); } catch (e) { toast(e.message, 'error'); } }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <Btn color="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={save} disabled={busy || !form.title || !form.slug}>{busy ? 'Saving…' : product ? 'Save changes' : 'Create product'}</Btn>
@@ -510,6 +539,96 @@ function SessionModal({ workshop, onClose, onSaved, token }) {
       <div><label className="block text-xs font-semibold text-gray-600 mb-1">Capacity</label><input type="number" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></div>
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !startsAt}>{busy ? 'Saving…' : 'Add session'}</Btn></div>
+  </Modal>;
+}
+
+function Bookings({ data }) {
+  const bookings = Array.isArray(data.bookings) ? data.bookings : [];
+  const confirmed = bookings.filter((b) => b.status === 'confirmed' || b.status === 'attended').length;
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-gray-500">{bookings.length} bookings • {confirmed} confirmed/attended</div>
+      {bookings.map((b) => (
+        <div key={b.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-gray-800">{b.name} <span className="text-gray-400 font-normal">• {b.email}</span></div>
+            <div className="text-xs text-gray-500">{b.session?.workshop?.title} • {b.session ? new Date(b.session.startsAt).toLocaleDateString('en-AU') : ''} • qty {b.quantity}</div>
+          </div>
+          <StatusBadge value={b.status} />
+          <span className="text-xs font-bold text-royal-700">${Number(b.totalPaid).toFixed(2)}</span>
+          {b.ticket && <span className="text-[10px] text-gray-400 font-mono" title={b.ticket.qrPayload}>✓ ticket</span>}
+        </div>
+      ))}
+      {bookings.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No bookings yet</div>}
+    </div>
+  );
+}
+
+function Discounts({ data, reload, token }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const discounts = Array.isArray(data.discounts) ? data.discounts : [];
+  async function toggle(d) { try { await adminApi.discounts.update(d.id, { isActive: !d.isActive }, token); toast('Discount updated'); reload(); } catch (e) { toast(e.message, 'error'); } }
+  async function doDelete() { try { await adminApi.discounts.remove(confirmDel.id, token); toast('Discount deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{discounts.length} discount codes</div><Btn onClick={() => setEditing({})}>+ New code</Btn></div>
+      {discounts.map((d) => (
+        <div key={d.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2"><span className="font-black text-royal-700">{d.code}</span><StatusBadge value={d.isActive ? 'published' : 'archived'} /></div>
+            <div className="text-xs text-gray-500">{d.type === 'percent' ? `${d.value}% off` : `$${Number(d.value).toFixed(2)} off`}{d.minSpend ? ` • min $${Number(d.minSpend).toFixed(2)}` : ''}{d.maxUses ? ` • used ${d.usedCount}/${d.maxUses}` : ''}</div>
+          </div>
+          <Btn small color="ghost" onClick={() => setEditing(d)}>Edit</Btn>
+          <Btn small color="ghost" onClick={() => toggle(d)}>{d.isActive ? 'Disable' : 'Enable'}</Btn>
+          <Btn small color="red" onClick={() => setConfirmDel(d)}>Delete</Btn>
+        </div>
+      ))}
+      {discounts.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No discounts</div>}
+      {editing && <DiscountModal discount={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Discount updated' : 'Discount created'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete discount" message={`Delete code "${confirmDel.code}"?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+function DiscountModal({ discount, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({
+    code: discount?.code || '', description: discount?.description || '', type: discount?.type || 'percent',
+    value: discount ? Number(discount.value) : '', minSpend: discount?.minSpend ? Number(discount.minSpend) : '',
+    maxUses: discount?.maxUses || '', isActive: discount ? !!discount.isActive : true,
+  }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  async function save() {
+    setBusy(true);
+    try {
+      const body = { ...form, value: Number(form.value), minSpend: form.minSpend === '' ? null : Number(form.minSpend), maxUses: form.maxUses === '' ? null : Number(form.maxUses) };
+      if (discount) await adminApi.discounts.update(discount.id, body, token);
+      else await adminApi.discounts.create(body, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={discount ? 'Edit discount' : 'New discount'} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Code</label><input className={input} value={form.code} onChange={(e) => set('code', e.target.value)} /></div>
+        <div><label className={label}>Type</label>
+          <select className={input} value={form.type} onChange={(e) => set('type', e.target.value)}><option value="percent">Percent (%)</option><option value="fixed">Fixed ($)</option></select>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><label className={label}>Value</label><input type="number" step="0.01" className={input} value={form.value} onChange={(e) => set('value', e.target.value)} /></div>
+        <div><label className={label}>Min spend ($)</label><input type="number" step="0.01" className={input} value={form.minSpend} onChange={(e) => set('minSpend', e.target.value)} /></div>
+        <div><label className={label}>Max uses</label><input type="number" className={input} value={form.maxUses} onChange={(e) => set('maxUses', e.target.value)} /></div>
+      </div>
+      <div><label className={label}>Description</label><input className={input} value={form.description} onChange={(e) => set('description', e.target.value)} /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active</label>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.code || form.value === ''}>{busy ? 'Saving…' : discount ? 'Save changes' : 'Create'}</Btn></div>
   </Modal>;
 }
 
@@ -613,6 +732,9 @@ function POS({ data, reload, token }) {
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
+  const sessions = Array.isArray(data.posSessions) ? data.posSessions : [];
+  const sales = Array.isArray(data.posSales) ? data.posSales : [];
+  const totalSales = sales.reduce((a, o) => a + Number(o.total || 0), 0);
   return (
     <div className="space-y-4">
       <Card title="Point of Sale">
@@ -631,6 +753,20 @@ function POS({ data, reload, token }) {
           </div>
         )}
       </Card>
+      {sales.length > 0 && (
+        <Card title={`POS sales — ${sales.length} • $${totalSales.toFixed(2)}`}>
+          <div className="space-y-1">{sales.slice(0, 20).map((o) => (
+            <div key={o.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="font-medium text-gray-700">{o.orderNumber} <span className="text-gray-400">• {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-AU') : ''}</span></span><span className="font-bold text-royal-700">${Number(o.total).toFixed(2)}</span></div>
+          ))}</div>
+        </Card>
+      )}
+      {sessions.length > 0 && (
+        <Card title={`Till sessions — ${sessions.length}`}>
+          <div className="space-y-1">{sessions.slice(0, 15).map((se) => (
+            <div key={se.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span>{se.location} • {new Date(se.openedAt).toLocaleString()}</span><span className="flex items-center gap-2"><StatusBadge value={se.status} />{se.variance !== null && se.variance !== undefined && <span className={Number(se.variance) < 0 ? 'text-red-600' : 'text-emerald-600'}>var ${Number(se.variance).toFixed(2)}</span>}</span></div>
+          ))}</div>
+        </Card>
+      )}
       {closing && <Modal title="Close till" onClose={() => setClosing(false)}>
         <div><label className="block text-xs font-semibold text-gray-600 mb-1">Closing cash ($)</label><input type="number" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={closingCash} onChange={(e) => setClosingCash(e.target.value)} /></div>
         <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={() => setClosing(false)}>Cancel</Btn><Btn onClick={close} disabled={busy}>Close till</Btn></div>
@@ -639,10 +775,28 @@ function POS({ data, reload, token }) {
   );
 }
 
-function Users({ data }) {
+function Users({ data, reload, token }) {
+  const toast = useToast();
+  const [busyId, setBusyId] = useState('');
   const users = Array.isArray(data.users) ? data.users : [];
-  return <div><div className="text-xs text-gray-500 mb-3">{users.length} accounts</div><div className="grid sm:grid-cols-2 gap-2">
-    {users.map((u) => <div key={u.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-3 py-2 text-sm"><span className="font-medium text-gray-800 flex-1 truncate">{u.name}</span><span className="text-xs text-gray-500 truncate">{u.email}</span><StatusBadge value={u.role} /></div>)}
+  async function setRole(u, role) {
+    setBusyId(u.id);
+    try {
+      const res = await fetch(`/api/users/${u.id}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ role }) });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed'); }
+      toast(`Role → ${role}`); reload();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusyId(''); }
+  }
+  return <div><div className="text-xs text-gray-500 mb-3">{users.length} accounts — change a role to update access</div><div className="grid sm:grid-cols-2 gap-2">
+    {users.map((u) => <div key={u.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-3 py-2 text-sm">
+      <span className="font-medium text-gray-800 flex-1 truncate">{u.name}</span>
+      <span className="text-xs text-gray-500 truncate">{u.email}</span>
+      <select value={u.role} disabled={busyId === u.id} onChange={(e) => setRole(u, e.target.value)}
+        className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500">
+        <option value="customer">customer</option><option value="staff">staff</option><option value="maker">maker</option><option value="admin">admin</option><option value="developer">developer</option>
+      </select>
+    </div>)}
     {users.length === 0 && <div className="text-xs text-gray-400 py-8 text-center">No users</div>}
   </div></div>;
 }
