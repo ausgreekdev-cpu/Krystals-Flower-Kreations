@@ -5,6 +5,7 @@ dist/
 *.log
 .env
 .env.local
+.env.supabase
 coverage/
 prisma/migrations/
 uploads/
