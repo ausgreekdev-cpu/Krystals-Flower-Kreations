@@ -60,3 +60,69 @@ export const workshopsApi = {
   list: () => req<any[]>('/api/workshops'),
   book: (sessionId: string, body: any) => req<any>(`/api/workshops/sessions/${sessionId}/book`, { method: 'POST', body: JSON.stringify(body) }),
 };
+
+export const adminApi = {
+  orders: {
+    list: (token: string) => req<any[]>('/api/orders', { token }),
+    get: (orderNumber: string, token: string) => req<any>(`/api/orders/${orderNumber}`, { token }),
+    updateStatus: (id: string, status: string, note: string, token: string) => req<any>(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, note }), token }),
+  },
+  products: {
+    list: (token: string) => req<any>(`/api/products?limit=100&all=1`, { token }),
+    create: (body: any, token: string) => req<any>('/api/products', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/products/${id}`, { method: 'DELETE', token }),
+    uploadImages: (id: string, files: FileList, token: string) => {
+      const fd = new FormData();
+      Array.from(files).forEach((f) => fd.append('images', f));
+      return req<any>(`/api/products/${id}/images`, { method: 'POST', body: fd as any, token, headers: {} as any });
+    },
+  },
+  inventory: {
+    levels: (token: string) => req<any[]>('/api/inventory/levels', { token }),
+    adjust: (body: any, token: string) => req<any>('/api/inventory/adjust', { method: 'POST', body: JSON.stringify(body), token }),
+    locations: (token: string) => req<any[]>('/api/inventory/locations', { token }),
+    createLocation: (body: any, token: string) => req<any>('/api/inventory/locations', { method: 'POST', body: JSON.stringify(body), token }),
+    reconciliation: (token: string) => req<any[]>('/api/inventory/reconciliation', { token }),
+  },
+  materials: {
+    list: (token: string) => req<any[]>('/api/materials', { token }),
+    lowStock: (token: string) => req<any[]>('/api/materials/low-stock', { token }),
+    adjust: (id: string, qty: number, reason: string, token: string) => req<any>(`/api/materials/${id}/adjust`, { method: 'POST', body: JSON.stringify({ qty, reason }), token }),
+    create: (body: any, token: string) => req<any>('/api/materials', { method: 'POST', body: JSON.stringify(body), token }),
+  },
+  workshops: {
+    list: () => req<any[]>('/api/workshops'),
+    create: (body: any, token: string) => req<any>('/api/workshops', { method: 'POST', body: JSON.stringify(body), token }),
+    addSession: (workshopId: string, body: any, token: string) => req<any>(`/api/workshops/${workshopId}/sessions`, { method: 'POST', body: JSON.stringify(body), token }),
+  },
+  reviews: {
+    pending: (token: string) => req<any[]>('/api/reviews/pending', { token }),
+    approve: (id: string, token: string) => req<any>(`/api/reviews/${id}/approve`, { method: 'POST', token }),
+    remove: (id: string, token: string) => req<any>(`/api/reviews/${id}`, { method: 'DELETE', token }),
+  },
+  posts: {
+    list: (token: string) => req<any[]>(`/api/posts?status=all`, { token }),
+    create: (body: any, token: string) => req<any>('/api/posts', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/posts/${id}`, { method: 'DELETE', token }),
+  },
+  pos: {
+    current: (token: string) => req<any>('/api/pos/session/current', { token }),
+    open: (body: any, token: string) => req<any>('/api/pos/session/open', { method: 'POST', body: JSON.stringify(body), token }),
+    close: (id: string, closingCash: number, token: string) => req<any>(`/api/pos/session/${id}/close`, { method: 'POST', body: JSON.stringify({ closingCash }), token }),
+  },
+  settings: {
+    get: () => req<any>('/api/settings'),
+    save: (body: any, token: string) => req<any>('/api/settings', { method: 'PUT', body: JSON.stringify(body), token }),
+  },
+  users: {
+    list: (token: string) => req<any[]>('/api/users', { token }),
+  },
+  loyalty: {
+    leaderboard: () => req<any[]>('/api/loyalty/leaderboard'),
+  },
+  notebook: {
+    posts: () => req<any[]>('/api/posts?tag=notebook'),
+  },
+};

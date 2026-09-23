@@ -37,10 +37,10 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
   res.status(201).json(mat);
 }));
 
-router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict()), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
-  const mat = await prisma.rawMaterial.update({ where: { id }, data: req.body });
+  const mat = await prisma.rawMaterial.update({ where: { id }, data: req.validated });
   res.json(mat);
 }));
 

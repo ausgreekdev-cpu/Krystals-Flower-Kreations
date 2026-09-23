@@ -69,8 +69,8 @@ router.post('/materials', requireAuth, requireRole('admin','developer','maker','
   res.status(201).json(mat);
 }));
 
-router.patch('/materials/:id', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
-  const mat = await prisma.rawMaterial.update({ where: { id: req.params.id }, data: req.body });
+router.patch('/materials/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict()), asyncHandler(async (req, res) => {
+  const mat = await prisma.rawMaterial.update({ where: { id: req.params.id }, data: req.validated });
   res.json(mat);
 }));
 

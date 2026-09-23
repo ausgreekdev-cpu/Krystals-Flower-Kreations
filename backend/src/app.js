@@ -21,14 +21,12 @@ import loyaltyRoutes from './routes/loyalty.js';
 import sitemapRoutes from './routes/sitemap.js';
 // Separated routes (strengthen backend — single responsibility)
 import rawMaterialsRoutes from './routes/rawMaterials.js';
-import bomRecipesRoutes from './routes/bomRecipes.js';
 import configuratorPricingRoutes from './routes/configuratorPricing.js';
 import posSessionsRoutes from './routes/posSessions.js';
 import posSalesRoutes from './routes/posSales.js';
 import workshopSessionsRoutes from './routes/workshopSessions.js';
 import bookingsRoutes from './routes/bookings.js';
 import customOrderWorkflowRoutes from './routes/customOrderWorkflow.js';
-import orderStatusRoutes from './routes/orderStatus.js';
 import productVariantsRoutes from './routes/productVariants.js';
 import collectionsRoutes from './routes/collections.js';
 import reviewsRoutes from './routes/reviews.js';
@@ -108,14 +106,12 @@ app.use('/api/meta', metaRoutes);
 
 // Separated routes — single responsibility (new, preferred)
 app.use('/api/materials', rawMaterialsRoutes); // was /api/bom/materials
-app.use('/api/bom/recipes', bomRecipesRoutes); // was /api/bom/recipes
 app.use('/api/configurator', configuratorPricingRoutes); // was /api/bom/live
 app.use('/api/pos/sessions', posSessionsRoutes); // was /api/pos/session/*
 app.use('/api/pos/sales', posSalesRoutes); // was /api/pos/sale
 app.use('/api/workshop-sessions', workshopSessionsRoutes); // was /api/workshops/:id/sessions
 app.use('/api/bookings', bookingsRoutes); // was /api/workshops/sessions/:id/book + tickets
 app.use('/api/custom-orders/workflow', customOrderWorkflowRoutes); // kanban + state
-app.use('/api/orders/status', orderStatusRoutes); // PATCH /:id/status
 app.use('/api/variants', productVariantsRoutes); // was implicit in products
 app.use('/api/collections', collectionsRoutes); // was inline below (now via file, keep compat alias)
 app.use('/api/reviews', reviewsRoutes);

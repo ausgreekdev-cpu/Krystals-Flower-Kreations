@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
-import { authenticate } from '../lib/auth.js';
+import { authenticate, requireRole } from '../lib/auth.js';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
@@ -10,8 +10,9 @@ const checkInLimit = rateLimit('ticket_checkin', 30, 1);
 
 const router = Router();
 
-// Check-in by QR payload (POS or workshop door) — idempotent + rate-limited
-router.post('/check-in', requireAuth, checkInLimit, validate(z.object({ qrPayload: z.string().min(8).max(120) }).strict()), asyncHandler(async (req, res) => {
+// Check-in by QR payload (POS or workshop door) — idempotent + rate-limited.
+// Staff-gated: check-in flips orders/attendances so customers must not call it.
+router.post('/check-in', requireAuth, requireRole('admin','developer','maker','staff'), checkInLimit, validate(z.object({ qrPayload: z.string().min(8).max(120) }).strict()), asyncHandler(async (req, res) => {
   const { qrPayload } = req.validated;
   const ticket = await prisma.ticket.findUnique({ where: { qrPayload }, include: { booking: { include: { session: true } }, customArtOrder: true } });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });

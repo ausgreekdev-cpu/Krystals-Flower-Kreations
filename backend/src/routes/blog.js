@@ -14,8 +14,17 @@ router.get('/', asyncHandler(async (req, res) => {
   const tag = req.query.tag ? String(req.query.tag).slice(0,50) : undefined;
   const q = req.query.q ? String(req.query.q).slice(0,200) : undefined;
   const where = {};
-  if (status !== 'all' && ['draft','review','published','archived'].includes(status)) where.status = status;
-  else if (status !== 'all') return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
+  const wantsAll = status === 'all';
+  const wantsNonPublic = ['draft','review','archived'].includes(status);
+  if (wantsAll || wantsNonPublic) {
+    // Non-published statuses are staff-only (drafts/archived must not leak publicly)
+    let authed = false;
+    try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
+    if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  }
+  if (wantsAll) { /* all */ }
+  else if (['draft','review','published','archived'].includes(status)) where.status = status;
+  else return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
   if (q) where.OR = [{ title: { contains: q, mode: 'insensitive' } }, { excerpt: { contains: q, mode: 'insensitive' } }];
   if (tag) where.tags = { contains: tag, mode: 'insensitive' };
   const posts = await prisma.post.findMany({ where, orderBy: { publishedAt: 'desc' }, include: { products: { include: { product: { include: { images: true } } } } } });

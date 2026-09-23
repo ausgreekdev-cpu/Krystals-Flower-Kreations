@@ -133,6 +133,7 @@ export const querySchemas = {
     type: z.enum(['physical','made_to_order','digital_template','workshop_ticket','commission']).optional(),
     limit: z.coerce.number().int().finite().min(1).max(100).default(24),
     cursor: z.string().max(100).optional(),
+    all: z.enum(['1','true']).optional(),
   }),
 };
 

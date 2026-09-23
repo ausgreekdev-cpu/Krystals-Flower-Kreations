@@ -39,9 +39,18 @@ const productPatchSchema = productSchema.partial().strict();
 router.get('/', asyncHandler(async (req, res) => {
   const raw = querySchemas.products.safeParse(req.query);
   if (!raw.success) return res.status(400).json({ error: 'Invalid query', code: 'invalid_query', details: raw.error.flatten() });
-  const { q, collection, featured, type, limit, cursor } = raw.data;
+  const { q, collection, featured, type, limit, cursor, all } = raw.data;
   const take = limit;
-  const where = { isActive: true };
+  const where = {};
+  if (all === '1' || all === 'true') {
+    // `all` (includes inactive) is staff-only — run auth inline so the public
+    // route stays public for normal browsing
+    let authed = false;
+    try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
+    if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  } else {
+    where.isActive = true;
+  }
   if (featured === 'true') where.isFeatured = true;
   if (type) where.type = type;
   if (q) {
