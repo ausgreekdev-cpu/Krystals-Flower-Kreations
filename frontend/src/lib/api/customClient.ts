@@ -100,6 +100,7 @@ export const adminApi = {
   reviews: {
     pending: (token: string) => req<any[]>('/api/reviews/pending', { token }),
     approve: (id: string, token: string) => req<any>(`/api/reviews/${id}/approve`, { method: 'POST', token }),
+    reject: (id: string, token: string) => req<any>(`/api/reviews/${id}/reject`, { method: 'POST', token }),
     remove: (id: string, token: string) => req<any>(`/api/reviews/${id}`, { method: 'DELETE', token }),
   },
   posts: {
@@ -131,6 +132,27 @@ export const adminApi = {
     create: (body: any, token: string) => req<any>('/api/discounts/admin', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/discounts/admin/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/discounts/admin/${id}`, { method: 'DELETE', token }),
+  },
+  bom: {
+    recipes: (token: string) => req<any[]>('/api/bom/recipes', { token }),
+    getRecipe: (id: string, token: string) => req<any>(`/api/bom/recipes/${id}`, { token }),
+    createRecipe: (body: any, token: string) => req<any>('/api/bom/recipes', { method: 'POST', body: JSON.stringify(body), token }),
+    updateRecipe: (id: string, body: any, token: string) => req<any>(`/api/bom/recipes/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    deleteRecipe: (id: string, token: string) => req<any>(`/api/bom/recipes/${id}`, { method: 'DELETE', token }),
+    estimate: (id: string, qty: number, token: string) => req<any>(`/api/bom/recipes/${id}/estimate?qty=${qty}`, { token }),
+  },
+  collections: {
+    list: (token: string) => req<any[]>(`/api/collections?all=1`, { token }),
+    create: (body: any, token: string) => req<any>('/api/collections', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/collections/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/collections/${id}`, { method: 'DELETE', token }),
+    addProduct: (id: string, productId: string, sortOrder: number, token: string) => req<any>(`/api/collections/${id}/products`, { method: 'POST', body: JSON.stringify({ productId, sortOrder }), token }),
+    removeProduct: (id: string, productId: string, token: string) => req<any>(`/api/collections/${id}/products/${productId}`, { method: 'DELETE', token }),
+  },
+  meta: {
+    status: (token: string) => req<any>('/api/meta/status', { token }),
+    sync: (productId: string, token: string) => req<any>(`/api/meta/sync/${productId}`, { method: 'POST', token }),
+    syncAll: (token: string) => req<any>('/api/meta/sync-all', { method: 'POST', token }),
   },
   bookings: {
     list: (token: string) => req<any[]>('/api/bookings', { token }),

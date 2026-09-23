@@ -60,6 +60,16 @@ router.post('/:id/approve', authenticate, requireRole('admin','developer','maker
   res.json(review);
 }));
 
+// Reject = soft removal with an audit trail (unlike hard DELETE, records why)
+router.post('/:id/reject', authenticate, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const review = await prisma.review.findUnique({ where: { id } });
+  if (!review) return res.status(404).json({ error: 'Review not found', code: 'not_found' });
+  await prisma.review.delete({ where: { id } });
+  try { await prisma.metaSyncLog.create({ data: { action: 'review_reject', productId: review.productId, status: 'success', message: `Review rejected by ${req.user.email}` } }); } catch {}
+  res.json({ ok: true });
+}));
+
 router.delete('/:id', authenticate, requireRole('admin','developer'), asyncHandler(async (req, res) => {
   await prisma.review.delete({ where: { id: String(req.params.id).slice(0,100) } });
   res.json({ ok: true });

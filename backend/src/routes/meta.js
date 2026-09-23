@@ -18,27 +18,31 @@ router.post('/sync/:productId', requireAuth, requireRole('admin','developer','ma
   const product = await prisma.product.findUnique({ where: { id: req.params.productId }, include: { images: true } });
   if (!product) return res.status(404).json({ error: 'Not found' });
   const result = await pushProductToCatalog(product);
-  const status = result.status === 'disabled' ? 'disabled' : 'pending';
+  const status = result.status === 'disabled' ? 'disabled' : result.status === 'error' ? 'error' : 'synced';
   await prisma.metaCatalogItem.upsert({
     where: { productId: product.id },
-    create: { productId: product.id, status, lastError: result.reason || null, rawJson: JSON.stringify(result) },
-    update: { status, lastError: result.reason || null, rawJson: JSON.stringify(result), lastSyncedAt: new Date() },
+    create: { productId: product.id, status, lastError: result.error || result.reason || null, rawJson: JSON.stringify(result) },
+    update: { status, lastError: result.error || result.reason || null, rawJson: JSON.stringify(result), lastSyncedAt: new Date() },
   });
-  await prisma.metaSyncLog.create({ data: { action: 'push', productId: product.id, status, message: result.reason || result.note, rawJson: JSON.stringify(result) } });
+  await prisma.metaSyncLog.create({ data: { action: 'push', productId: product.id, status, message: result.error || result.reason || result.note, rawJson: JSON.stringify(result) } });
   res.json(result);
 }));
 
 router.post('/sync-all', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
   const products = await prisma.product.findMany({ where: { isActive: true }, include: { images: true } });
+  const results = [];
   for (const p of products) {
     const result = await pushProductToCatalog(p);
+    const status = result.status === 'disabled' ? 'disabled' : result.status === 'error' ? 'error' : 'synced';
     await prisma.metaCatalogItem.upsert({
       where: { productId: p.id },
-      create: { productId: p.id, status: 'pending', rawJson: JSON.stringify(result) },
-      update: { rawJson: JSON.stringify(result), lastSyncedAt: new Date() },
+      create: { productId: p.id, status, lastError: result.error || result.reason || null, rawJson: JSON.stringify(result) },
+      update: { status, lastError: result.error || result.reason || null, rawJson: JSON.stringify(result), lastSyncedAt: new Date() },
     });
+    await prisma.metaSyncLog.create({ data: { action: 'push', productId: p.id, status, message: result.error || result.reason || result.note, rawJson: JSON.stringify(result) } });
+    results.push({ productId: p.id, sku: p.sku, status });
   }
-  res.json({ queued: products.length });
+  res.json({ queued: products.length, results });
 }));
 
 // Public webhook for Meta (verify token)
@@ -49,7 +53,7 @@ router.get('/webhook', (req, res) => {
 });
 
 router.post('/webhook', asyncHandler(async (req, res) => {
-  const result = await handleMetaWebhook(req.body);
+  const result = await handleMetaWebhook(req.body, req.headers);
   await prisma.metaSyncLog.create({ data: { action: 'webhook', status: 'success', rawJson: JSON.stringify(req.body) } });
   res.json(result);
 }));

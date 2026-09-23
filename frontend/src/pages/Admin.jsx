@@ -10,11 +10,14 @@ const TABS = [
   { id: 'orders', label: 'Orders', icon: '🧾' },
   { id: 'inventory', label: 'Inventory', icon: '📦' },
   { id: 'products', label: 'Products', icon: '🌹' },
+  { id: 'recipes', label: 'Recipes', icon: '🧪' },
+  { id: 'collections', label: 'Collections', icon: '🗂️' },
   { id: 'workshops', label: 'Workshops', icon: '🎨' },
   { id: 'bookings', label: 'Bookings', icon: '🎟️' },
   { id: 'reviews', label: 'Reviews', icon: '⭐' },
   { id: 'blog', label: 'Blog', icon: '📝' },
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
+  { id: 'meta', label: 'Meta Sync', icon: '🔗' },
   { id: 'pos', label: 'POS', icon: '💳' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📈' },
@@ -57,6 +60,22 @@ function AdminInner() {
       } else if (tabId === 'products') {
         const products = (await adminApi.products.list(token).catch(() => ({ products: [] }))).products || [];
         setData((s) => ({ ...s, products }));
+      } else if (tabId === 'recipes') {
+        const [recipes, materials, products] = await Promise.all([
+          adminApi.bom.recipes(token).catch(() => []),
+          adminApi.materials.list(token).catch(() => []),
+          adminApi.products.list(token).catch(() => ({ products: [] })),
+        ]);
+        setData((s) => ({ ...s, recipes, materials, products: products.products || products }));
+      } else if (tabId === 'collections') {
+        const [collections, products] = await Promise.all([
+          adminApi.collections.list(token).catch(() => []),
+          adminApi.products.list(token).catch(() => ({ products: [] })),
+        ]);
+        setData((s) => ({ ...s, collections, products: products.products || products }));
+      } else if (tabId === 'meta') {
+        const meta = await adminApi.meta.status(token).catch(() => ({}));
+        setData((s) => ({ ...s, meta }));
       } else if (tabId === 'workshops') {
         const workshops = await adminApi.workshops.list().catch(() => []);
         setData((s) => ({ ...s, workshops }));
@@ -152,7 +171,10 @@ function AdminInner() {
                   {tab === 'orders' && <Orders data={data} reload={() => load('orders')} token={token} />}
                   {tab === 'inventory' && <Inventory data={data} reload={() => load('inventory')} token={token} />}
                   {tab === 'products' && <Products data={data} reload={() => load('products')} token={token} />}
+                  {tab === 'recipes' && <Recipes data={data} reload={() => load('recipes')} token={token} />}
+                  {tab === 'collections' && <Collections data={data} reload={() => load('collections')} token={token} />}
                   {tab === 'workshops' && <Workshops data={data} reload={() => load('workshops')} token={token} />}
+                  {tab === 'meta' && <MetaSync data={data} reload={() => load('meta')} token={token} />}
                   {tab === 'bookings' && <Bookings data={data} reload={() => load('bookings')} token={token} />}
                   {tab === 'discounts' && <Discounts data={data} reload={() => load('discounts')} token={token} />}
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
@@ -542,6 +564,201 @@ function SessionModal({ workshop, onClose, onSaved, token }) {
   </Modal>;
 }
 
+function Recipes({ data, reload, token }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const recipes = Array.isArray(data.recipes) ? data.recipes : [];
+  const materials = Array.isArray(data.materials) ? data.materials : [];
+  const products = Array.isArray(data.products) ? data.products : [];
+  async function doDelete() { try { await adminApi.bom.deleteRecipe(confirmDel.id, token); toast('Recipe deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{recipes.length} recipes</div><Btn onClick={() => setCreating(true)}>+ New recipe</Btn></div>
+      {recipes.map((r) => (
+        <div key={r.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm text-gray-800">{r.product?.title || r.variant?.title || 'Generic'} {r.variant ? `— ${r.variant.title}` : ''}</div>
+            <div className="text-xs text-gray-500">{r.lines?.length || 0} materials • labour {r.labourMinutesPerUnit}m + cricut {r.cricutMinutesPerUnit}m</div>
+          </div>
+          <Btn small color="ghost" onClick={() => setEditing(r)}>Edit</Btn>
+          <Btn small color="red" onClick={() => setConfirmDel(r)}>Delete</Btn>
+        </div>
+      ))}
+      {recipes.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No recipes — create one to price configurator builds</div>}
+      {(editing || creating) && <RecipeModal recipe={creating ? null : editing} materials={materials} products={products} onClose={() => { setEditing(null); setCreating(false); }} onSaved={() => { setEditing(null); setCreating(false); toast(creating ? 'Recipe created' : 'Recipe updated'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete recipe" message={`Delete recipe for "${confirmDel.product?.title || confirmDel.variant?.title || 'generic'}"?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+function RecipeModal({ recipe, materials, products, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [productId, setProductId] = useState(recipe?.productId || '');
+  const [labour, setLabour] = useState(recipe?.labourMinutesPerUnit ?? 25);
+  const [cricut, setCricut] = useState(recipe?.cricutMinutesPerUnit ?? 8);
+  const [lines, setLines] = useState(() => (recipe?.lines || []).map((l) => ({ rawMaterialId: l.rawMaterialId, qtyPerUnit: Number(l.qtyPerUnit) || 1, wasteFactor: Number(l.wasteFactor) ?? 0.05 })));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  function addLine() { setLines((l) => [...l, { rawMaterialId: materials[0]?.id || '', qtyPerUnit: 1, wasteFactor: 0.05 }]); }
+  function setLine(i, k, v) { setLines((l) => l.map((x, idx) => (idx === i ? { ...x, [k]: v } : x))); }
+  function rmLine(i) { setLines((l) => l.filter((_, idx) => idx !== i)); }
+  async function save() {
+    if (!productId) return toast('Select a product', 'error');
+    const cleanLines = lines.filter((l) => l.rawMaterialId);
+    if (!cleanLines.length) return toast('Add at least one material line', 'error');
+    setBusy(true);
+    try {
+      const body = { productId, labourMinutesPerUnit: Number(labour), cricutMinutesPerUnit: Number(cricut), lines: cleanLines.map((l) => ({ ...l, qtyPerUnit: Number(l.qtyPerUnit), wasteFactor: Number(l.wasteFactor) })) };
+      if (recipe) await adminApi.bom.updateRecipe(recipe.id, body, token);
+      else await adminApi.bom.createRecipe(body, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={recipe ? 'Edit recipe' : 'New recipe'} onClose={onClose} wide>
+    <div className="space-y-3">
+      <div><label className={label}>Product</label>
+        <select className={input} value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <option value="">Select product…</option>{products.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Labour min/unit</label><input type="number" className={input} value={labour} onChange={(e) => setLabour(e.target.value)} /></div>
+        <div><label className={label}>Cricut min/unit</label><input type="number" className={input} value={cricut} onChange={(e) => setCricut(e.target.value)} /></div>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-gray-600">Material lines</label><button onClick={addLine} className="text-xs text-royal-700 font-semibold hover:underline">+ Add material</button></div>
+        <div className="space-y-2">
+          {lines.map((l, i) => (
+            <div key={i} className="grid grid-cols-[1fr_70px_70px_auto] gap-2 items-center">
+              <select className={input} value={l.rawMaterialId} onChange={(e) => setLine(i, 'rawMaterialId', e.target.value)}>
+                <option value="">Select material…</option>{materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              <input type="number" step="0.01" className={input} value={l.qtyPerUnit} onChange={(e) => setLine(i, 'qtyPerUnit', e.target.value)} title="qty per unit" />
+              <input type="number" step="0.01" className={input} value={l.wasteFactor} onChange={(e) => setLine(i, 'wasteFactor', e.target.value)} title="waste factor" />
+              <button onClick={() => rmLine(i)} className="w-7 h-7 rounded-lg bg-red-50 text-red-600 font-bold hover:bg-red-100">✕</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : recipe ? 'Save changes' : 'Create recipe'}</Btn></div>
+  </Modal>;
+}
+
+function Collections({ data, reload, token }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const collections = Array.isArray(data.collections) ? data.collections : [];
+  const products = Array.isArray(data.products) ? data.products : [];
+  async function doDelete() { try { await adminApi.collections.remove(confirmDel.id, token); toast('Collection deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{collections.length} collections</div><Btn onClick={() => setCreating(true)}>+ New collection</Btn></div>
+      {collections.map((c) => (
+        <div key={c.id} className="border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800">{c.title}</div><div className="text-xs text-gray-500">{c.slug} • {(c.products || []).length} products</div></div>
+            <StatusBadge value={c.isActive ? 'published' : 'archived'} />
+            <Btn small color="ghost" onClick={() => setEditing(c)}>Manage</Btn>
+            <Btn small color="red" onClick={() => setConfirmDel(c)}>Delete</Btn>
+          </div>
+        </div>
+      ))}
+      {collections.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No collections</div>}
+      {(editing || creating) && <CollectionModal collection={creating ? null : editing} products={products} onClose={() => { setEditing(null); setCreating(false); }} onSaved={() => { setEditing(null); setCreating(false); toast(creating ? 'Collection created' : 'Collection updated'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete collection" message={`Delete "${confirmDel.title}"? Products stay, membership removed.`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+function CollectionModal({ collection, products, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ title: collection?.title || '', slug: collection?.slug || '', description: collection?.description || '', isActive: collection ? !!collection.isActive : true }));
+  const [members, setMembers] = useState(() => (collection?.products || []).map((p) => ({ id: p.product?.id || p.productId, title: p.product?.title || p.productId, sortOrder: p.sortOrder || 0 })));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const memberIds = new Set(members.map((m) => m.id));
+  async function save() {
+    if (!form.title || !form.slug) return toast('Title + slug required', 'error');
+    setBusy(true);
+    try {
+      if (collection) await adminApi.collections.update(collection.id, form, token);
+      else await adminApi.collections.create(form, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  async function toggleMember(p) {
+    if (memberIds.has(p.id)) {
+      try { await adminApi.collections.removeProduct(collection.id, p.id, token); toast('Removed'); } catch (e) { toast(e.message, 'error'); }
+    } else {
+      try { await adminApi.collections.addProduct(collection.id, p.id, members.length, token); toast('Added'); } catch (e) { toast(e.message, 'error'); }
+    }
+    onSaved();
+  }
+  return <Modal title={collection ? `Manage — ${collection.title}` : 'New collection'} onClose={onClose} wide>
+    <div className="space-y-4">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div><label className={label}>Title</label><input className={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+        <div><label className={label}>Slug</label><input className={input} value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
+      </div>
+      <div><label className={label}>Description</label><input className={input} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active (visible in shop)</label>
+      {collection && (
+        <>
+          <div className="flex items-center justify-between"><label className="text-xs font-semibold text-gray-600">Products in collection ({members.length})</label><label className="text-xs text-gray-400">{products.length} available</label></div>
+          <div className="max-h-64 overflow-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+            {products.map((p) => (
+              <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
+                <input type="checkbox" checked={memberIds.has(p.id)} onChange={() => toggleMember(p)} />
+                <img src={p.images?.[0]?.url || '/placeholder-bloom.jpg'} alt="" className="w-8 h-8 rounded object-cover" onError={(e) => { e.currentTarget.src = '/placeholder-bloom.jpg'; }} />
+                <span className="text-gray-700 flex-1 truncate">{p.title}</span>
+                <span className="text-xs text-gray-400">${Number(p.price).toFixed(2)}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.title || !form.slug}>{busy ? 'Saving…' : collection ? 'Save changes' : 'Create collection'}</Btn></div>
+  </Modal>;
+}
+
+function MetaSync({ data, reload, token }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const meta = data.meta || {};
+  const logs = Array.isArray(meta.logs) ? meta.logs : [];
+  async function syncAll() {
+    setBusy(true);
+    try { const r = await adminApi.meta.syncAll(token); toast(`Synced ${r.queued} products`); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-4">
+      <Card title="Meta Catalog — Facebook/Instagram Shopping">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={`px-3 py-1 rounded-full text-sm font-semibold ${meta.configured ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{meta.configured ? '● Configured' : '○ Not configured'}</span>
+          <span className="text-xs text-gray-500">{meta.synced || 0} synced • {meta.pending || 0} pending</span>
+          <div className="ml-auto flex gap-2"><Btn onClick={syncAll} disabled={busy || !meta.configured}>{busy ? 'Syncing…' : 'Sync all products'}</Btn></div>
+        </div>
+        {!meta.configured && <p className="text-xs text-gray-500 mt-3">Set META_CATALOG_ID + META_ACCESS_TOKEN in Netlify env to enable.</p>}
+      </Card>
+      <Card title={`Sync log — ${logs.length} recent`}>
+        <div className="space-y-1">{logs.map((l) => (
+          <div key={l.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="text-gray-700 truncate mr-2">{l.message || l.action} {l.productId ? `• ${l.productId.slice(-6)}` : ''}</span><span className="text-gray-400 shrink-0">{new Date(l.createdAt).toLocaleString()}</span></div>
+        ))}{logs.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No sync activity yet</div>}</div>
+      </Card>
+    </div>
+  );
+}
+
 function Bookings({ data }) {
   const bookings = Array.isArray(data.bookings) ? data.bookings : [];
   const confirmed = bookings.filter((b) => b.status === 'confirmed' || b.status === 'attended').length;
@@ -635,24 +852,32 @@ function DiscountModal({ discount, onClose, onSaved, token }) {
 function Reviews({ data, reload, token }) {
   const toast = useToast();
   const [confirmDel, setConfirmDel] = useState(null);
+  const [confirmReject, setConfirmReject] = useState(null);
   const reviews = Array.isArray(data.reviews) ? data.reviews : [];
   async function approve(r) { try { await adminApi.reviews.approve(r.id, token); toast('Review approved'); reload(); } catch (e) { toast(e.message, 'error'); } }
   async function doDelete() { try { await adminApi.reviews.remove(confirmDel.id, token); toast('Review deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
+  async function doReject() { try { await adminApi.reviews.reject(confirmReject.id, token); toast('Review rejected'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
       <div className="text-xs text-gray-500">{reviews.length} pending reviews</div>
       {reviews.map((r) => (
         <div key={r.id} className="border border-gray-200 rounded-xl p-4">
           <div className="flex justify-between items-start gap-3">
-            <div className="flex-1"><div className="font-bold text-sm text-gray-800">{'★'.repeat(Math.max(1, r.rating || 5))}{'☆'.repeat(5 - Math.max(1, r.rating || 5))} — {r.authorName || r.email || 'Anonymous'}</div>
-              <div className="text-xs text-gray-500 mt-1">{r.productTitle || r.productId}</div>
-              <p className="text-sm text-gray-600 mt-2">{r.comment || r.content}</p></div>
-            <div className="flex gap-2 shrink-0"><Btn small color="royal" onClick={() => approve(r)}>Approve</Btn><Btn small color="red" onClick={() => setConfirmDel(r)}>Delete</Btn></div>
+            <div className="flex-1"><div className="font-bold text-sm text-gray-800">{'★'.repeat(Math.max(1, r.rating || 5))}{'☆'.repeat(5 - Math.max(1, r.rating || 5))} — {r.name || 'Anonymous'}</div>
+              <div className="text-xs text-gray-500 mt-1">{r.product?.title || r.productId}</div>
+              {r.title && <div className="text-sm font-semibold text-gray-700 mt-1">{r.title}</div>}
+              <p className="text-sm text-gray-600 mt-1">{r.body || '—'}</p></div>
+            <div className="flex gap-2 shrink-0">
+              <Btn small color="royal" onClick={() => approve(r)}>Approve</Btn>
+              <Btn small color="ghost" onClick={() => setConfirmReject(r)}>Reject</Btn>
+              <Btn small color="red" onClick={() => setConfirmDel(r)}>Delete</Btn>
+            </div>
           </div>
         </div>
       ))}
       {reviews.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No pending reviews</div>}
       {confirmDel && <ConfirmDialog title="Delete review" message="Delete this review permanently?" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+      {confirmReject && <ConfirmDialog title="Reject review" message={`Reject this review from ${confirmReject.name}? It will be removed (audited).`} confirmLabel="Reject" onConfirm={doReject} onClose={() => setConfirmReject(null)} />}
     </div>
   );
 }

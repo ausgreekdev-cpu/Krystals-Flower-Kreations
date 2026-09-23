@@ -2,6 +2,8 @@
 // Docs: https://developers.facebook.com/docs/marketing-api/catalog
 // Requires: META_CATALOG_ID, META_ACCESS_TOKEN, FRONTEND_URL
 
+import { createHmac } from 'crypto';
+
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
 export async function pushProductToCatalog(product) {
@@ -36,8 +38,18 @@ export async function pushProductToCatalog(product) {
   }
 }
 
-export async function handleMetaWebhook(body) {
+export async function handleMetaWebhook(body, headers = {}) {
+  // Verify X-Hub-Signature-256 with META_APP_SECRET (Meta signs with the app secret)
+  const secret = process.env.META_APP_SECRET;
+  if (secret) {
+    const sig = headers['x-hub-signature-256'] || headers['X-Hub-Signature-256'] || '';
+    const expected = `sha256=${createHmac('sha256', secret).update(typeof body === 'string' ? body : JSON.stringify(body)).digest('hex')}`;
+    if (!sig || sig !== expected) {
+      const err = new Error('Invalid X-Hub-Signature-256');
+      err.status = 401;
+      throw err;
+    }
+  }
   // Store incoming webhook for review (IG comments, catalog diagnostics)
-  // Verify X-Hub-Signature-256 with META_APP_SECRET
   return { received: true, at: new Date().toISOString() };
 }

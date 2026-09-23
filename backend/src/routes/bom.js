@@ -97,7 +97,7 @@ router.get('/recipes', requireAuth, requireRole('admin','developer','maker','sta
   res.json(recipes);
 }));
 
-const recipeSchema = z.object({
+const recipeBaseSchema = z.object({
   productId: z.string().optional().nullable(),
   variantId: z.string().optional().nullable(),
   labourMinutesPerUnit: z.number().nonnegative().default(25),
@@ -107,7 +107,9 @@ const recipeSchema = z.object({
     qtyPerUnit: z.number().positive(),
     wasteFactor: z.number().min(0).max(1).default(0.05),
   })).min(1),
-}).refine(d => d.productId || d.variantId, { message: 'productId or variantId required' });
+});
+const recipeSchema = recipeBaseSchema.refine(d => d.productId || d.variantId, { message: 'productId or variantId required' });
+const recipePatchSchema = recipeBaseSchema.partial().refine(d => !('lines' in d) || (d.lines && d.lines.length > 0), { message: 'lines must not be empty' });
 
 router.post('/recipes', requireAuth, requireRole('admin','developer','maker','staff'), validate(recipeSchema), asyncHandler(async (req, res) => {
   const { productId, variantId, labourMinutesPerUnit, cricutMinutesPerUnit, lines } = req.validated;
@@ -121,6 +123,33 @@ router.post('/recipes', requireAuth, requireRole('admin','developer','maker','st
   }
   const full = await prisma.bOMRecipe.findUnique({ where: { id: recipe.id }, include: { lines: { include: { rawMaterial: true } } } });
   res.status(201).json(full);
+}));
+
+// Single recipe with full lines (for the editor)
+router.get('/recipes/:id', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const recipe = await prisma.bOMRecipe.findUnique({
+    where: { id: String(req.params.id).slice(0,100) },
+    include: { product: { select: { title: true, slug: true } }, variant: true, lines: { include: { rawMaterial: true }, orderBy: { id: 'asc' } } },
+  });
+  if (!recipe) return res.status(404).json({ error: 'Recipe not found', code: 'not_found' });
+  res.json(recipe);
+}));
+
+// Partial update — labour/cricut minutes and/or full line replacement
+router.patch('/recipes/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(recipePatchSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const existing = await prisma.bOMRecipe.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Recipe not found', code: 'not_found' });
+  const { lines, ...rest } = req.validated;
+  await prisma.bOMRecipe.update({ where: { id }, data: rest });
+  if (lines) {
+    await prisma.bOMLine.deleteMany({ where: { recipeId: id } });
+    for (const l of lines) {
+      await prisma.bOMLine.create({ data: { recipeId: id, rawMaterialId: l.rawMaterialId, qtyPerUnit: l.qtyPerUnit, wasteFactor: l.wasteFactor } });
+    }
+  }
+  const full = await prisma.bOMRecipe.findUnique({ where: { id }, include: { product: { select: { title: true } }, variant: true, lines: { include: { rawMaterial: true } } } });
+  res.json(full);
 }));
 
 router.delete('/recipes/:id', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
