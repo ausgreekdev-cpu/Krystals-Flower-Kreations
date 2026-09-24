@@ -4,12 +4,18 @@
 
 /* Brand theme — runtime-editable via /api/settings (ThemeProvider overrides these) */
 :root {
-  --bloom-50: 255 247 240;
-  --bloom-100: 253 232 224;
-  --bloom-200: 250 213 200;
-  --bloom-500: 184 92 92;
-  --bloom-700: 74 44 42;
-  --bloom-900: 43 26 26;
+  /* Pearl White (dominant bg) */
+  --bloom-50: 248 250 252;
+  /* Dusty Slate Blue (structure: nav/dividers/borders) */
+  --bloom-100: 107 142 173;
+  /* Platinum Silver (shimmer: gallery frames) */
+  --bloom-200: 203 213 225;
+  /* Deep Plum (accent: buttons/badges) */
+  --bloom-500: 88 28 135;
+  /* Midnight Navy (text/hero) */
+  --bloom-700: 30 41 59;
+  /* Deep navy (darkest) */
+  --bloom-900: 15 23 42;
 
   --royal-50: 245 243 255;
   --royal-100: 237 233 254;

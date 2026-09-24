@@ -157,6 +157,15 @@ async function main() {
   await prisma.setting.upsert({ where: { key: 'shipping_free_over' }, update: { value: '150' }, create: { key: 'shipping_free_over', value: '150' } });
   await prisma.setting.upsert({ where: { key: 'notebooklm_url' }, update: {}, create: { key: 'notebooklm_url', value: 'https://notebooklm.google.com/notebook/459b06d5-2520-442a-ae3c-048b54c78902' } });
 
+  // Brand theme (web options) — matches the CSS :root defaults
+  const THEME = [
+    ['theme_primary', '#581C87'], ['theme_primary_dark', '#1E293B'], ['theme_bg', '#F8FAFC'],
+    ['theme_secondary', '#6B8EAD'], ['theme_shimmer', '#CBD5E1'], ['theme_admin_purple', '#7C3AED'], ['theme_color', '#581C87'],
+  ];
+  for (const [k, v] of THEME) {
+    await prisma.setting.upsert({ where: { key: k }, update: {}, create: { key: k, value: v } });
+  }
+
   // Discounts with dates/minSpend enforced
   await prisma.discount.update({ where: { code: 'BLOOM10' }, data: { minSpend: 50, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-08-01') } }).catch(()=>{});
   await prisma.discount.update({ where: { code: 'PERTHFREE' }, data: { minSpend: 100, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-12-31') } }).catch(()=>{});

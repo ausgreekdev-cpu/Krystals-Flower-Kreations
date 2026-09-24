@@ -8,7 +8,7 @@ const router = Router();
 const PUBLIC_KEYS = new Set([
   'notebooklm_url', 'abn', 'business_name', 'business_address', 'tax_gst_rate',
   // theme (web options)
-  'theme_primary', 'theme_primary_dark', 'theme_bg', 'theme_admin_purple', 'theme_color', 'theme_font',
+  'theme_primary', 'theme_primary_dark', 'theme_bg', 'theme_secondary', 'theme_shimmer', 'theme_admin_purple', 'theme_color', 'theme_font',
   // business criteria
   'labour_rate_per_hour', 'bom_margin', 'shipping_free_over', 'loyalty_blossom_threshold', 'loyalty_garden_threshold',
   'loyalty_earn_rate', 'loyalty_redeem_rate', 'configurator_floor', 'configurator_per_stem', 'configurator_vase', 'configurator_greenery', 'low_stock_default',

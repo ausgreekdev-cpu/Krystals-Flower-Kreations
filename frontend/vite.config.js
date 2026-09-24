@@ -9,8 +9,8 @@ export default defineConfig({
       name: "Krystal's Flower Kreations",
       short_name: 'Krystal Bloom',
       description: 'Perth WA paper florist — everlasting Cricut + origami bouquets, custom configurator & workshops',
-      theme_color: '#B85C5C',
-      background_color: '#FFF7F0',
+      theme_color: '#581C87',
+      background_color: '#F8FAFC',
       display: 'standalone',
       start_url: '/',
       icons: [

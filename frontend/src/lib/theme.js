@@ -4,6 +4,8 @@ const THEME_MAP = [
   { key: 'theme_primary', var: '--bloom-500' },
   { key: 'theme_primary_dark', var: '--bloom-700' },
   { key: 'theme_bg', var: '--bloom-50' },
+  { key: 'theme_secondary', var: '--bloom-100' },
+  { key: 'theme_shimmer', var: '--bloom-200' },
   { key: 'theme_admin_purple', var: '--royal-600' },
   { key: 'theme_color', var: '--theme-color' },
 ];
