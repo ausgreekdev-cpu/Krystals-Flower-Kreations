@@ -53,4 +53,25 @@ router.post('/:id/adjust', requireAuth, requireRole('admin','developer','maker',
   res.json(mat);
 }));
 
+// Exact-set onHand for a raw material
+router.post('/:id/set', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const { onHand, reason } = req.body;
+  if (typeof onHand !== 'number' || !Number.isFinite(onHand) || onHand < 0) return res.status(400).json({ error: 'onHand must be a non-negative finite number', code: 'validation_failed' });
+  const id = String(req.params.id).slice(0,100);
+  const mat = await prisma.rawMaterial.findUnique({ where: { id } });
+  if (!mat) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const delta = onHand - Number(mat.onHand);
+  const updated = await prisma.rawMaterial.update({ where: { id }, data: { onHand } });
+  if (delta !== 0) {
+    await prisma.stockMovement.create({ data: { rawMaterialId: id, type: delta > 0 ? 'in' : 'out', quantity: delta, reason: `Set to ${onHand}${reason ? ` — ${reason}` : ''}`, userId: req.user.id } });
+  }
+  res.json(updated);
+}));
+
+router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  await prisma.rawMaterial.delete({ where: { id } });
+  res.json({ ok: true });
+}));
+
 export default router;

@@ -40,7 +40,7 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   if (idempotencyKey) {
     const existing = await prisma.order.findUnique({ where: { idempotencyKey }, include: { lines: true } });
     if (existing) {
-      const gstExisting = calculateGstInclusive(Number(existing.total));
+      const gstExisting = await calculateGstInclusive(Number(existing.total));
       return res.json({ order: existing, shipping: { price: Number(existing.shippingCost) }, gst: gstExisting, checkoutUrl: null, idempotent: true });
     }
   }
@@ -76,7 +76,7 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
 
   const shipping = await calculateShipping({ postcode: data.shippingPostcode, subtotal: subtotal - discountTotal, weightGrams: weight });
   const total = Math.max(0, subtotal - discountTotal + shipping.price);
-  const gst = calculateGstInclusive(total);
+  const gst = await calculateGstInclusive(total);
 
   // Atomic inventory deduction + order create in transaction
   const pendingLedgerKey = `pending_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;

@@ -19,6 +19,8 @@ const TABS = [
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'meta', label: 'Meta Sync', icon: '🔗' },
   { id: 'pos', label: 'POS', icon: '💳' },
+  { id: 'customers', label: 'Customers', icon: '🧑' },
+  { id: 'shipping', label: 'Shipping', icon: '🚚' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -50,13 +52,20 @@ function AdminInner() {
         const orders = await adminApi.orders.list(token).catch(() => []);
         setData((s) => ({ ...s, orders }));
       } else if (tabId === 'inventory') {
-        const [levels, materials, recon, locations] = await Promise.all([
+        const [levels, materials, recon, locations, movements] = await Promise.all([
           adminApi.inventory.levels(token).catch(() => []),
           adminApi.materials.list(token).catch(() => []),
           adminApi.inventory.reconciliation(token).catch(() => []),
           adminApi.inventory.locations(token).catch(() => []),
+          adminApi.inventory.movements(token, 30).catch(() => []),
         ]);
-        setData((s) => ({ ...s, levels, materials, recon, locations }));
+        setData((s) => ({ ...s, levels, materials, recon, locations, movements }));
+      } else if (tabId === 'customers') {
+        const customers = await adminApi.customers.list(token).catch(() => []);
+        setData((s) => ({ ...s, customers }));
+      } else if (tabId === 'shipping') {
+        const zones = await adminApi.shipping.list(token).catch(() => []);
+        setData((s) => ({ ...s, zones }));
       } else if (tabId === 'products') {
         const products = (await adminApi.products.list(token).catch(() => ({ products: [] }))).products || [];
         setData((s) => ({ ...s, products }));
@@ -180,6 +189,8 @@ function AdminInner() {
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
+                  {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
+                  {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
@@ -304,10 +315,14 @@ function Orders({ data, reload, token }) {
 function Inventory({ data, reload, token }) {
   const toast = useToast();
   const [adjusting, setAdjusting] = useState(null);
+  const [setVals, setSetVals] = useState({});
+  const [materialEditor, setMaterialEditor] = useState(null); // null | {} (new) | mat (edit)
+  const [locationEditor, setLocationEditor] = useState(null);
   const levels = Array.isArray(data.levels) ? data.levels : [];
   const materials = Array.isArray(data.materials) ? data.materials : [];
   const recon = Array.isArray(data.recon) ? data.recon : [];
   const locations = Array.isArray(data.locations) ? data.locations : [];
+  const movements = Array.isArray(data.movements) ? data.movements : [];
   const drifted = recon.filter((r) => !r.ok);
   async function adjustLevel(l, delta) {
     setAdjusting(l.id);
@@ -315,49 +330,151 @@ function Inventory({ data, reload, token }) {
     catch (e) { toast(e.message, 'error'); }
     finally { setAdjusting(null); }
   }
+  async function setLevel(l, val) {
+    const onHand = Number(val);
+    if (!Number.isFinite(onHand) || onHand < 0) return toast('Enter a valid number', 'error');
+    setAdjusting(l.id);
+    try { await adminApi.inventory.set({ productId: l.productId, variantId: l.variantId || null, locationId: l.locationId, onHand, reason: 'Admin set' }, token); toast(`Set to ${onHand}`); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setAdjusting(null); setSetVals((s) => ({ ...s, [l.id]: '' })); }
+  }
   async function adjustMat(m, delta) {
     setAdjusting(m.id);
     try { await adminApi.materials.adjust(m.id, delta, 'Admin adjust', token); toast('Material updated'); reload(); }
     catch (e) { toast(e.message, 'error'); }
     finally { setAdjusting(null); }
   }
+  async function setMat(m, val) {
+    const onHand = Number(val);
+    if (!Number.isFinite(onHand) || onHand < 0) return toast('Enter a valid number', 'error');
+    setAdjusting(m.id);
+    try { await adminApi.materials.set(m.id, onHand, 'Admin set', token); toast(`Set to ${onHand}`); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setAdjusting(null); setSetVals((s) => ({ ...s, [m.id]: '' })); }
+  }
   return (
     <div className="space-y-5">
       {drifted.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {drifted.length} variants drift: ledger vs onHand — see reconciliation below</div>}
       <Card title={`Product stock — ${levels.length} levels`}>
         <div className="space-y-1.5">
-          {levels.slice(0, 25).map((l) => (
-            <div key={l.id} className="flex items-center gap-3 text-xs border-b border-gray-100 py-1.5">
-              <span className="font-medium text-gray-700 flex-1">{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-gray-400">@{l.location?.name}</span></span>
+          {levels.slice(0, 30).map((l) => (
+            <div key={l.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
+              <span className="font-medium text-gray-700 flex-1 min-w-[160px]">{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-gray-400">@{l.location?.name}</span></span>
               <span className={`font-bold ${l.onHand <= 5 ? 'text-red-600' : 'text-gray-800'}`}>{l.onHand}</span>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, 1)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
+              <input value={setVals[l.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder="set to…" className="w-20 border border-gray-300 rounded-lg px-2 py-1" />
+              <button disabled={adjusting === l.id} onClick={() => setLevel(l, setVals[l.id])} className="px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800">Set</button>
             </div>
           ))}
           {levels.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No levels — seed inventory</div>}
         </div>
       </Card>
-      <Card title={`Raw materials — ${materials.length}`}>
+      <Card title={`Raw materials — ${materials.length}`} actions={<Btn small color="ghost" onClick={() => setMaterialEditor({})}>+ Add material</Btn>}>
         <div className="space-y-1.5">
           {materials.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 text-xs border-b border-gray-100 py-1.5">
-              <span className="font-medium text-gray-700 flex-1">{m.name} <span className="text-gray-400">{m.sku} • {m.unit}</span></span>
+            <div key={m.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
+              <span className="font-medium text-gray-700 flex-1 min-w-[160px]">{m.name} <span className="text-gray-400">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span></span>
               <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-gray-800'}`}>{m.onHand}</span>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, 10)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, -10)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
+              <input value={setVals[m.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [m.id]: e.target.value }))} placeholder="set to…" className="w-20 border border-gray-300 rounded-lg px-2 py-1" />
+              <button disabled={adjusting === m.id} onClick={() => setMat(m, setVals[m.id])} className="px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800">Set</button>
+              <Btn small color="ghost" onClick={() => setMaterialEditor(m)}>Edit</Btn>
             </div>
           ))}
           {materials.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No materials</div>}
         </div>
       </Card>
+      <Card title={`Locations — ${locations.length}`} actions={<Btn small color="ghost" onClick={() => setLocationEditor({})}>+ Add location</Btn>}>
+        <div className="space-y-1">
+          {locations.map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="font-medium text-gray-700">{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span><span className="text-gray-400">{l.address || ''}</span></div>)}
+          {locations.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No locations</div>}
+        </div>
+      </Card>
+      {movements.length > 0 && (
+        <Card title={`Recent stock movements — ${movements.length}`}>
+          <div className="space-y-1">
+            {movements.slice(0, 20).map((mv) => (
+              <div key={mv.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5">
+                <span className="text-gray-700 truncate mr-2">{mv.product?.title || mv.rawMaterial?.name || mv.variant?.title || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-gray-400">{mv.type} • {mv.reason}</span></span>
+                <span className="text-gray-400 shrink-0">{new Date(mv.createdAt).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <Card title={`Reconciliation — ledger vs quantity (${drifted.length} drift)`}>
         <div className="space-y-1">
           {recon.slice(0, 12).map((r) => <div key={r.variantId} className={`flex justify-between text-xs border-b border-gray-100 py-1 ${r.ok ? '' : 'text-red-600'}`}><span>{r.product} — {r.title}</span><span>{r.inventoryQuantity} vs ledger {r.ledgerTotal} {r.ok ? '✓' : `drift ${r.drift}`}</span></div>)}
           {recon.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No variants</div>}
         </div>
       </Card>
+      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
+      {locationEditor && <LocationModal location={locationEditor.id ? locationEditor : null} onClose={() => setLocationEditor(null)} onSaved={() => { setLocationEditor(null); toast('Location saved'); reload(); }} token={token} />}
     </div>
   );
+}
+function MaterialModal({ material, locations, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({
+    name: material?.name || '', sku: material?.sku || '', unit: material?.unit || 'sheet',
+    onHand: material ? Number(material.onHand) : 0, lowThreshold: material ? Number(material.lowThreshold) : 5,
+    costPerUnit: material ? Number(material.costPerUnit) : 0, supplier: material?.supplier || '', locationId: material?.locationId || '',
+  }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  async function save() {
+    setBusy(true);
+    try {
+      const body = { ...form, onHand: Number(form.onHand), lowThreshold: Number(form.lowThreshold), costPerUnit: Number(form.costPerUnit), locationId: form.locationId || null };
+      if (material) await adminApi.materials.update(material.id, body, token);
+      else await adminApi.materials.create(body, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={material ? 'Edit material' : 'New material'} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div><label className={label}>SKU</label><input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><label className={label}>Unit</label><select className={input} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}><option value="sheet">sheet</option><option value="meter">meter</option><option value="stick">stick</option><option value="roll">roll</option><option value="piece">piece</option><option value="ml">ml</option><option value="gram">gram</option></select></div>
+        <div><label className={label}>On hand</label><input type="number" className={input} value={form.onHand} onChange={(e) => setForm({ ...form, onHand: e.target.value })} /></div>
+        <div><label className={label}>Low threshold</label><input type="number" className={input} value={form.lowThreshold} onChange={(e) => setForm({ ...form, lowThreshold: e.target.value })} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Cost per unit ($)</label><input type="number" step="0.01" className={input} value={form.costPerUnit} onChange={(e) => setForm({ ...form, costPerUnit: e.target.value })} /></div>
+        <div><label className={label}>Supplier</label><input className={input} value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
+      </div>
+      {locations.length > 0 && <div><label className={label}>Location</label><select className={input} value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })}><option value="">None</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>}
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name || !form.sku}>{busy ? 'Saving…' : material ? 'Save changes' : 'Create'}</Btn></div>
+  </Modal>;
+}
+function LocationModal({ location, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ name: location?.name || '', address: location?.address || '', isDefault: !!location?.isDefault }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  async function save() {
+    setBusy(true);
+    try { await adminApi.inventory.createLocation({ ...form, address: form.address || null, isActive: true }, token); onSaved(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title="Add location" onClose={onClose}>
+    <div className="space-y-3">
+      <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+      <div><label className={label}>Address</label><input className={input} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} /> Default location</label>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name}>{busy ? 'Saving…' : 'Add'}</Btn></div>
+  </Modal>;
 }
 
 function Products({ data, reload, token }) {
@@ -1000,6 +1117,191 @@ function POS({ data, reload, token }) {
   );
 }
 
+function Customers({ data, reload, token }) {
+  const toast = useToast();
+  const [detail, setDetail] = useState(null);
+  const [busyLoyalty, setBusyLoyalty] = useState('');
+  const customers = Array.isArray(data.customers) ? data.customers : [];
+  async function openDetail(c) {
+    const d = await adminApi.customers.get(c.id, token).catch(() => null);
+    if (d) setDetail(d);
+  }
+  async function adjustLoyalty(c, delta) {
+    setBusyLoyalty(c.id);
+    try { await adminApi.customers.setLoyalty(c.email, { delta: Number(delta) }, token); toast(`Points adjusted for ${c.name}`); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusyLoyalty(''); }
+  }
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-gray-500">{customers.length} customers</div>
+      <div className="space-y-1.5">
+        {customers.map((c) => (
+          <div key={c.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-2.5 text-sm flex-wrap">
+            <span className="font-bold text-gray-800 flex-1 min-w-[160px]">{c.name || '—'}</span>
+            <span className="text-xs text-gray-500 truncate">{c.email}</span>
+            <span className="text-xs text-gray-500">{c.orders} orders • <span className="font-semibold text-royal-700">${Number(c.spend).toFixed(2)}</span></span>
+            <span className="text-xs font-semibold text-gray-700">{c.points} pts <span className="text-gray-400">({c.tier})</span></span>
+            <Btn small color="ghost" onClick={() => openDetail(c)}>View</Btn>
+            <Btn small color="ghost" onClick={() => adjustLoyalty(c, -50)} disabled={busyLoyalty === c.id}>−50</Btn>
+            <Btn small color="ghost" onClick={() => adjustLoyalty(c, 50)} disabled={busyLoyalty === c.id}>+50</Btn>
+          </div>
+        ))}
+        {customers.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No customers yet</div>}
+      </div>
+      {detail && <CustomerModal customer={detail} onClose={() => setDetail(null)} token={token} />}
+    </div>
+  );
+}
+function CustomerModal({ customer, onClose, token }) {
+  const toast = useToast();
+  const [points, setPoints] = useState(customer.loyalty?.points || 0);
+  const [busy, setBusy] = useState(false);
+  const orders = Array.isArray(customer.orders) ? customer.orders : [];
+  const bookings = Array.isArray(customer.bookings) ? customer.bookings : [];
+  const customOrders = Array.isArray(customer.customOrders) ? customer.customOrders : [];
+  const txs = customer.loyalty?.transactions || [];
+  async function savePoints() {
+    setBusy(true);
+    try { await adminApi.customers.setLoyalty(customer.email, { set: Number(points) }, token); toast('Points set'); onClose(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Modal title={customer.name || customer.email} onClose={onClose} wide>
+      <div className="space-y-4 text-sm">
+        <div className="text-xs text-gray-500">{customer.email} • {customer.role} • joined {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString('en-AU') : ''}</div>
+        <div className="flex items-end gap-3 border border-gray-200 rounded-xl p-3">
+          <div><label className="block text-xs font-semibold text-gray-600 mb-1">Loyalty points</label><input type="number" className="w-28 border border-gray-300 rounded-xl px-3 py-2 text-sm" value={points} onChange={(e) => setPoints(e.target.value)} /></div>
+          <Btn onClick={savePoints} disabled={busy}>{busy ? 'Saving…' : 'Set points'}</Btn>
+        </div>
+        <div>
+          <div className="font-bold text-gray-700 mb-1">Orders ({orders.length})</div>
+          <div className="space-y-1 max-h-40 overflow-auto">{orders.map((o) => <div key={o.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span>{o.orderNumber} <span className="text-gray-400">• {new Date(o.createdAt).toLocaleDateString('en-AU')}</span></span><span><StatusBadge value={o.status} /> <span className="font-bold text-royal-700">${Number(o.total).toFixed(2)}</span></span></div>)}{orders.length === 0 && <div className="text-xs text-gray-400">No orders</div>}</div>
+        </div>
+        <div>
+          <div className="font-bold text-gray-700 mb-1">Bookings ({bookings.length})</div>
+          <div className="space-y-1 max-h-32 overflow-auto">{bookings.map((b) => <div key={b.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span>{b.session?.workshop?.title || 'Workshop'} • {b.quantity} seat(s)</span><StatusBadge value={b.status} /></div>)}{bookings.length === 0 && <div className="text-xs text-gray-400">No bookings</div>}</div>
+        </div>
+        <div>
+          <div className="font-bold text-gray-700 mb-1">Custom art orders ({customOrders.length})</div>
+          <div className="space-y-1 max-h-32 overflow-auto">{customOrders.map((co) => <div key={co.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span>{co.orderNumber}</span><span className="text-gray-500">{co.state}</span></div>)}{customOrders.length === 0 && <div className="text-xs text-gray-400">None</div>}</div>
+        </div>
+        {txs.length > 0 && (
+          <div>
+            <div className="font-bold text-gray-700 mb-1">Loyalty history</div>
+            <div className="space-y-1 max-h-32 overflow-auto">{txs.map((t) => <div key={t.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span className="text-gray-500">{t.reason}</span><span className={t.pointsDelta > 0 ? 'text-emerald-600' : 'text-red-600'}>{(t.pointsDelta > 0 ? '+' : '') + t.pointsDelta}</span></div>)}</div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Shipping({ data, reload, token }) {
+  const toast = useToast();
+  const [zoneEditor, setZoneEditor] = useState(null);
+  const [rateFor, setRateFor] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const zones = Array.isArray(data.zones) ? data.zones : [];
+  async function toggleZone(z, active) { try { await adminApi.shipping.updateZone(z.id, { isActive: active }, token); toast('Zone updated'); reload(); } catch (e) { toast(e.message, 'error'); } }
+  async function doDelete() {
+    try {
+      if (confirmDel.type === 'zone') await adminApi.shipping.deleteZone(confirmDel.id, token);
+      else await adminApi.shipping.deleteRate(confirmDel.id, token);
+      toast('Deleted'); reload();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{zones.length} shipping zones</div><Btn onClick={() => setZoneEditor({})}>+ New zone</Btn></div>
+      {zones.map((z) => (
+        <div key={z.id} className="border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800">{z.name}</div><div className="text-xs text-gray-500">{z.postcodes ? (Array.isArray(z.postcodes) ? z.postcodes.join(', ') : z.postcodes) : 'All postcodes'} </div></div>
+            <StatusBadge value={z.isActive ? 'published' : 'archived'} />
+            <Btn small color="ghost" onClick={() => toggleZone(z, !z.isActive)}>{z.isActive ? 'Disable' : 'Enable'}</Btn>
+            <Btn small color="ghost" onClick={() => setRateFor(z)}>+ Rate</Btn>
+            <Btn small color="red" onClick={() => setConfirmDel({ type: 'zone', id: z.id })}>Delete</Btn>
+          </div>
+          <div className="mt-2 space-y-1">
+            {(z.rates || []).map((r) => (
+              <div key={r.id} className="flex items-center gap-3 text-xs border-b border-gray-100 py-1">
+                <span className="font-medium text-gray-700 flex-1">{r.name}</span>
+                <span className="text-gray-500">${Number(r.price).toFixed(2)}{r.freeOver ? ` • free over $${Number(r.freeOver).toFixed(2)}` : ''}{r.maxWeightGrams ? ` • ≤${r.maxWeightGrams}g` : ''}</span>
+                <Btn small color="ghost" onClick={() => setRateFor(z, r)}>Edit</Btn>
+                <Btn small color="red" onClick={() => setConfirmDel({ type: 'rate', id: r.id })}>Del</Btn>
+              </div>
+            ))}
+            {(z.rates || []).length === 0 && <div className="text-xs text-gray-400">No rates — add one</div>}
+          </div>
+        </div>
+      ))}
+      {zones.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No zones — add one to configure delivery pricing</div>}
+      {zoneEditor && <ZoneModal zone={zoneEditor.id ? zoneEditor : null} onClose={() => setZoneEditor(null)} onSaved={() => { setZoneEditor(null); toast(zoneEditor.id ? 'Zone updated' : 'Zone created'); reload(); }} token={token} />}
+      {rateFor && <RateModal zone={rateFor} rate={rateFor._rate} onClose={() => setRateFor(null)} onSaved={() => { setRateFor(null); toast('Rate saved'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete" message={`Delete this ${confirmDel.type}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+function ZoneModal({ zone, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ name: zone?.name || '', postcodes: zone?.postcodes ? (Array.isArray(zone.postcodes) ? zone.postcodes.join(', ') : zone.postcodes) : '', isActive: zone ? !!zone.isActive : true }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  async function save() {
+    setBusy(true);
+    try {
+      const postcodes = form.postcodes.split(',').map((p) => p.trim()).filter(Boolean).join(',');
+      const body = { ...form, postcodes };
+      if (zone) await adminApi.shipping.updateZone(zone.id, body, token);
+      else await adminApi.shipping.createZone(body, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={zone ? 'Edit zone' : 'New zone'} onClose={onClose}>
+    <div className="space-y-3">
+      <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+      <div><label className={label}>Postcodes (comma-separated, prefix-matched)</label><input className={input} value={form.postcodes} onChange={(e) => setForm({ ...form, postcodes: e.target.value })} placeholder="6000, 6151, 6152" /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active</label>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name}>{busy ? 'Saving…' : zone ? 'Save changes' : 'Create'}</Btn></div>
+  </Modal>;
+}
+function RateModal({ zone, rate, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ name: rate?.name || 'Standard', price: rate ? Number(rate.price) : '', freeOver: rate?.freeOver ? Number(rate.freeOver) : '', maxWeightGrams: rate?.maxWeightGrams || '', isActive: rate ? !!rate.isActive : true }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  async function save() {
+    setBusy(true);
+    try {
+      const body = { ...form, price: Number(form.price), freeOver: form.freeOver === '' ? null : Number(form.freeOver), maxWeightGrams: form.maxWeightGrams === '' ? null : Number(form.maxWeightGrams) };
+      if (rate) await adminApi.shipping.updateRate(rate.id, body, token);
+      else await adminApi.shipping.addRate(zone.id, body, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={`${rate ? 'Edit' : 'Add'} rate — ${zone.name}`} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div><label className={label}>Price ($)</label><input type="number" step="0.01" className={input} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Free over ($, optional)</label><input type="number" step="0.01" className={input} value={form.freeOver} onChange={(e) => setForm({ ...form, freeOver: e.target.value })} /></div>
+        <div><label className={label}>Max weight (g, optional)</label><input type="number" className={input} value={form.maxWeightGrams} onChange={(e) => setForm({ ...form, maxWeightGrams: e.target.value })} /></div>
+      </div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active</label>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || form.price === ''}>{busy ? 'Saving…' : 'Save'}</Btn></div>
+  </Modal>;
+}
+
 function Users({ data, reload, token }) {
   const toast = useToast();
   const [busyId, setBusyId] = useState('');
@@ -1041,26 +1343,70 @@ function Reports({ data }) {
 
 function Settings({ data, reload, token }) {
   const toast = useToast();
-  const [form, setForm] = useState(() => ({ abn: data.settings?.abn || '', business_name: data.settings?.business_name || '', business_address: data.settings?.business_address || '', tax_gst_rate: data.settings?.tax_gst_rate || '0.10' }));
+  const [form, setForm] = useState(() => ({
+    // business
+    abn: data.settings?.abn || '', business_name: data.settings?.business_name || '', business_address: data.settings?.business_address || '', tax_gst_rate: data.settings?.tax_gst_rate || '0.10',
+    // theme
+    theme_primary: data.settings?.theme_primary || '', theme_primary_dark: data.settings?.theme_primary_dark || '', theme_bg: data.settings?.theme_bg || '', theme_admin_purple: data.settings?.theme_admin_purple || '', theme_color: data.settings?.theme_color || '', theme_font: data.settings?.theme_font || '',
+    // criteria
+    labour_rate_per_hour: data.settings?.labour_rate_per_hour || '55', bom_margin: data.settings?.bom_margin || '1.30',
+    shipping_free_over: data.settings?.shipping_free_over || '150',
+    loyalty_blossom_threshold: data.settings?.loyalty_blossom_threshold || '100', loyalty_garden_threshold: data.settings?.loyalty_garden_threshold || '500', loyalty_earn_rate: data.settings?.loyalty_earn_rate || '1', loyalty_redeem_rate: data.settings?.loyalty_redeem_rate || '5',
+    configurator_floor: data.settings?.configurator_floor || '45', configurator_per_stem: data.settings?.configurator_per_stem || '9.5', configurator_vase: data.settings?.configurator_vase || '22', configurator_greenery: data.settings?.configurator_greenery || '12', low_stock_default: data.settings?.low_stock_default || '5',
+  }));
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   async function save() {
     setBusy(true);
     try { await adminApi.settings.save(form, token); toast('Settings saved'); reload(); }
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
-  return <div className="space-y-3">
-    <Card title="Business settings">
+  const colorInput = (k, placeholder) => (
+    <div className="flex items-end gap-2"><input type="color" value={/^#[0-9a-fA-F]{6}$/.test(form[k]) ? form[k] : '#B85C5C'} onChange={(e) => set(k, e.target.value)} className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer" /><input className={input} value={form[k]} onChange={(e) => set(k, e.target.value)} placeholder={placeholder} /></div>
+  );
+  return <div className="space-y-4">
+    <Card title="Business">
       <div className="grid sm:grid-cols-2 gap-3">
-        <div><label className={label}>Business name</label><input className={input} value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} /></div>
-        <div><label className={label}>ABN</label><input className={input} value={form.abn} onChange={(e) => setForm({ ...form, abn: e.target.value })} /></div>
-        <div><label className={label}>Business address</label><input className={input} value={form.business_address} onChange={(e) => setForm({ ...form, business_address: e.target.value })} /></div>
-        <div><label className={label}>GST rate</label><input className={input} value={form.tax_gst_rate} onChange={(e) => setForm({ ...form, tax_gst_rate: e.target.value })} /></div>
+        <div><label className={label}>Business name</label><input className={input} value={form.business_name} onChange={(e) => set('business_name', e.target.value)} /></div>
+        <div><label className={label}>ABN</label><input className={input} value={form.abn} onChange={(e) => set('abn', e.target.value)} /></div>
+        <div><label className={label}>Business address</label><input className={input} value={form.business_address} onChange={(e) => set('business_address', e.target.value)} /></div>
+        <div><label className={label}>GST rate (decimal)</label><input className={input} value={form.tax_gst_rate} onChange={(e) => set('tax_gst_rate', e.target.value)} /></div>
       </div>
-      <div className="mt-4"><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</Btn></div>
     </Card>
+    <Card title="Web options — colours & fonts" description="Changes apply live to the shop (theme + browser tab colour).">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div><label className={label}>Primary colour (buttons/accents)</label>{colorInput('theme_primary', '#B85C5C')}</div>
+        <div><label className={label}>Dark shade (text on light)</label>{colorInput('theme_primary_dark', '#4A2C2A')}</div>
+        <div><label className={label}>Background tint</label>{colorInput('theme_bg', '#FFF7F0')}</div>
+        <div><label className={label}>Admin purple accent</label>{colorInput('theme_admin_purple', '#7C3AED')}</div>
+        <div><label className={label}>Browser theme colour</label>{colorInput('theme_color', '#B85C5C')}</div>
+        <div><label className={label}>Font family</label>
+          <select className={input} value={form.theme_font} onChange={(e) => set('theme_font', e.target.value)}>
+            <option value="">Inter (default)</option><option value="Georgia, serif">Georgia (serif)</option><option value="'Times New Roman', serif">Times (serif)</option><option value="system-ui, sans-serif">System UI</option><option value="'Courier New', monospace">Monospace</option>
+          </select>
+        </div>
+      </div>
+    </Card>
+    <Card title="Business criteria">
+      <div className="grid sm:grid-cols-3 gap-3">
+        <div><label className={label}>Labour rate ($/hr)</label><input className={input} value={form.labour_rate_per_hour} onChange={(e) => set('labour_rate_per_hour', e.target.value)} /></div>
+        <div><label className={label}>BOM margin (×)</label><input className={input} value={form.bom_margin} onChange={(e) => set('bom_margin', e.target.value)} /></div>
+        <div><label className={label}>Free shipping over ($)</label><input className={input} value={form.shipping_free_over} onChange={(e) => set('shipping_free_over', e.target.value)} /></div>
+        <div><label className={label}>Loyalty — blossom threshold (pts)</label><input className={input} value={form.loyalty_blossom_threshold} onChange={(e) => set('loyalty_blossom_threshold', e.target.value)} /></div>
+        <div><label className={label}>Loyalty — garden threshold (pts)</label><input className={input} value={form.loyalty_garden_threshold} onChange={(e) => set('loyalty_garden_threshold', e.target.value)} /></div>
+        <div><label className={label}>Loyalty — earn rate (pts/$)</label><input className={input} value={form.loyalty_earn_rate} onChange={(e) => set('loyalty_earn_rate', e.target.value)} /></div>
+        <div><label className={label}>Loyalty — redeem ($ per 100 pts)</label><input className={input} value={form.loyalty_redeem_rate} onChange={(e) => set('loyalty_redeem_rate', e.target.value)} /></div>
+        <div><label className={label}>Configurator floor ($)</label><input className={input} value={form.configurator_floor} onChange={(e) => set('configurator_floor', e.target.value)} /></div>
+        <div><label className={label}>Configurator per-stem ($)</label><input className={input} value={form.configurator_per_stem} onChange={(e) => set('configurator_per_stem', e.target.value)} /></div>
+        <div><label className={label}>Configurator vase add-on ($)</label><input className={input} value={form.configurator_vase} onChange={(e) => set('configurator_vase', e.target.value)} /></div>
+        <div><label className={label}>Configurator greenery add-on ($)</label><input className={input} value={form.configurator_greenery} onChange={(e) => set('configurator_greenery', e.target.value)} /></div>
+        <div><label className={label}>Low-stock default threshold</label><input className={input} value={form.low_stock_default} onChange={(e) => set('low_stock_default', e.target.value)} /></div>
+      </div>
+    </Card>
+    <div className="flex gap-2"><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save all settings'}</Btn></div>
   </div>;
 }
 

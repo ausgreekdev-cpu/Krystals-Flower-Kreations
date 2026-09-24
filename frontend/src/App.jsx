@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { applyTheme } from './lib/theme';
 
 export default function App(){
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -7,6 +8,7 @@ export default function App(){
   const [q, setQ] = useState('');
   const nav = useNavigate();
   useEffect(()=>{
+    applyTheme();
     function refresh(){
       const id = localStorage.getItem('cartId');
       if(!id){ setCartCount(0); return; }

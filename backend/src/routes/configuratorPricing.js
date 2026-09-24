@@ -13,7 +13,7 @@ router.get('/price', bomLiveLimit, asyncHandler(async (req, res) => {
   const q = Math.max(1, Math.min(25, parseInt(String(qty), 10) || 1));
   const recipe = await findRecipeFor(prisma, { productId: productId ? String(productId) : null, variantId: variantId ? String(variantId) : null });
   if (!recipe) return res.json({ qty: q, materialsCost: 0, labourMinutes: 25 * q, breakdown: [], note: 'No recipe — fallback estimate' });
-  const result = costForRecipe(recipe, q);
+  const result = await costForRecipe(recipe, q);
   res.json({ qty: q, recipeId: recipe.id, ...result });
 }));
 
@@ -23,7 +23,7 @@ router.get('/live', bomLiveLimit, asyncHandler(async (req, res) => {
   const q = Math.max(1, Math.min(25, parseInt(String(qty), 10) || 1));
   const recipe = await findRecipeFor(prisma, { productId: productId ? String(productId) : null, variantId: variantId ? String(variantId) : null });
   if (!recipe) return res.json({ qty: q, materialsCost: 0, labourMinutes: 25 * q, breakdown: [], note: 'No recipe — fallback estimate' });
-  const result = costForRecipe(recipe, q);
+  const result = await costForRecipe(recipe, q);
   res.json({ qty: q, recipeId: recipe.id, ...result });
 }));
 

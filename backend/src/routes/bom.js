@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
+import { costForRecipe } from '../services/bomPricing.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -34,18 +35,8 @@ router.get('/live', bomLiveLimit, asyncHandler(async (req, res) => {
   if (!recipe && productId) recipe = await prisma.bOMRecipe.findFirst({ where: { productId: String(productId), variantId: null }, include: { lines: { include: { rawMaterial: true } } } });
   if (!recipe) recipe = await prisma.bOMRecipe.findFirst({ include: { lines: { include: { rawMaterial: true } } } });
   if (!recipe) return res.json({ qty: q, materialsCost: 0, labourMinutes: 25*q, breakdown: [], note: 'No recipe — fallback estimate' });
-  let materialsCost = 0;
-  const breakdown = recipe.lines.map(l => {
-    const eff = l.qtyPerUnit * (1 + l.wasteFactor) * (q/7); // scale 7-stem baseline like customOrders
-    const cost = eff * l.rawMaterial.costPerUnit;
-    materialsCost += cost;
-    return { sku: l.rawMaterial.sku, name: l.rawMaterial.name, unit: l.rawMaterial.unit, perUnit: l.qtyPerUnit, wasteFactor: l.wasteFactor, effectiveQty: eff, cost, onHand: l.rawMaterial.onHand, low: l.rawMaterial.onHand <= l.rawMaterial.lowThreshold };
-  });
-  const labourMinutes = Math.round((recipe.labourMinutesPerUnit + recipe.cricutMinutesPerUnit) * (q/7));
-  const LABOUR_RATE = 55/60;
-  const withLabour = materialsCost + labourMinutes * LABOUR_RATE;
-  const retail = Math.round(withLabour * 1.30 * 100)/100;
-  res.json({ qty: q, recipeId: recipe.id, materialsCost: Math.round(materialsCost*100)/100, labourMinutes, withLabour: Math.round(withLabour*100)/100, retail, breakdown });
+  const result = await costForRecipe(recipe, q);
+  res.json({ qty: q, recipeId: recipe.id, ...result });
 }));
 
 const materialSchema = z.object({

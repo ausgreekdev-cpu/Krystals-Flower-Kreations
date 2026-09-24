@@ -42,6 +42,43 @@ router.post('/adjust', adjustLimit, validate(adjustSchema), asyncHandler(async (
   res.json(level);
 }));
 
+router.get('/movements', asyncHandler(async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit), 10) || 30));
+  const movements = await prisma.stockMovement.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    include: { product: { select: { title: true } }, rawMaterial: { select: { name: true } }, location: { select: { name: true } }, user: { select: { email: true } } },
+  });
+  res.json(movements);
+}));
+
+// Exact-set onHand (vs increment-only /adjust). Writes stockMovement + variant inventoryQuantity.
+const setSchema = z.object({
+  productId: z.string().min(8).max(100),
+  variantId: z.string().min(8).max(100).optional().nullable(),
+  locationId: z.string().min(8).max(100),
+  onHand: z.number().int().finite().min(0).max(1000000),
+  reason: z.string().max(500).optional(),
+}).strict();
+router.post('/set', adjustLimit, validate(setSchema), asyncHandler(async (req, res) => {
+  const { productId, variantId, locationId, onHand, reason } = req.validated;
+  const vId = variantId || null;
+  const existing = await prisma.inventoryLevel.findFirst({ where: { productId, variantId: vId, locationId } });
+  const before = existing?.onHand ?? 0;
+  const delta = onHand - before;
+  const level = existing
+    ? await prisma.inventoryLevel.update({ where: { id: existing.id }, data: { onHand } })
+    : await prisma.inventoryLevel.create({ data: { productId, variantId: vId, locationId, onHand } });
+  if (delta !== 0) {
+    await prisma.stockMovement.create({ data: { productId, variantId: vId, locationId, type: delta > 0 ? 'in' : 'out', quantity: delta, reason: `Set to ${onHand}${reason ? ` — ${reason}` : ''}`, userId: req.user.id } });
+  }
+  if (variantId && delta !== 0) {
+    await prisma.productVariant.update({ where: { id: variantId }, data: { inventoryQuantity: { increment: delta } } }).catch(()=>{});
+    await prisma.inventoryLedger.create({ data: { variantId, delta, reason: 'set', userId: req.user.id } }).catch(()=>{});
+  }
+  res.json(level);
+}));
+
 router.get('/locations', asyncHandler(async (req, res) => {
   const locs = await prisma.inventoryLocation.findMany();
   res.json(locs);
@@ -51,6 +88,16 @@ const locationSchema = z.object({ name: z.string().min(2).max(100), address: z.s
 router.post('/locations', validate(locationSchema), asyncHandler(async (req, res) => {
   const loc = await prisma.inventoryLocation.create({ data: req.validated });
   res.status(201).json(loc);
+}));
+
+router.patch('/locations/:id', validate(locationSchema.partial()), asyncHandler(async (req, res) => {
+  const loc = await prisma.inventoryLocation.update({ where: { id: String(req.params.id).slice(0,100) }, data: req.validated });
+  res.json(loc);
+}));
+
+router.delete('/locations/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
+  await prisma.inventoryLocation.delete({ where: { id: String(req.params.id).slice(0,100) } });
+  res.json({ ok: true });
 }));
 
 // Reconciliation: compare InventoryLevel.onHand vs sum(InventoryLedger.delta) per variant

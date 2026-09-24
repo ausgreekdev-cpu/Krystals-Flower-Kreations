@@ -1,4 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-* { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+
+/* Brand theme — runtime-editable via /api/settings (ThemeProvider overrides these) */
+:root {
+  --bloom-50: 255 247 240;
+  --bloom-100: 253 232 224;
+  --bloom-200: 250 213 200;
+  --bloom-500: 184 92 92;
+  --bloom-700: 74 44 42;
+  --bloom-900: 43 26 26;
+
+  --royal-50: 245 243 255;
+  --royal-100: 237 233 254;
+  --royal-200: 221 214 254;
+  --royal-300: 196 181 253;
+  --royal-400: 167 139 250;
+  --royal-500: 139 92 246;
+  --royal-600: 124 58 237;
+  --royal-700: 109 40 217;
+  --royal-800: 91 33 182;
+  --royal-900: 76 29 149;
+  --royal-950: 46 16 101;
+
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { font-family: var(--font-sans); }

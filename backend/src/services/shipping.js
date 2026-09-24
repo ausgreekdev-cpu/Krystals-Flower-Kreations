@@ -25,9 +25,13 @@ export async function calculateShipping({ postcode, subtotal, weightGrams }) {
   return { zone: zone.name, name: rate.name, price };
 }
 
-export function calculateGstInclusive(total) {
-  const rate = Number(process.env.TAX_GST_RATE || 0.10);
-  // For AU GST-inclusive display, GST component = total * rate / (1 + rate)
+export async function calculateGstInclusive(total) {
+  let rate = Number(process.env.TAX_GST_RATE || 0.10);
+  // Prefer the DB setting (admin-editable) over env
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: 'tax_gst_rate' } });
+    if (row?.value) rate = Number(row.value) || rate;
+  } catch {}
   const gst = total * rate / (1 + rate);
   const exGst = total - gst;
   return { total, gst, exGst, rate };

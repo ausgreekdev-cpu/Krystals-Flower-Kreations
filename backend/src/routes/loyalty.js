@@ -2,12 +2,15 @@ import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { authenticate } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { loyaltyConfig } from '../services/loyaltyService.js';
 
 const router = Router();
 
-function tierFor(points){
-  if(points >= 500) return 'garden';
-  if(points >= 100) return 'blossom';
+// Local tier calc — reads config via loyaltyConfig so admin settings take effect.
+async function tierFor(points){
+  const cfg = await loyaltyConfig();
+  if(points >= cfg.garden) return 'garden';
+  if(points >= cfg.blossom) return 'blossom';
   return 'seedling';
 }
 
@@ -33,8 +36,21 @@ router.post('/earn', authenticate, asyncHandler(async (req,res)=>{
 
   let acc = await prisma.loyaltyAccount.findUnique({ where:{ email } });
   if(!acc) acc = await prisma.loyaltyAccount.create({ data:{ email, points:0, tier:'seedling' } });
-  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: { increment: pts }, tier: tierFor(acc.points + pts) } });
+  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: { increment: pts }, tier: await tierFor(acc.points + pts) } });
   await prisma.loyaltyTransaction.create({ data:{ accountId: acc.id, pointsDelta: pts, reason: String(reason).slice(0,100), orderId: req.body.orderId || null } });
+  res.json(updated);
+}));
+
+router.post('/set', authenticate, asyncHandler(async (req,res)=>{
+  if (!['staff','maker','admin','developer'].includes(req.user.role)) return res.status(403).json({ error:'Forbidden', code:'forbidden' });
+  const { email, delta, set, reason } = req.body;
+  if (!email) return res.status(400).json({ error:'email required', code:'validation_failed' });
+  let acc = await prisma.loyaltyAccount.findUnique({ where:{ email } });
+  if (!acc) acc = await prisma.loyaltyAccount.create({ data:{ email, points:0, tier:'seedling' } });
+  const target = set !== undefined ? Math.max(0, Math.floor(Number(set)||0)) : acc.points + Math.floor(Number(delta)||0);
+  const finalPoints = Math.max(0, target);
+  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: finalPoints, tier: await tierFor(finalPoints) } });
+  await prisma.loyaltyTransaction.create({ data:{ accountId: acc.id, pointsDelta: finalPoints - acc.points, reason: String(reason || 'admin adjustment').slice(0,100) } });
   res.json(updated);
 }));
 
@@ -44,7 +60,7 @@ router.post('/redeem', authenticate, asyncHandler(async (req,res)=>{
   const email = req.user.email;
   const acc = await prisma.loyaltyAccount.findUnique({ where:{ email } });
   if(!acc || acc.points < pts) return res.status(422).json({ error:`Insufficient points: have ${acc?.points||0}`, code:'insufficient_points' });
-  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: { decrement: pts }, tier: tierFor(acc.points - pts) } });
+  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: { decrement: pts }, tier: await tierFor(acc.points - pts) } });
   await prisma.loyaltyTransaction.create({ data:{ accountId: acc.id, pointsDelta: -pts, reason: String(reason || 'redeem').slice(0,100) } });
   res.json(updated);
 }));

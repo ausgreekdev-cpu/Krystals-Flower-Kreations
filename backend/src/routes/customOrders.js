@@ -6,6 +6,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { pricingConfig } from '../services/bomPricing.js';
 
 const router = Router();
 const customOrderLimit = rateLimit('custom_order_create', 10, 1);
@@ -77,9 +78,9 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
   } else {
     estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.armatureHeightMm / 60));
   }
-  const LABOUR_RATE = 55 / 60;
+  const LABOUR_RATE = (await pricingConfig()).labourPerHour / 60;
   const rawPrice = costPrice + (estimatedMinutes * LABOUR_RATE);
-  const totalPrice = Math.round((rawPrice * 1.30) * 100) / 100 + (data.spec.vaseIncluded ? 22 : 0) + (data.spec.addGreenery ? 12 : 0);
+  const totalPrice = Math.round((rawPrice * (await pricingConfig()).margin) * 100) / 100 + (data.spec.vaseIncluded ? 22 : 0) + (data.spec.addGreenery ? 12 : 0);
   const finalPrice = Math.max(45 + stemCount * 9.5, totalPrice);
   const order = await prisma.customArtOrder.create({
     data: {
