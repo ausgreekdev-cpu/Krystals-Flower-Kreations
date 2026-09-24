@@ -1,3 +1,4 @@
+import { clientIp } from './rate-limit.js';
 import { randomUUID } from 'node:crypto';
 
 export function requestLogger(req, res, next) {
@@ -18,7 +19,7 @@ export function requestLogger(req, res, next) {
       path: safeUrl,
       status: res.statusCode,
       durationMs,
-      ip: req.ip,
+      ip: clientIp(req),
       userId: req.user?.id || undefined,
     };
     // Structured JSON to stdout — Netlify aggregates

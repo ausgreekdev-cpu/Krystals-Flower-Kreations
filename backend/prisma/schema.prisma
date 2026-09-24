@@ -3,11 +3,17 @@
 
 generator client {
   provider = "prisma-client-js"
+  // native = local/CI; rhel-openssl-3.0.x = Netlify/AWS Lambda runtime
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Runtime: Supabase transaction pooler (:6543, ?pgbouncer=true&connection_limit=1)
+  url       = env("DATABASE_URL")
+  // Schema changes (db push / migrate): session pooler (:5432) — pgbouncer
+  // transaction mode can't run DDL. Locally/CI set DIRECT_URL = DATABASE_URL.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -923,4 +929,15 @@ model LoyaltyTransaction {
 
   @@index([accountId])
   @@map("loyalty_transactions")
+}
+
+// Shared fixed-window rate-limit counters (works across serverless instances).
+// key = "<limiter>:<subject>:<windowIndex>"; expired rows purged hourly.
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
 }

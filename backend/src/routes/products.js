@@ -7,12 +7,8 @@ import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { upload } from '../middleware/upload.js';
 import sharp from 'sharp';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import fs from 'fs';
 import crypto from 'crypto';
+import { putObject, deleteObjectByUrl } from '../services/storage.js';
 const requireAuth = authenticate;
 
 const router = Router();
@@ -103,15 +99,12 @@ router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandle
   res.json({ ok: true });
 }));
 
-// Product images upload — $0 sharp resize 800x800, stored in backend/uploads/products, served via /uploads
+// Product images upload — sharp resize 800x800 → Supabase Storage (prod) or backend/uploads (dev)
 router.post('/:id/images', requireAuth, requireRole('admin','developer','maker','staff'), upload.array('images', 5), asyncHandler(async (req, res) => {
   const productId = String(req.params.id).slice(0,100);
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
   if (!req.files || req.files.length===0) return res.status(400).json({ error: 'No images', code: 'validation_failed' });
-  const uploadDir = path.resolve(__dirname, '../../uploads/products');
-  try { fs.mkdirSync(uploadDir, { recursive: true }); fs.accessSync(uploadDir, fs.constants.W_OK); }
-  catch { return res.status(503).json({ error: 'Image storage is not writable on this host — configure object storage for uploads', code: 'storage_unavailable' }); }
   // Decode everything first so one bad file doesn't leave a half-saved batch
   const processed = [];
   for (const file of req.files) {
@@ -123,10 +116,8 @@ router.post('/:id/images', requireAuth, requireRole('admin','developer','maker',
   }
   const created = [];
   for (const { file, buf: resized } of processed) {
-    const filename = `${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.jpg`;
-    const filepath = path.join(uploadDir, filename);
-    fs.writeFileSync(filepath, resized);
-    const url = `/uploads/products/${filename}`;
+    const key = `products/${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.jpg`;
+    const url = await putObject(key, resized, 'image/jpeg');
     const img = await prisma.productImage.create({ data: { productId, url, alt: file.originalname.slice(0,200), sortOrder: 0 } });
     created.push(img);
   }
@@ -139,13 +130,7 @@ router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','d
   if (!image) return res.status(404).json({ error: 'Image not found', code: 'not_found' });
   if (image.productId !== req.params.productId) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   await prisma.productImage.delete({ where: { id: image.id } });
-  try {
-    const name = image.url.split('/').pop();
-    if (name && /^[a-zA-Z0-9_-]+\.jpg$/.test(name)) {
-      const f = path.resolve(__dirname, '../../uploads/products', name);
-      if (fs.existsSync(f)) fs.unlinkSync(f);
-    }
-  } catch {}
+  await deleteObjectByUrl(image.url);
   res.json({ ok: true });
 }));
 

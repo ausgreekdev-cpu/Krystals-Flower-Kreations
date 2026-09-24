@@ -7,30 +7,37 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
-      - run: cd backend && npm ci || npm install
-      - run: cd frontend && npm ci || npm install
-      - run: cd backend && npx prisma generate || true
+      - run: cd backend && npm ci
+      - run: cd frontend && npm ci
+      - run: cd backend && npx prisma generate
       - run: cd frontend && npm run build
-      - run: cd mobile && npm ci || npm install
-      - run: cd mobile && npx expo-doctor || true
+      - run: cd mobile && npm ci
+      - run: cd mobile && npx expo-doctor
+
   test:
     runs-on: ubuntu-latest
-    needs: build
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: krystal
+          POSTGRES_PASSWORD: krystal_dev_password
+          POSTGRES_DB: krystals_flower_kreations
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U krystal"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://krystal:krystal_dev_password@127.0.0.1:5432/krystals_flower_kreations?schema=public
+      DIRECT_URL: postgresql://krystal:krystal_dev_password@127.0.0.1:5432/krystals_flower_kreations?schema=public
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
-      - run: cd backend && npm test || true
-  mobile-bundle:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - uses: actions/setup-java@v4
-        with: { distribution: 'temurin', java-version: '17' }
-      - run: cd mobile && npm ci || npm install
-      - run: cd mobile && npx expo prebuild --platform android --clean --no-install || true
-      - run: cd mobile/android && chmod +x gradlew && ./gradlew bundleRelease --stacktrace || echo "bundleRelease requires keystore — skipping, apk build ok"
+      - run: cd backend && npm ci
+      - run: cd backend && npx prisma db push --skip-generate
+      - run: cd backend && npm run seed
+      - run: cd backend && npm test

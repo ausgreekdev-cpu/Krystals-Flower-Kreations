@@ -46,6 +46,23 @@ export async function req<T>(path: string, opts: RequestInit & { token?: string;
   return res.json();
 }
 
+// Resize to max 1600px JPEG in the browser. Falls back to the original file if
+// the browser can't decode it (server will then validate/reject it).
+async function downscaleImage(file: File, max = 1600, quality = 0.85): Promise<Blob> {
+  if (typeof createImageBitmap === 'undefined' || !file.type.startsWith('image/')) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024 && file.type === 'image/jpeg') { bmp.close?.(); return file; }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close?.();
+    const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+    return blob || file;
+  } catch { return file; }
+}
+
 export const authApi = {
   login: (email: string, password: string) => req<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: (token: string) => req<{ user: any }>('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
@@ -90,10 +107,16 @@ export const adminApi = {
     create: (body: any, token: string) => req<any>('/api/products', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/products/${id}`, { method: 'DELETE', token }),
-    uploadImages: (id: string, files: FileList, token: string) => {
-      const fd = new FormData();
-      Array.from(files).forEach((f) => fd.append('images', f));
-      return req<any>(`/api/products/${id}/images`, { method: 'POST', body: fd, token });
+    // One request per image, downscaled in the browser first — keeps each request
+    // well under Netlify's ~6 MB function payload limit (phone photos are often 5–12 MB).
+    uploadImages: async (id: string, files: FileList, token: string) => {
+      const created: any[] = [];
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append('images', await downscaleImage(f), f.name.replace(/\.[^.]+$/, '') + '.jpg');
+        created.push(...(await req<any[]>(`/api/products/${id}/images`, { method: 'POST', body: fd, token })));
+      }
+      return created;
     },
     deleteImage: (productId: string, imageId: string, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'DELETE', token }),
   },

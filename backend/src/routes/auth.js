@@ -23,7 +23,9 @@ router.post('/register', rateLimit('register', 5, 15), validate(registerSchema),
   res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 }));
 
-router.post('/login', rateLimit('login', 10, 15), validate(loginSchema), asyncHandler(async (req, res) => {
+// Per-IP limit + per-account limit (stops distributed guessing against one account)
+const loginAccountLimit = rateLimit('login_account', 20, 15, (req) => typeof req.body?.email === 'string' ? req.body.email.trim() : null);
+router.post('/login', rateLimit('login', 10, 15), loginAccountLimit, validate(loginSchema), asyncHandler(async (req, res) => {
   const { password } = req.validated;
   const email = req.validated.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email } });

@@ -1,14 +1,19 @@
 export const config = { schedule: "0 * * * *" }; // hourly
 export async function handler(event, context){
   try{
-    let app;
-    try { app = (await import("../../backend/src/app.js")).default; } catch { app = (await import("../../../backend/src/app.js")).default; }
     // Run inventory reservation cleanup: delete carts older than 24h
     let prisma;
     try { prisma = (await import("../../backend/src/lib/prisma.js")).default; } catch { prisma = (await import("../../../backend/src/lib/prisma.js")).default; }
     const dayAgo = new Date(Date.now() - 24*60*60*1000);
     const deleted = await prisma.cart.deleteMany({ where: { updatedAt: { lt: dayAgo } } }).catch(()=>({count:0}));
     console.log(`[scheduled] cleaned ${deleted.count||0} stale carts`);
+    // Purge expired shared rate-limit counters
+    let purgedRl = 0;
+    try {
+      let rl;
+      try { rl = await import("../../backend/src/middleware/rate-limit.js"); } catch { rl = await import("../../../backend/src/middleware/rate-limit.js"); }
+      purgedRl = await rl.purgeExpiredRateLimits();
+    } catch (e) { console.log('[scheduled] rate-limit purge skipped', e.message); }
       // Workshop reminders: 24h and 2h before session (only for confirmed bookings) + waitlist promotion
     let reminders = 0; let promoted = 0; let lowCount = 0;
     try {
@@ -67,8 +72,8 @@ export async function handler(event, context){
         }
       } catch {}
     } catch(e){ console.log('[scheduled] reminder/promotion skipped', e.message); }
-    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, promoted ${promoted}, lowStock ${lowCount}`);
-    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, promoted, lowStock: lowCount }) };
+    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, promoted ${promoted}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}`);
+    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, promoted, lowStock: lowCount, rateLimitRowsPurged: purgedRl }) };
   }catch(err){
     console.error("[scheduled] failed", err);
     return { statusCode: 500, body: JSON.stringify({ error: String(err.message) }) };
