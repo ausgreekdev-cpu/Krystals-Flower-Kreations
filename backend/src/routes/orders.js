@@ -13,6 +13,21 @@ const router = Router();
 
 const ORDER_STATUSES = ['draft','pending_payment','paid','making','ready','shipped','delivered','cancelled','refunded','partially_refunded'];
 
+// Allowed next states. Terminal states (cancelled/refunded/partially_refunded)
+// can't transition further — prevents refunded→paid, double-cancel, etc.
+const STATUS_TRANSITIONS = {
+  draft: ['pending_payment', 'paid', 'cancelled'],
+  pending_payment: ['paid', 'cancelled', 'refunded'],
+  paid: ['making', 'cancelled', 'refunded', 'partially_refunded'],
+  making: ['ready', 'cancelled', 'refunded'],
+  ready: ['shipped', 'delivered', 'cancelled', 'refunded'],
+  shipped: ['delivered', 'refunded', 'partially_refunded'],
+  delivered: ['refunded', 'partially_refunded'],
+  cancelled: [],
+  refunded: [],
+  partially_refunded: [],
+};
+
 function orderNumber() {
   const d = new Date();
   return `KFK-${d.getFullYear()}-${Math.random().toString(36).toUpperCase().slice(2,7)}${Date.now().toString().slice(-4)}`;
@@ -197,10 +212,24 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   if (!['admin','developer','maker','staff'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   const { status, note } = req.body;
   if (!ORDER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
-  const current = await prisma.order.findUnique({ where: { id: req.params.id } });
+  const current = await prisma.order.findUnique({ where: { id: req.params.id }, include: { lines: true } });
   if (!current) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+
+  // Enforce a legal transition (no-op same-state allowed)
+  if (status !== current.status && !(STATUS_TRANSITIONS[current.status] || []).includes(status)) {
+    return res.status(409).json({ error: `Cannot move order from '${current.status}' to '${status}'`, code: 'invalid_transition' });
+  }
+
   const order = await prisma.order.update({ where: { id: req.params.id }, data: { status, paymentStatus: status==='paid' ? 'paid' : undefined } });
   await prisma.orderStatusHistory.create({ data: { orderId: order.id, fromStatus: current.status, toStatus: status, note: note ? String(note).slice(0,500) : null } });
+
+  // Restock when fully cancelling/refunding a previously-fulfilling order.
+  // Checkout deducts stock at creation, so we reverse it here. The transition
+  // map guarantees this runs at most once per order (terminal states are closed).
+  if ((status === 'cancelled' || status === 'refunded') && current.status !== status) {
+    await restockOrder(order, current.lines);
+  }
+
   // Earn loyalty when marked paid (for bank_transfer/pickup later paid at POS)
   if (status === 'paid' && current.status !== 'paid') {
     try {
@@ -217,5 +246,32 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   }
   res.json(order);
 }));
+
+// Reverse checkout's stock deduction for tracked lines (sequential, pgbouncer-safe).
+async function restockOrder(order, lines) {
+  const productIds = [...new Set(lines.filter(l => !l.isDigital).map(l => l.productId))];
+  if (!productIds.length) return;
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, stockMode: true } });
+  const tracked = new Set(products.filter(p => p.stockMode === 'tracked').map(p => p.id));
+
+  for (const line of lines) {
+    if (line.isDigital || !tracked.has(line.productId)) continue;
+    try {
+      if (line.variantId) {
+        await prisma.productVariant.update({ where: { id: line.variantId }, data: { inventoryQuantity: { increment: line.quantity } } });
+        await prisma.inventoryLedger.create({ data: { variantId: line.variantId, delta: line.quantity, reason: 'return', orderId: order.id, userId: null } });
+      } else {
+        const loc = await prisma.inventoryLocation.findFirst({ where: { isDefault: true } }) || await prisma.inventoryLocation.findFirst();
+        const level = loc ? await prisma.inventoryLevel.findFirst({ where: { productId: line.productId, variantId: null, locationId: loc.id } }) : null;
+        if (level) {
+          await prisma.inventoryLevel.update({ where: { id: level.id }, data: { onHand: { increment: line.quantity } } });
+          await prisma.stockMovement.create({ data: { productId: line.productId, variantId: null, locationId: loc.id, type: 'return', quantity: line.quantity, reference: order.orderNumber, userId: null } });
+        }
+      }
+    } catch (e) {
+      console.error(JSON.stringify({ level: 'error', msg: 'restock failed', orderId: order.id, lineId: line.id, err: e?.message }));
+    }
+  }
+}
 
 export default router;

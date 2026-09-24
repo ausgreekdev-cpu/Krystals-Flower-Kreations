@@ -28,6 +28,14 @@ router.get('/:qrPayload', requireAuth, asyncHandler(async (req, res) => {
   if (!/^[A-Z0-9\-_]+$/.test(qr)) return res.status(400).json({ error: 'Invalid QR', code: 'validation_failed' });
   const ticket = await prisma.ticket.findUnique({ where: { qrPayload: qr }, include: { booking: { include: { session: { include: { workshop: true } } } }, customArtOrder: true } });
   if (!ticket) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  // Ownership: staff can view any; customers only their own booking/order
+  const isStaff = ['admin','developer','maker','staff'].includes(req.user.role);
+  if (!isStaff) {
+    const email = (req.user.email || '').toLowerCase();
+    const owns = (ticket.booking && ticket.booking.email.toLowerCase() === email) ||
+                 (ticket.customArtOrder && ticket.customArtOrder.customerEmail?.toLowerCase() === email);
+    if (!owns) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  }
   res.json(ticket);
 }));
 

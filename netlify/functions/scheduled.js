@@ -15,7 +15,7 @@ export async function handler(event, context){
       purgedRl = await rl.purgeExpiredRateLimits();
     } catch (e) { console.log('[scheduled] rate-limit purge skipped', e.message); }
       // Workshop reminders: 24h and 2h before session (only for confirmed bookings) + waitlist promotion
-    let reminders = 0; let promoted = 0; let lowCount = 0;
+    let reminders = 0; let lowCount = 0;
     try {
       let sendWorkshopConfirmation;
       try { sendWorkshopConfirmation = (await import("../../backend/src/services/email.js")).sendWorkshopConfirmation; }
@@ -38,16 +38,6 @@ export async function handler(event, context){
       }).catch(()=>[]);
       for (const b of soon) {
         try { await sendWorkshopConfirmation({ ...b, ticket: b.ticket }, b.session.workshop, b.session); reminders++; } catch {}
-      }
-      // Waitlist promotion: when confirmed cancelled, promote first waitlisted
-      const cancelled = await prisma.booking.findMany({ where: { status: 'cancelled' }, orderBy: { updatedAt: 'desc' }, take: 10, include: { session: true } }).catch(()=>[]);
-      for (const c of cancelled) {
-        const waitlisted = await prisma.booking.findFirst({ where: { sessionId: c.sessionId, status: 'waitlisted' }, orderBy: { createdAt: 'asc' } });
-        if (waitlisted && c.session.bookedCount < c.session.capacity) {
-          await prisma.booking.update({ where: { id: waitlisted.id }, data: { status: 'confirmed' } }).catch(()=>{});
-          await prisma.workshopSession.update({ where: { id: c.sessionId }, data: { bookedCount: { increment: 1 }, waitlistCount: { decrement: 1 } } }).catch(()=>{});
-          promoted++;
-        }
       }
       // Low-stock alert: raw materials + product levels + variants
       try {
@@ -72,8 +62,8 @@ export async function handler(event, context){
         }
       } catch {}
     } catch(e){ console.log('[scheduled] reminder/promotion skipped', e.message); }
-    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, promoted ${promoted}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}`);
-    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, promoted, lowStock: lowCount, rateLimitRowsPurged: purgedRl }) };
+    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}`);
+    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, lowStock: lowCount, rateLimitRowsPurged: purgedRl }) };
   }catch(err){
     console.error("[scheduled] failed", err);
     return { statusCode: 500, body: JSON.stringify({ error: String(err.message) }) };

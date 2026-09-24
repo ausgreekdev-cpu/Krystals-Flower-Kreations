@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
-import { requireAuth, requireRole } from '../lib/auth.js';
+import { requireAuth, requireRole, ROLE_RANK } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 
@@ -58,13 +58,32 @@ router.get('/:id', requireAuth, requireRole('admin','developer','maker','staff')
   res.json({ ...user, orders, bookings, customOrders, loyalty });
 }));
 
-// Role management — admin/developer can promote/demote (cannot change own role)
+// Role management — admin/developer can promote/demote (cannot change own role).
+// Guard: only developers may grant/revoke the developer role (prevents privilege
+// escalation by admins), and no one can modify a developer unless they're one.
 const roleSchema = z.object({ role: z.enum(['customer','staff','maker','admin','developer']) }).strict();
 router.patch('/:id/role', requireAuth, requireRole('admin','developer'), validate(roleSchema), asyncHandler(async (req, res) => {
   const target = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!target) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   if (target.id === req.user.id) return res.status(400).json({ error: 'Cannot change your own role', code: 'validation_failed' });
+  const callerRank = ROLE_RANK[req.user.role] || 0;
+  const targetRank = ROLE_RANK[target.role] || 0;
+  const newRank = ROLE_RANK[req.validated.role] || 0;
+  const callerIsDev = req.user.role === 'developer';
+  if (!callerIsDev) {
+    if (newRank >= ROLE_RANK.developer) {
+      return res.status(403).json({ error: 'Only a developer can assign the developer role', code: 'forbidden' });
+    }
+    if (targetRank >= ROLE_RANK.developer) {
+      return res.status(403).json({ error: 'Only a developer can modify a developer account', code: 'forbidden' });
+    }
+    if (callerRank <= targetRank) {
+      return res.status(403).json({ error: 'Cannot change the role of a user with equal or higher rank', code: 'forbidden' });
+    }
+  }
   const user = await prisma.user.update({ where: { id: target.id }, data: { role: req.validated.role } });
+  // Structured audit log (persistent AuditLog table lands with a later change)
+  console.log(JSON.stringify({ level: 'info', event: 'role_change', byUserId: req.user.id, byEmail: req.user.email, targetUserId: target.id, targetEmail: target.email, fromRole: target.role, toRole: req.validated.role, at: new Date().toISOString() }));
   res.json({ id: user.id, email: user.email, role: user.role });
 }));
 

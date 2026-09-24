@@ -40,8 +40,12 @@ import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
 import { globalRateLimit } from './middleware/rate-limit.js';
 import { notFound, errorHandler } from './middleware/error-handler.js';
+import { asyncHandler } from './middleware/async-handler.js';
 import prisma from './lib/prisma.js';
 import { authenticate, roleAtLeast } from './lib/auth.js';
+import { validateEnv } from './lib/config.js';
+
+validateEnv();
 
 const app = express();
 
@@ -90,9 +94,17 @@ const uploadDir = path.resolve(__dirname, '../uploads');
 try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'uploads dir not writable', dir: uploadDir, code: e.code })); }
 app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
 
-// Health (no auth, no rate-limit beyond global)
-app.get('/api/health', (req, res) => res.json({ ok: true, name: "Krystal's Flower Kreations", version: '1.0.0', env: process.env.NODE_ENV || 'development', requestId: req.id }));
-app.get('/health', (req, res) => res.json({ status: 'healthy', timestamp: new Date().toISOString(), version: '1.0.0', requestId: req.id }));
+// Health (no auth, no rate-limit beyond global) — probes the DB so monitors see real availability
+app.get('/api/health', asyncHandler(async (req, res) => {
+  let db = false;
+  try { await prisma.$queryRaw`SELECT 1`; db = true; } catch (e) { console.error(JSON.stringify({ level: 'error', msg: 'health db probe failed', err: e?.message })); }
+  res.status(db ? 200 : 503).json({ ok: db, db, name: "Krystal's Flower Kreations", version: '1.0.0', env: process.env.NODE_ENV || 'development', requestId: req.id });
+}));
+app.get('/health', asyncHandler(async (req, res) => {
+  let db = false;
+  try { await prisma.$queryRaw`SELECT 1`; db = true; } catch {}
+  res.status(db ? 200 : 503).json({ status: db ? 'healthy' : 'unhealthy', db, timestamp: new Date().toISOString(), version: '1.0.0', requestId: req.id });
+}));
 
 // Routes — apply stricter per-route rate limits where needed inside routers
 app.use('/api/auth', authRoutes);

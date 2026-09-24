@@ -17,7 +17,7 @@ export default function Cart(){
   async function updateQty(itemId, qty){
     setErr('');
     try{
-      await cartApi.update({ itemId, quantity: qty });
+      await cartApi.update({ itemId, cartId: localStorage.getItem('cartId'), quantity: qty });
       window.dispatchEvent(new CustomEvent('cart:updated'));
     }catch(e){ setErr(e.message||'Update failed'); }
     load();

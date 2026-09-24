@@ -14,6 +14,12 @@ function getCartId(req) {
   return req.headers['x-cart-id'] || req.cookies?.cartId;
 }
 
+// Bump Cart.updatedAt so the hourly stale-cart cleanup doesn't delete active carts
+// (CartItem writes don't touch Cart.updatedAt on their own).
+async function touchCart(cartId) {
+  await prisma.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } }).catch(()=>{});
+}
+
 router.get('/', asyncHandler(async (req, res) => {
   const cartId = getCartId(req);
   if (!cartId) return res.json({ cart: null, items: [] });
@@ -56,14 +62,19 @@ router.post('/add', cartAddLimit, validate(z.object({ productId: z.string().min(
   } else {
     await prisma.cartItem.create({ data: { cartId, productId, variantId: variantId || null, quantity, priceSnapshot: price } });
   }
+  await touchCart(cartId);
   const full = await prisma.cart.findUnique({ where: { id: cartId }, include: { items: { include: { product: { include: { images: true } }, variant: true } } } });
   res.json({ cartId, cart: full });
 }));
 
-router.post('/update', validate(z.object({ itemId: z.string().min(8).max(100), quantity: z.number().int().finite().min(0).max(99) })), asyncHandler(async (req, res) => {
-  const { itemId, quantity } = req.validated;
+router.post('/update', validate(z.object({ itemId: z.string().min(8).max(100), cartId: z.string().min(8).max(100), quantity: z.number().int().finite().min(0).max(99) })), asyncHandler(async (req, res) => {
+  const { itemId, cartId, quantity } = req.validated;
+  // Ownership: the item must belong to the caller's cart (cartId is the guest capability)
+  const item = await prisma.cartItem.findFirst({ where: { id: itemId, cartId } });
+  if (!item) return res.status(404).json({ error: 'Item not found in cart', code: 'not_found' });
   if (quantity === 0) await prisma.cartItem.delete({ where: { id: itemId } });
   else await prisma.cartItem.update({ where: { id: itemId }, data: { quantity } });
+  await touchCart(cartId);
   res.json({ ok: true });
 }));
 

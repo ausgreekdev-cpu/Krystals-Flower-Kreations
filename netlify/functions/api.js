@@ -9,8 +9,9 @@ export const config = {
 };
 
 export async function handler(event, context) {
-  if (event.httpMethod === 'HEAD' || event.path === '/api/health') {
-    return { statusCode: 200, body: 'OK' };
+  // HEAD needs no body; keep it cheap. /api/health now hits Express + DB probe.
+  if (event.httpMethod === 'HEAD') {
+    return { statusCode: 200, body: '' };
   }
   if (!appHandler) {
     try {
