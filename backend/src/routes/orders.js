@@ -188,7 +188,7 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
 router.get('/my', authenticate, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(401).json({ error: 'User not found', code: 'unauthorized' });
-  const orders = await prisma.order.findMany({ where: { email: user.email }, orderBy: { createdAt: 'desc' }, include: { lines: true } });
+  const orders = await prisma.order.findMany({ where: { email: user.email }, orderBy: { createdAt: 'desc' }, take: 100, include: { lines: true } });
   res.json(orders);
 }));
 

@@ -12,7 +12,7 @@ const requireAuth = authenticate;
 const bookLimit = rateLimit('workshop_book', 10, 1);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const workshops = await prisma.workshop.findMany({ where: { isActive: true }, include: { sessions: { orderBy: { startsAt: 'asc' } } }, orderBy: { createdAt: 'desc' } });
+  const workshops = await prisma.workshop.findMany({ where: { isActive: true }, include: { sessions: { orderBy: { startsAt: 'asc' } } }, orderBy: { createdAt: 'desc' }, take: 100 });
   res.json(workshops);
 }));
 

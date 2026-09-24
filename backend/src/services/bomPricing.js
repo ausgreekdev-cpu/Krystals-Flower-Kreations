@@ -27,7 +27,7 @@ export async function costForRecipe(recipe, qtyStems) {
   let materialsCost = 0;
   const breakdown = (recipe.lines || []).map(l => {
     const eff = l.qtyPerUnit * (1 + (l.wasteFactor || 0)) * scale;
-    const cost = eff * (l.rawMaterial?.costPerUnit ?? 0);
+    const cost = eff * Number(l.rawMaterial?.costPerUnit ?? 0);
     materialsCost += cost;
     return { sku: l.rawMaterial?.sku, name: l.rawMaterial?.name, unit: l.rawMaterial?.unit, perUnit: l.qtyPerUnit, wasteFactor: l.wasteFactor, effectiveQty: eff, cost, onHand: l.rawMaterial?.onHand, low: l.rawMaterial ? l.rawMaterial.onHand <= l.rawMaterial.lowThreshold : false };
   });

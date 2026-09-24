@@ -27,7 +27,7 @@ router.get('/', asyncHandler(async (req, res) => {
   else return res.status(400).json({ error: 'Invalid status', code: 'validation_failed' });
   if (q) where.OR = [{ title: { contains: q, mode: 'insensitive' } }, { excerpt: { contains: q, mode: 'insensitive' } }];
   if (tag) where.tags = { contains: tag, mode: 'insensitive' };
-  const posts = await prisma.post.findMany({ where, orderBy: { publishedAt: 'desc' }, include: { products: { include: { product: { include: { images: true } } } } } });
+  const posts = await prisma.post.findMany({ where, orderBy: { publishedAt: 'desc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
   res.json(posts);
 }));
 

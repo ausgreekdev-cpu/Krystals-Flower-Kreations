@@ -68,7 +68,7 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
     const scale = stemCount / baseline;
     for (const l of recipe.lines) {
       const eff = l.qtyPerUnit * (1 + l.wasteFactor) * scale;
-      const cost = eff * l.rawMaterial.costPerUnit;
+      const cost = eff * Number(l.rawMaterial.costPerUnit);
       bomSnapshot.push({ rawMaterialId: l.rawMaterialId, sku: l.rawMaterial.sku, effectiveQty: eff, cost });
       costPrice += cost;
     }

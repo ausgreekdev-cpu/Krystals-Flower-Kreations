@@ -15,7 +15,7 @@ router.get('/', asyncHandler(async (req, res) => {
     try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
     if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   }
-  const cols = await prisma.collection.findMany({ where: all ? {} : { isActive: true }, orderBy: { sortOrder: 'asc' }, include: { products: { include: { product: { include: { images: true } } } } } });
+  const cols = await prisma.collection.findMany({ where: all ? {} : { isActive: true }, orderBy: { sortOrder: 'asc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
   res.json(cols);
 }));
 

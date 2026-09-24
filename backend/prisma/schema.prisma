@@ -235,6 +235,7 @@ model ProductVariant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([productId])
   @@map("product_variants")
 }
 
@@ -249,6 +250,7 @@ model ProductImage {
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@index([productId])
   @@map("product_images")
 }
 
@@ -304,6 +306,7 @@ model InventoryLot {
   rawMaterial RawMaterial?     @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
   location    InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
+  @@index([expiresAt])
   @@map("inventory_lots")
 }
 
@@ -397,6 +400,9 @@ model StockMovement {
   @@index([productId])
   @@index([type])
   @@index([rawMaterialId])
+  @@index([createdAt])
+  @@index([locationId])
+  @@index([variantId])
   @@map("stock_movements")
 }
 
@@ -426,6 +432,7 @@ model Cart {
 
   items CartItem[]
 
+  @@index([updatedAt])
   @@map("carts")
 }
 
@@ -441,6 +448,7 @@ model CartItem {
   product Product @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 
+  @@index([cartId])
   @@map("cart_items")
 }
 
@@ -489,6 +497,8 @@ model Order {
   @@index([status])
   @@index([userId])
   @@index([createdAt])
+  @@index([email])
+  @@index([paymentStatus])
   @@map("orders")
 }
 
@@ -509,6 +519,8 @@ model OrderLine {
   product Product @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 
+  @@index([orderId])
+  @@index([productId])
   @@map("order_lines")
 }
 
@@ -522,6 +534,7 @@ model OrderStatusHistory {
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([orderId])
   @@map("order_status_history")
 }
 
@@ -537,6 +550,7 @@ model Payment {
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([orderId])
   @@map("payments")
 }
 
@@ -610,6 +624,9 @@ model Booking {
   stripePaymentIntentId String?
   checkedInAt DateTime?
   notes      String? @db.Text
+  // Reminder de-dupe (hourly cron sends 24h + 2h before start)
+  reminder24hSentAt DateTime?
+  reminder2hSentAt  DateTime?
 
   session WorkshopSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User? @relation(fields: [userId], references: [id])
@@ -618,6 +635,10 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([sessionId])
+  @@index([status])
+  @@index([email])
+  @@index([userId])
   @@map("bookings")
 }
 
@@ -707,6 +728,7 @@ model PosPayment {
 
   session PosSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@index([sessionId])
   @@map("pos_payments")
 }
 
@@ -721,6 +743,7 @@ model MetaCatalogItem {
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@index([status])
   @@map("meta_catalog_items")
 }
 
@@ -733,6 +756,7 @@ model MetaSyncLog {
   rawJson   String? @db.Text
   createdAt DateTime @default(now())
 
+  @@index([createdAt])
   @@map("meta_sync_logs")
 }
 
@@ -796,7 +820,7 @@ model RawMaterial {
   unit         RawUnit  @default(sheet)
   onHand       Float    @default(0)
   lowThreshold Float    @default(5)
-  costPerUnit  Float    @default(0)
+  costPerUnit  Decimal  @db.Decimal(10,2) @default(0)
   supplier     String?
   locationId   String?
   location     InventoryLocation? @relation(fields: [locationId], references: [id])
@@ -856,8 +880,8 @@ model CustomArtOrder {
   state           CustomOrderState @default(drafting_proofing)
   bomSnapshot     Json             @default("[]")
   estimatedMinutes Float           @default(0)
-  totalPrice      Float            @default(0)
-  costPrice       Float?
+  totalPrice      Decimal          @db.Decimal(10,2) @default(0)
+  costPrice       Decimal?         @db.Decimal(10,2)
   shippingName    String?
   shippingAddress String?          @db.Text
   shippingSuburb  String?

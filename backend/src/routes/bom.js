@@ -156,7 +156,7 @@ router.get('/recipes/:id/estimate', requireAuth, requireRole('admin','developer'
   let materialsCost = 0;
   const breakdown = recipe.lines.map(l => {
     const eff = l.qtyPerUnit * (1 + l.wasteFactor) * qty;
-    const cost = eff * l.rawMaterial.costPerUnit;
+    const cost = eff * Number(l.rawMaterial.costPerUnit);
     materialsCost += cost;
     return { sku: l.rawMaterial.sku, name: l.rawMaterial.name, unit: l.rawMaterial.unit, perUnit: l.qtyPerUnit, wasteFactor: l.wasteFactor, effectiveQty: eff, cost };
   });

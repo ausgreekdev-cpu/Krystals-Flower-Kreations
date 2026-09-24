@@ -16,7 +16,7 @@ router.post('/:id/sessions', requireAuth, requireRole('admin','developer','maker
 }));
 
 router.get('/:id/sessions', asyncHandler(async (req, res) => {
-  const sessions = await prisma.workshopSession.findMany({ where: { workshopId: req.params.id }, orderBy: { startsAt: 'asc' } });
+  const sessions = await prisma.workshopSession.findMany({ where: { workshopId: req.params.id }, orderBy: { startsAt: 'asc' }, take: 100 });
   res.json(sessions);
 }));
 

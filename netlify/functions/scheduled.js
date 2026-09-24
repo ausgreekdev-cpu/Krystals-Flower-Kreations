@@ -24,20 +24,22 @@ export async function handler(event, context){
       const in24h = new Date(now.getTime() + 24*60*60*1000);
       const in2h = new Date(now.getTime() + 2*60*60*1000);
       const upcoming = await prisma.booking.findMany({
-        where: { status: 'confirmed', session: { startsAt: { gte: new Date(in24h.getTime() - 60*60*1000), lte: new Date(in24h.getTime() + 60*60*1000) } } },
+        where: { status: 'confirmed', reminder24hSentAt: null, session: { startsAt: { gte: new Date(in24h.getTime() - 60*60*1000), lte: new Date(in24h.getTime() + 60*60*1000) } } },
         include: { session: { include: { workshop: true } }, ticket: true },
         take: 20,
       }).catch(()=>[]);
       for (const b of upcoming) {
         try { await sendWorkshopConfirmation({ ...b, ticket: b.ticket }, b.session.workshop, b.session); reminders++; } catch {}
+        await prisma.booking.update({ where: { id: b.id }, data: { reminder24hSentAt: new Date() } }).catch(()=>{});
       }
       const soon = await prisma.booking.findMany({
-        where: { status: 'confirmed', session: { startsAt: { gte: new Date(in2h.getTime() - 30*60*1000), lte: new Date(in2h.getTime() + 30*60*1000) } } },
+        where: { status: 'confirmed', reminder2hSentAt: null, session: { startsAt: { gte: new Date(in2h.getTime() - 30*60*1000), lte: new Date(in2h.getTime() + 30*60*1000) } } },
         include: { session: { include: { workshop: true } }, ticket: true },
         take: 20,
       }).catch(()=>[]);
       for (const b of soon) {
         try { await sendWorkshopConfirmation({ ...b, ticket: b.ticket }, b.session.workshop, b.session); reminders++; } catch {}
+        await prisma.booking.update({ where: { id: b.id }, data: { reminder2hSentAt: new Date() } }).catch(()=>{});
       }
       // Low-stock alert: raw materials + product levels + variants
       try {
