@@ -7,6 +7,7 @@ export async function handler(event, context){
     const dayAgo = new Date(Date.now() - 24*60*60*1000);
     const deleted = await prisma.cart.deleteMany({ where: { updatedAt: { lt: dayAgo } } }).catch(()=>({count:0}));
     console.log(`[scheduled] cleaned ${deleted.count||0} stale carts`);
+
     // Purge expired shared rate-limit counters
     let purgedRl = 0;
     try {
@@ -14,7 +15,8 @@ export async function handler(event, context){
       try { rl = await import("../../backend/src/middleware/rate-limit.js"); } catch { rl = await import("../../../backend/src/middleware/rate-limit.js"); }
       purgedRl = await rl.purgeExpiredRateLimits();
     } catch (e) { console.log('[scheduled] rate-limit purge skipped', e.message); }
-      // Workshop reminders: 24h and 2h before session (only for confirmed bookings) + waitlist promotion
+
+    // Workshop reminders: 24h and 2h before session (only for confirmed bookings)
     let reminders = 0; let lowCount = 0;
     try {
       let sendWorkshopConfirmation;
@@ -41,31 +43,43 @@ export async function handler(event, context){
         try { await sendWorkshopConfirmation({ ...b, ticket: b.ticket }, b.session.workshop, b.session); reminders++; } catch {}
         await prisma.booking.update({ where: { id: b.id }, data: { reminder2hSentAt: new Date() } }).catch(()=>{});
       }
-      // Low-stock alert: raw materials + product levels + variants
-      try {
-        const defaultThreshold = Number((await prisma.setting.findUnique({ where: { key: 'low_stock_default' } }).catch(()=>null))?.value || 5);
-        const [mats, levels, variants] = await Promise.all([
-          prisma.rawMaterial.findMany().catch(()=>[]),
-          prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } } } }).catch(()=>[]),
-          prisma.productVariant.findMany({ include: { product: { select: { title: true } } } }).catch(()=>[]),
-        ]);
-        const lowStock = [
-          ...mats.filter(m => m.onHand <= m.lowThreshold).map(m => `${m.name} (${m.onHand}/${m.lowThreshold})`),
-          ...levels.filter(l => l.onHand <= (l.lowStockThreshold ?? defaultThreshold)).map(l => `${l.product?.title || l.productId} (${l.onHand}/${l.lowStockThreshold ?? defaultThreshold})`),
-          ...variants.filter(v => v.inventoryQuantity <= defaultThreshold).map(v => `${v.product?.title} — ${v.title} (${v.inventoryQuantity}/${defaultThreshold})`),
-        ];
-        lowCount = lowStock.length;
-        if (lowStock.length>0) {
-          let sendEmail;
-          try { sendEmail = (await import("../../backend/src/services/email.js")).sendEmail; }
-          catch { sendEmail = (await import("../../../backend/src/services/email.js")).sendEmail; }
-          const names = lowStock.join(', ');
-          await sendEmail({ to: process.env.COMPANY_EMAIL || 'krystal@krystalsflowerkreations.com.au', subject: `Low stock: ${lowStock.length} items`, text: `Low stock alert:\n${names}\n\nCheck Inventory at /admin?tab=inventory` }).catch(()=>{});
-        }
-      } catch {}
-    } catch(e){ console.log('[scheduled] reminder/promotion skipped', e.message); }
-    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}`);
-    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, lowStock: lowCount, rateLimitRowsPurged: purgedRl }) };
+    } catch(e){ console.log('[scheduled] reminder skipped', e.message); }
+
+    // Low-stock alert: raw materials + product levels + variants
+    try {
+      const defaultThreshold = Number((await prisma.setting.findUnique({ where: { key: 'low_stock_default' } }).catch(()=>null))?.value || 5);
+      const [mats, levels, variants] = await Promise.all([
+        prisma.rawMaterial.findMany().catch(()=>[]),
+        prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } } } }).catch(()=>[]),
+        prisma.productVariant.findMany({ include: { product: { select: { title: true } } } }).catch(()=>[]),
+      ]);
+      const lowStock = [
+        ...mats.filter(m => m.onHand <= m.lowThreshold).map(m => `${m.name} (${m.onHand}/${m.lowThreshold})`),
+        ...levels.filter(l => l.onHand <= (l.lowStockThreshold ?? defaultThreshold)).map(l => `${l.product?.title || l.productId} (${l.onHand}/${l.lowStockThreshold ?? defaultThreshold})`),
+        ...variants.filter(v => v.inventoryQuantity <= defaultThreshold).map(v => `${v.product?.title} — ${v.title} (${v.inventoryQuantity}/${defaultThreshold})`),
+      ];
+      lowCount = lowStock.length;
+      if (lowStock.length>0) {
+        let sendEmail;
+        try { sendEmail = (await import("../../backend/src/services/email.js")).sendEmail; }
+        catch { sendEmail = (await import("../../../backend/src/services/email.js")).sendEmail; }
+        const names = lowStock.join(', ');
+        await sendEmail({ to: process.env.COMPANY_EMAIL || 'krystal@krystalsflowerkreations.com.au', subject: `Low stock: ${lowStock.length} items`, text: `Low stock alert:\n${names}\n\nCheck Inventory at /admin?tab=inventory` }).catch(()=>{});
+      }
+    } catch(e){ console.log('[scheduled] low-stock skipped', e.message); }
+
+    // Drain any queued emails whose immediate send was frozen/lost (order + workshop confirmations).
+    let emailDrained = 0;
+    try {
+      let drain;
+      try { drain = (await import("../../backend/src/services/email.js")).drainEmailQueue; }
+      catch { drain = (await import("../../../backend/src/services/email.js")).drainEmailQueue; }
+      const r = await drain();
+      emailDrained = r.sent || 0;
+    } catch (e) { console.log('[scheduled] email drain skipped', e.message); }
+
+    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}, emailsSent ${emailDrained}`);
+    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, lowStock: lowCount, rateLimitRowsPurged: purgedRl, emailsSent: emailDrained }) };
   }catch(err){
     console.error("[scheduled] failed", err);
     return { statusCode: 500, body: JSON.stringify({ error: String(err.message) }) };

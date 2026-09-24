@@ -989,3 +989,24 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// Durable outbound-email queue. Serverless functions may freeze after returning,
+// so fire-and-forget sends can be lost — routes enqueue (awaited, durable) and the
+// hourly scheduled job drains whatever didn't send immediately.
+model EmailQueue {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  text      String?  @db.Text
+  html      String?  @db.Text
+  template  String?
+  payload   Json?
+  status    String   @default("pending") // pending | sent | failed
+  attempts  Int      @default(0)
+  lastError String?  @db.Text
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+
+  @@index([status, createdAt])
+  @@map("email_queue")
+}

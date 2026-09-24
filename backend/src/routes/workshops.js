@@ -83,7 +83,7 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     return { booking, ticket, status, workshop: session.workshop, session };
   });
   if (result.status === 'confirmed') {
-    sendWorkshopConfirmation({ ...result.booking, ticket: result.ticket }, result.workshop, result.session).catch(()=>{});
+    await sendWorkshopConfirmation({ ...result.booking, ticket: result.ticket }, result.workshop, result.session).catch(()=>{});
   }
   res.status(201).json({ ...result.booking, ticket: result.ticket });
 }));
