@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
-import { requireAuth, requireRole } from '../lib/auth.js';
+import { requireAuth, requireRole, isProductionLike } from '../lib/auth.js';
 import { pushProductToCatalog, handleMetaWebhook } from '../services/metaSync.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 
@@ -47,14 +47,14 @@ router.post('/sync-all', requireAuth, requireRole('admin','developer'), asyncHan
 
 // Public webhook for Meta (verify token)
 router.get('/webhook', (req, res) => {
-  const verify = process.env.META_VERIFY_TOKEN || 'krystal_verify';
-  if (req.query['hub.verify_token'] === verify) return res.send(req.query['hub.challenge']);
+  const verify = process.env.META_VERIFY_TOKEN || (isProductionLike() ? null : 'krystal_verify');
+  if (verify && req.query['hub.verify_token'] === verify) return res.type('text/plain').send(String(req.query['hub.challenge'] ?? ''));
   res.status(403).send('Forbidden');
 });
 
 router.post('/webhook', asyncHandler(async (req, res) => {
-  const result = await handleMetaWebhook(req.body, req.headers);
-  await prisma.metaSyncLog.create({ data: { action: 'webhook', status: 'success', rawJson: JSON.stringify(req.body) } });
+  const result = await handleMetaWebhook(req.body, req.headers, req.rawBody);
+  await prisma.metaSyncLog.create({ data: { action: 'webhook', status: result.verified ? 'success' : 'unverified', rawJson: JSON.stringify(req.body).slice(0, 20000) } });
   res.json(result);
 }));
 

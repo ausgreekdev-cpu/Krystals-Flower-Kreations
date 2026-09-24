@@ -2,13 +2,22 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import prisma from './prisma.js';
 
+const WEAK_SECRETS = new Set(['dev-secret-change-me', 'change-me-to-a-long-random-string', 'secret', 'changeme']);
+
+// Treat any deployed environment (Netlify sets NETLIFY/CONTEXT, Lambda sets
+// AWS_LAMBDA_FUNCTION_NAME) as production even if NODE_ENV was forgotten.
+export function isProductionLike() {
+  return process.env.NODE_ENV === 'production' || !!process.env.NETLIFY || !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.CONTEXT === 'production';
+}
+
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (!secret || secret === 'dev-secret-change-me') {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('JWT_SECRET must be set in production — generate with: openssl rand -base64 48');
+  const weak = !secret || WEAK_SECRETS.has(secret) || secret.length < 32;
+  if (weak) {
+    if (isProductionLike()) {
+      throw new Error('JWT_SECRET must be set to a random value of 32+ chars — generate with: openssl rand -base64 48');
     }
-    return 'dev-secret-change-me';
+    return secret && secret.length >= 8 ? secret : 'dev-secret-change-me';
   }
   return secret;
 }
@@ -27,12 +36,12 @@ export function signToken(user) {
   return jwt.sign(
     { id: user.id, role: user.role, email: user.email },
     getJwtSecret(),
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
   );
 }
 
 export function verifyToken(token) {
-  return jwt.verify(token, getJwtSecret());
+  return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
 }
 
 export async function hashPassword(plain) {

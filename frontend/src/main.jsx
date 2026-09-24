@@ -11,6 +11,7 @@ import Blog from './pages/Blog.jsx';
 import Post from './pages/Post.jsx';
 import Workshops from './pages/Workshops.jsx';
 import Admin from './pages/Admin.jsx';
+import Login from './pages/Login.jsx';
 import Configurator from './features/configurator/Configurator.jsx';
 import Kanban from './features/kanban/Kanban.jsx';
 import Loyalty from './pages/Loyalty.jsx';
@@ -38,6 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/pos" element={<POS />} />
         <Route path="/notebook" element={<Notebook />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

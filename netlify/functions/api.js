@@ -23,7 +23,9 @@ export async function handler(event, context) {
       console.error(err?.stack || String(err));
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'boot_failed', message: String(err?.message || err), stack: String(err?.stack || '').slice(0, 2000) }),
+        headers: { 'Content-Type': 'application/json' },
+        // Details are in the function log; never expose stack traces to clients
+        body: JSON.stringify({ error: 'Service temporarily unavailable', code: 'boot_failed' }),
       };
     }
   }

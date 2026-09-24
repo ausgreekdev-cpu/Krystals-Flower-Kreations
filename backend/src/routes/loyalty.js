@@ -2,6 +2,8 @@ import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { authenticate } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { validate } from '../middleware/validate.js';
+import { z } from 'zod';
 import { loyaltyConfig } from '../services/loyaltyService.js';
 
 const router = Router();
@@ -24,20 +26,24 @@ router.get('/me', authenticate, asyncHandler(async (req,res)=>{
   res.json(acc);
 }));
 
-// Public earn/burn (staff+ can award, otherwise self earn for review etc capped)
-router.post('/earn', authenticate, asyncHandler(async (req,res)=>{
-  const { email, points, reason } = req.body;
-  const pts = Math.max(1, Math.min(500, parseInt(points,10) || 0));
-  if(!email || !reason) return res.status(400).json({ error:'email and reason required', code:'validation_failed' });
-  // only staff can award for other emails; customers can self-earn with limited reasons
-  const isStaff = ['staff','maker','admin','developer'].includes(req.user.role);
-  if(!isStaff && email !== req.user.email) return res.status(403).json({ error:'Forbidden', code:'forbidden' });
-  if(!isStaff && !['review','referral','streak','workshop_attended'].includes(reason)) return res.status(403).json({ error:'Limited self-earn reasons', code:'forbidden' });
+const STAFF = ['staff','maker','admin','developer'];
+const earnSchema = z.object({
+  email: z.string().email().max(254),
+  points: z.coerce.number().int().min(1).max(500),
+  reason: z.string().min(2).max(100),
+  orderId: z.string().max(100).optional().nullable(),
+}).strict();
 
+// Award points — staff only. (Customers previously could self-award unlimited
+// points; points for reviews/purchases are granted server-side on approval/payment.)
+router.post('/earn', authenticate, validate(earnSchema), asyncHandler(async (req,res)=>{
+  if (!STAFF.includes(req.user.role)) return res.status(403).json({ error:'Forbidden', code:'forbidden' });
+  const { points: pts, reason, orderId } = req.validated;
+  const email = req.validated.email.trim().toLowerCase();
   let acc = await prisma.loyaltyAccount.findUnique({ where:{ email } });
   if(!acc) acc = await prisma.loyaltyAccount.create({ data:{ email, points:0, tier:'seedling' } });
   const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: { increment: pts }, tier: await tierFor(acc.points + pts) } });
-  await prisma.loyaltyTransaction.create({ data:{ accountId: acc.id, pointsDelta: pts, reason: String(reason).slice(0,100), orderId: req.body.orderId || null } });
+  await prisma.loyaltyTransaction.create({ data:{ accountId: acc.id, pointsDelta: pts, reason, orderId: orderId || null } });
   res.json(updated);
 }));
 
@@ -60,7 +66,11 @@ router.post('/redeem', authenticate, asyncHandler(async (req,res)=>{
   const email = req.user.email;
   const acc = await prisma.loyaltyAccount.findUnique({ where:{ email } });
   if(!acc || acc.points < pts) return res.status(422).json({ error:`Insufficient points: have ${acc?.points||0}`, code:'insufficient_points' });
-  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ points: { decrement: pts }, tier: await tierFor(acc.points - pts) } });
+  // Conditional decrement — concurrent redeems can't push the balance negative
+  const dec = await prisma.loyaltyAccount.updateMany({ where:{ id: acc.id, points: { gte: pts } }, data:{ points: { decrement: pts } } });
+  if (dec.count === 0) return res.status(422).json({ error:'Insufficient points', code:'insufficient_points' });
+  const after = await prisma.loyaltyAccount.findUnique({ where:{ id: acc.id } });
+  const updated = await prisma.loyaltyAccount.update({ where:{ id: acc.id }, data:{ tier: await tierFor(after.points) } });
   await prisma.loyaltyTransaction.create({ data:{ accountId: acc.id, pointsDelta: -pts, reason: String(reason || 'redeem').slice(0,100) } });
   res.json(updated);
 }));

@@ -15,11 +15,11 @@ export default function POS(){
   async function loadSession(){ if(!token) return; fetch('/api/pos/session/current', { headers:{ Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json():null).then(setSession).catch(()=>{ showToast('Failed to load till session', true); }); }
   async function refreshQueue(){ setQueue(await getQueue()); }
 
-  useEffect(()=>{ loadProducts(); loadSession(); refreshQueue(); const off=onOnline(()=>{ flushQueue(token).then(refreshQueue); }); return off; }, []);
+  useEffect(()=>{ if(!token){ window.location.replace('/login?next=/pos'); return; } loadProducts(); loadSession(); refreshQueue(); const off=onOnline(()=>{ flushQueue(token).then(refreshQueue); }); return off; }, []);
 
   async function openSession(){
     const res = await fetch('/api/pos/session/open', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify({ location:'Perth Studio', openingCash: 50 }) });
-    if(res.ok){ setSession(await res.json()); showToast('Till opened — Perth Studio $50'); } else showToast('Need maker/admin login — login as admin@krystal.local', true);
+    if(res.ok){ setSession(await res.json()); showToast('Till opened — Perth Studio $50'); } else if(res.status===401){ localStorage.removeItem('token'); window.location.assign('/login?expired=1&next=/pos'); } else showToast('Your account needs maker/admin access to open the till', true);
   }
   function addToCart(p){
     setCart(c=>{ const ex=c.find(i=>i.productId===p.id); if(ex) return c.map(i=> i.productId===p.id? {...i, quantity:i.quantity+1}:i); return [...c, { productId:p.id, title:p.title, price:Number(p.price), quantity:1 }]; });

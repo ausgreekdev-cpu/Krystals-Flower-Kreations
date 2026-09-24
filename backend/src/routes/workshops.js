@@ -50,7 +50,6 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     name: z.string().min(2).max(120), email: z.string().email().max(254), phone: z.string().max(30).optional(),
     quantity: z.number().int().finite().min(1).max(10).default(1),
     kitAddOn: z.boolean().default(false),
-    totalPaid: z.number().finite().nonnegative().max(100000).optional(),
   });
   const data = schema.parse(req.body);
   const result = await prisma.$transaction(async (tx) => {
@@ -68,8 +67,9 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     }
     const booking = await tx.booking.create({
       data: {
-        sessionId: session.id, name: data.name, email: data.email, phone: data.phone,
-        quantity: data.quantity, status, totalPaid: data.totalPaid ?? (status === 'confirmed' ? Number(session.workshop.price) * data.quantity + (data.kitAddOn ? 25 : 0) : 0),
+        sessionId: session.id, name: data.name, email: data.email.trim().toLowerCase(), phone: data.phone,
+        quantity: data.quantity, status, // Amount is always computed server-side (never trusted from the client)
+        totalPaid: status === 'confirmed' ? Number(session.workshop.price) * data.quantity + (data.kitAddOn ? 25 : 0) : 0,
         notes: data.kitAddOn ? 'Kit add-on' : null,
       },
     });
@@ -90,7 +90,7 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
 
 // Ticket lookup for workshop check-in at POS
 router.get('/tickets/:qrPayload', asyncHandler(async (req, res) => {
-  const ticket = await prisma.ticket.findUnique({ where: { qrPayload: req.params.qrPayload }, include: { booking: { include: { session: { include: { workshop: true } } } } } });
+  const ticket = await prisma.ticket.findUnique({ where: { qrPayload: req.params.qrPayload }, include: { booking: { select: { id: true, name: true, quantity: true, status: true, session: { include: { workshop: { select: { id: true, title: true, location: true } } } } } } } });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
   res.json(ticket);
 }));

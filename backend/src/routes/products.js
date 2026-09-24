@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import fs from 'fs';
+import crypto from 'crypto';
 const requireAuth = authenticate;
 
 const router = Router();
@@ -109,11 +110,20 @@ router.post('/:id/images', requireAuth, requireRole('admin','developer','maker',
   if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
   if (!req.files || req.files.length===0) return res.status(400).json({ error: 'No images', code: 'validation_failed' });
   const uploadDir = path.resolve(__dirname, '../../uploads/products');
-  fs.mkdirSync(uploadDir, { recursive: true });
-  const created = [];
+  try { fs.mkdirSync(uploadDir, { recursive: true }); fs.accessSync(uploadDir, fs.constants.W_OK); }
+  catch { return res.status(503).json({ error: 'Image storage is not writable on this host — configure object storage for uploads', code: 'storage_unavailable' }); }
+  // Decode everything first so one bad file doesn't leave a half-saved batch
+  const processed = [];
   for (const file of req.files) {
-    const resized = await sharp(file.buffer).resize(800,800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
-    const filename = `${productId}-${Date.now()}-${Math.random().toString(36).slice(2,6)}.jpg`;
+    try {
+      processed.push({ file, buf: await sharp(file.buffer).rotate().resize(800,800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer() });
+    } catch {
+      return res.status(400).json({ error: `"${file.originalname}" is not a readable image`, code: 'invalid_image' });
+    }
+  }
+  const created = [];
+  for (const { file, buf: resized } of processed) {
+    const filename = `${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.jpg`;
     const filepath = path.join(uploadDir, filename);
     fs.writeFileSync(filepath, resized);
     const url = `/uploads/products/${filename}`;

@@ -48,6 +48,9 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   const cart = await prisma.cart.findUnique({ where: { id: data.cartId }, include: { items: { include: { product: true, variant: true } } } });
   if (!cart || !cart.items.length) return res.status(400).json({ error: 'Cart empty', code: 'cart_empty' });
 
+  const inactive = cart.items.find((it) => !it.product.isActive);
+  if (inactive) return res.status(409).json({ error: `${inactive.product.title} is no longer available — remove it from your cart`, code: 'product_unavailable' });
+
   let subtotal = 0;
   let weight = 0;
   for (const it of cart.items) {
@@ -116,13 +119,15 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
       data: {
         orderNumber: orderNumber(),
         idempotencyKey: idempotencyKey || undefined,
-        email: data.email, phone: data.phone,
+        email: data.email.trim().toLowerCase(), phone: data.phone,
         subtotal, discountTotal, shippingCost: shipping.price, taxTotal: gst.gst, total,
         shippingName: data.shippingName, shippingAddress: data.shippingAddress,
         shippingSuburb: data.shippingSuburb, shippingState: data.shippingState,
         shippingPostcode: data.shippingPostcode, customerNote: data.customerNote,
-        status: data.paymentMethod === 'cash' ? 'paid' : 'pending_payment',
-        paymentStatus: data.paymentMethod === 'cash' ? 'paid' : 'pending',
+        // Online checkout never self-confirms payment — staff mark it paid
+        // (PATCH /:id/status) once cash/bank transfer is actually received.
+        status: 'pending_payment',
+        paymentStatus: 'pending',
         paymentMethod: data.paymentMethod,
         lines: {
           create: cart.items.map(it => ({
@@ -138,11 +143,14 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
 
     // Update ledger orderIds from pending to real (unique per checkout, so
     // concurrent orders never steal each other's ledger rows)
-    await tx.inventoryLedger.updateMany({ where: { orderId: pendingLedgerKey }, data: { orderId: created.id } }).catch(()=>{});
+    // (no .catch inside a transaction — a failed statement aborts the whole tx anyway)
+    await tx.inventoryLedger.updateMany({ where: { orderId: pendingLedgerKey }, data: { orderId: created.id } });
 
-    // Increment discount usedCount
+    // Increment discount usedCount atomically, respecting maxUses under concurrency
     if (appliedDiscount) {
-      await tx.discount.update({ where: { id: appliedDiscount.id }, data: { usedCount: { increment: 1 } } }).catch(()=>{});
+      const where = appliedDiscount.maxUses ? { id: appliedDiscount.id, usedCount: { lt: appliedDiscount.maxUses } } : { id: appliedDiscount.id };
+      const inc = await tx.discount.updateMany({ where, data: { usedCount: { increment: 1 } } });
+      if (inc.count === 0) throw Object.assign(new Error('Discount code has reached its usage limit'), { status: 409, code: 'discount_exhausted' });
     }
 
     // Clear cart
@@ -154,25 +162,12 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   const checkoutUrl = null; // Stripe disabled
   if (stripe) { /* manual */ }
 
-  // $0 loyalty: earn 1pt per $1 on paid orders (cash), plus manual pickup/bank will earn when later marked paid via PATCH
-  if (order.paymentStatus === 'paid' || order.status === 'paid') {
-    try {
-      const pts = Math.floor(Number(order.total));
-      if (pts > 0) {
-        let acc = await prisma.loyaltyAccount.findUnique({ where: { email: order.email } });
-        if (!acc) acc = await prisma.loyaltyAccount.create({ data: { email: order.email, points: 0, tier: 'seedling' } });
-        const newPoints = acc.points + pts;
-        const tier = newPoints >= 500 ? 'garden' : newPoints >= 100 ? 'blossom' : 'seedling';
-        await prisma.loyaltyAccount.update({ where: { id: acc.id }, data: { points: newPoints, tier } });
-        await prisma.loyaltyTransaction.create({ data: { accountId: acc.id, pointsDelta: pts, reason: 'purchase', orderId: order.id } });
-      }
-    } catch {}
-  }
+  // Loyalty points are earned only when staff mark the order paid (PATCH /:id/status).
 
   // Email receipt (non-blocking, logs if SMTP not configured)
   sendOrderConfirmation(order).catch(()=>{});
 
-  res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: data.paymentMethod === 'bank_transfer' ? 'Bank transfer details will be emailed. Order held pending payment.' : data.paymentMethod === 'pickup' ? 'Pickup from Perth Studio — pay on collection. You will receive a QR ticket.' : 'Order placed — manual payment.' });
+  res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: data.paymentMethod === 'bank_transfer' ? 'Bank transfer details will be emailed. Order held pending payment.' : data.paymentMethod === 'pickup' ? 'Pickup from Perth Studio — pay on collection. You will receive a QR ticket.' : data.paymentMethod === 'cash' ? 'Order placed — pay cash on collection/delivery. We\'ll confirm once received.' : 'Order placed — manual payment.' });
 }));
 
 router.get('/my', authenticate, asyncHandler(async (req, res) => {

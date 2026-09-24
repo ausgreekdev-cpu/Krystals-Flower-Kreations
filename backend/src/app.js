@@ -76,14 +76,18 @@ app.use(requestLogger);
 app.use('/api', globalRateLimit(300, 1));
 
 // Body parsers — json 1mb (was 10mb) to limit abuse; multer handles file uploads separately
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '1mb', verify: (req, _res, buf) => {
+  // Keep raw bytes for webhook signature verification (Meta X-Hub-Signature-256)
+  if (req.originalUrl?.startsWith('/api/meta/webhook')) req.rawBody = Buffer.from(buf);
+} }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Static uploads (product images) — $0 local filesystem, served via /uploads.
 // Resolve relative to this module so uploads work regardless of CWD.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
+// Serverless filesystems (Netlify/Lambda) are read-only — never crash boot over this.
+try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'uploads dir not writable', dir: uploadDir, code: e.code })); }
 app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
 
 // Health (no auth, no rate-limit beyond global)

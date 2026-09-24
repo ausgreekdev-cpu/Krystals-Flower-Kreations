@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { adminApi } from '../lib/api/customClient';
+import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClient';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -29,14 +29,14 @@ const TABS = [
 
 const ORDER_FLOW = ['pending_payment', 'paid', 'making', 'ready', 'shipped', 'delivered'];
 
-function AdminInner() {
+function AdminInner({ user }) {
   const toast = useToast();
   const params = new URLSearchParams(window.location.search);
   const [tab, setTab] = useState(params.get('tab') || 'overview');
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
-  const token = localStorage.getItem('token') || '';
+  const token = getToken();
 
   async function load(tabId) {
     setLoading(true); setErr('');
@@ -149,11 +149,17 @@ function AdminInner() {
               </button>
             ))}
           </nav>
+          <div className="mt-6 border-t border-white/10 pt-4 px-2">
+            <div className="text-white text-xs font-semibold truncate">{user?.name || user?.email}</div>
+            <div className="text-white/50 text-[10px] truncate">{user?.email} • {user?.role}</div>
+            <button onClick={signOut} className="mt-2 text-xs text-white/70 hover:text-white underline">Sign out</button>
+          </div>
         </aside>
 
         <div className="flex-1 min-w-0">
           <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between lg:hidden">
             <h1 className="font-black text-royal-700">Studio Manager</h1>
+            <button onClick={signOut} className="text-xs border border-gray-300 rounded-full px-3 py-1.5 text-gray-600">Sign out</button>
           </header>
           <div className="p-4 lg:p-6">
             <div className="flex items-center justify-between gap-3 mb-5">
@@ -205,9 +211,37 @@ function AdminInner() {
   );
 }
 
+const STAFF_ROLES = ['staff', 'maker', 'admin', 'developer'];
+
 export default function AdminStudio() {
-  return <ToastProvider><AdminInner /></ToastProvider>;
+  const [user, setUser] = useState(undefined); // undefined = checking
+  useEffect(() => {
+    const token = getToken();
+    const toLogin = () => window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    if (!token) { toLogin(); return; }
+    authApi.me(token)
+      .then(({ user: u }) => {
+        if (!u) { clearSession(); toLogin(); return; }
+        if (!STAFF_ROLES.includes(u.role)) { setUser(null); return; }
+        setUser(u);
+      })
+      .catch(() => { clearSession(); toLogin(); });
+  }, []);
+
+  if (user === undefined) return <div className="min-h-screen bg-gray-100 flex items-center justify-center text-sm text-gray-500">Checking session…</div>;
+  if (user === null) return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 max-w-sm text-center space-y-3">
+        <h1 className="font-black text-gray-900">Staff access only</h1>
+        <p className="text-sm text-gray-600">This account doesn't have access to the studio console.</p>
+        <button onClick={() => { clearSession(); window.location.assign('/login?next=/admin'); }} className="bg-royal-600 hover:bg-royal-700 text-white font-bold rounded-xl px-4 py-2 text-sm">Sign in as staff</button>
+      </div>
+    </div>
+  );
+  return <ToastProvider><AdminInner user={user} /></ToastProvider>;
 }
+
+function signOut() { clearSession(); window.location.assign('/login'); }
 
 function Skeleton() { return <div className="animate-pulse space-y-3"><div className="h-24 bg-gray-100 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /></div>; }
 function Card({ title, children, actions }) {

@@ -9,8 +9,16 @@ export interface ApiError extends Error {
   requestId?: string;
 }
 
+// ---- Session (staff/customer JWT) ----
+export function getToken(): string { return localStorage.getItem('token') || ''; }
+export function getUser(): any { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; } }
+export function setSession(token: string, user: any) { localStorage.setItem('token', token); localStorage.setItem('user', JSON.stringify(user)); }
+export function clearSession() { localStorage.removeItem('token'); localStorage.removeItem('user'); }
+
 export async function req<T>(path: string, opts: RequestInit & { token?: string; idempotencyKey?: string } = {}): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any) };
+  // Let the browser set multipart/form-data + boundary for FormData bodies
+  const isForm = typeof FormData !== 'undefined' && opts.body instanceof FormData;
+  const headers: Record<string, string> = { ...(isForm ? {} : { 'Content-Type': 'application/json' }), ...(opts.headers as any) };
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
   // X-Request-Id for tracing
@@ -23,6 +31,11 @@ export async function req<T>(path: string, opts: RequestInit & { token?: string;
     err.status = res.status;
     err.details = body.details;
     err.requestId = body.requestId || res.headers.get('X-Request-Id') || undefined;
+    // Expired/invalid session on an authenticated call → back to login
+    if (res.status === 401 && opts.token && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      clearSession();
+      window.location.assign(`/login?expired=1&next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    }
     // Handle 429 retry hint
     if (res.status === 429) {
       const retry = res.headers.get('Retry-After');
@@ -32,6 +45,11 @@ export async function req<T>(path: string, opts: RequestInit & { token?: string;
   }
   return res.json();
 }
+
+export const authApi = {
+  login: (email: string, password: string) => req<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  me: (token: string) => req<{ user: any }>('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
+};
 
 export const catalogApi = {
   list: (q = '') => req<{ products: any[]; nextCursor: string | null }>(`/api/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
@@ -75,7 +93,7 @@ export const adminApi = {
     uploadImages: (id: string, files: FileList, token: string) => {
       const fd = new FormData();
       Array.from(files).forEach((f) => fd.append('images', f));
-      return req<any>(`/api/products/${id}/images`, { method: 'POST', body: fd as any, token, headers: {} as any });
+      return req<any>(`/api/products/${id}/images`, { method: 'POST', body: fd, token });
     },
     deleteImage: (productId: string, imageId: string, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'DELETE', token }),
   },
