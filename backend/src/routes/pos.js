@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
+import { earnForOrder } from '../services/loyaltyService.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -93,7 +94,8 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
         lines: { create: enriched.map(e => ({ productId: e.productId, variantId: e.variantId || null, title: e.title, sku: e.sku, quantity: e.quantity, unitPrice: e.price, lineTotal: e.price * e.quantity })) }
       }
     });
-    await tx.inventoryLedger.updateMany({ where: { orderId: pendingLedgerKey }, data: { orderId: created.id } }).catch(()=>{});
+    // (no .catch inside a transaction — a failed statement aborts the whole tx anyway)
+    await tx.inventoryLedger.updateMany({ where: { orderId: pendingLedgerKey }, data: { orderId: created.id } });
     if (sessionId) await tx.posPayment.create({ data: { sessionId, orderId: created.id, amount: total, method: paymentMethod } });
     // Per-location levels + stock movements
     for (const e of enriched) {
@@ -111,21 +113,13 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
         await tx.stockMovement.create({ data: { productId: e.productId, variantId: variantId, locationId: loc.id, type: 'sale', quantity: -e.quantity, reference: created.orderNumber, userId: req.user.id } });
       }
     }
-    // $0 loyalty: POS paid sale earns 1pt/$1
-    try {
-      const pts = Math.floor(Number(total));
-      if (pts>0) {
-        let acc = await tx.loyaltyAccount.findUnique({ where: { email } });
-        if (!acc) acc = await tx.loyaltyAccount.create({ data: { email, points: 0, tier: 'seedling' } });
-        const newPoints = acc.points + pts;
-        const tier = newPoints >= 500 ? 'garden' : newPoints >= 100 ? 'blossom' : 'seedling';
-        await tx.loyaltyAccount.update({ where: { id: acc.id }, data: { points: newPoints, tier } });
-        await tx.loyaltyTransaction.create({ data: { accountId: acc.id, pointsDelta: pts, reason: 'purchase', orderId: created.id } });
-      }
-    } catch {}
+    // $0 loyalty: POS paid sale earns points per the configured earn rate
     return created;
   });
+  // Loyalty is best-effort and must NOT share the sale transaction (a failure
+  // would abort the whole sale). Run it after, on the global client.
+  await earnForOrder(prisma, { email, total, orderId: order.id, reason: 'purchase' }).catch(()=>{});
   res.status(201).json(order);
-})); 
+}));
 
 export default router;

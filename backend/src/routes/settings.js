@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { audit } from '../lib/audit.js';
 
 const router = Router();
 
@@ -42,6 +43,7 @@ router.put('/', requireAuth, requireRole('admin','developer'), asyncHandler(asyn
       update: { value: String(body[k]) },
     }))
   );
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'settings_update', entityType: 'setting', details: { keys } });
   res.json({ ok: true, updated: keys.length });
 }));
 

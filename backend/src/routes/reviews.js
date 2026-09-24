@@ -5,6 +5,8 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
+import { tierFor } from '../services/loyaltyService.js';
+import { audit } from '../lib/audit.js';
 
 const router = Router();
 
@@ -51,8 +53,7 @@ router.post('/:id/approve', authenticate, requireRole('admin','developer','maker
         let acc = await prisma.loyaltyAccount.findUnique({ where: { email: targetEmail } });
         if (!acc) acc = await prisma.loyaltyAccount.create({ data: { email: targetEmail, points: 0, tier: 'seedling' } });
         const newPoints = acc.points + 10;
-        const tier = newPoints >= 500 ? 'garden' : newPoints >= 100 ? 'blossom' : 'seedling';
-        await prisma.loyaltyAccount.update({ where: { id: acc.id }, data: { points: newPoints, tier } });
+        await prisma.loyaltyAccount.update({ where: { id: acc.id }, data: { points: newPoints, tier: await tierFor(newPoints) } });
         await prisma.loyaltyTransaction.create({ data: { accountId: acc.id, pointsDelta: 10, reason: 'review' } });
       }
     } catch {}
@@ -66,7 +67,7 @@ router.post('/:id/reject', authenticate, requireRole('admin','developer','maker'
   const review = await prisma.review.findUnique({ where: { id } });
   if (!review) return res.status(404).json({ error: 'Review not found', code: 'not_found' });
   await prisma.review.delete({ where: { id } });
-  try { await prisma.metaSyncLog.create({ data: { action: 'review_reject', productId: review.productId, status: 'success', message: `Review rejected by ${req.user.email}` } }); } catch {}
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'review_reject', entityType: 'review', entityId: id, details: { productId: review.productId } });
   res.json({ ok: true });
 }));
 

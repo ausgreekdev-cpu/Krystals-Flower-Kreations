@@ -8,6 +8,8 @@ import { asyncHandler } from '../middleware/async-handler.js';
 import { calculateShipping, calculateGstInclusive } from '../services/shipping.js';
 import { stripe } from '../services/stripe.js';
 import { sendOrderConfirmation } from '../services/email.js';
+import { earnForOrder } from '../services/loyaltyService.js';
+import { audit } from '../lib/audit.js';
 
 const router = Router();
 
@@ -63,20 +65,26 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   const cart = await prisma.cart.findUnique({ where: { id: data.cartId }, include: { items: { include: { product: true, variant: true } } } });
   if (!cart || !cart.items.length) return res.status(400).json({ error: 'Cart empty', code: 'cart_empty' });
 
-  const inactive = cart.items.find((it) => !it.product.isActive);
+  const inactive = cart.items.find((it) => !it.product.isActive || it.product.deletedAt);
   if (inactive) return res.status(409).json({ error: `${inactive.product.title} is no longer available — remove it from your cart`, code: 'product_unavailable' });
 
+  // Re-check current price (not the stale add-to-cart snapshot) so a price change
+  // is honoured at checkout time.
   let subtotal = 0;
   let weight = 0;
-  for (const it of cart.items) {
-    subtotal += Number(it.priceSnapshot) * it.quantity;
+  const pricedItems = cart.items.map((it) => {
+    const unitPrice = Number(it.variant ? it.variant.price : it.product.price);
+    return { ...it, unitPrice };
+  });
+  for (const it of pricedItems) {
+    subtotal += it.unitPrice * it.quantity;
     weight += (it.product.weightGrams || 300) * it.quantity;
   }
 
   let discountTotal = 0;
   let appliedDiscount = null;
   if (data.discountCode) {
-    const disc = await prisma.discount.findUnique({ where: { code: data.discountCode.toUpperCase() } });
+    const disc = await prisma.discount.findUnique({ where: { code: data.discountCode.toUpperCase(), deletedAt: null } });
     if (disc && disc.isActive) {
       const now = new Date();
       if (disc.startsAt && now < new Date(disc.startsAt)) {/* not started */ }
@@ -145,11 +153,11 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
         paymentStatus: 'pending',
         paymentMethod: data.paymentMethod,
         lines: {
-          create: cart.items.map(it => ({
+          create: pricedItems.map(it => ({
             productId: it.productId, variantId: it.variantId,
             title: it.variant ? `${it.product.title} — ${it.variant.title}` : it.product.title,
             sku: it.variant?.sku || it.product.sku,
-            quantity: it.quantity, unitPrice: it.priceSnapshot, lineTotal: Number(it.priceSnapshot) * it.quantity,
+            quantity: it.quantity, unitPrice: it.unitPrice, lineTotal: it.unitPrice * it.quantity,
             isDigital: it.product.stockMode === 'digital',
           }))
         }
@@ -222,6 +230,7 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
 
   const order = await prisma.order.update({ where: { id: req.params.id }, data: { status, paymentStatus: status==='paid' ? 'paid' : undefined } });
   await prisma.orderStatusHistory.create({ data: { orderId: order.id, fromStatus: current.status, toStatus: status, note: note ? String(note).slice(0,500) : null } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'order_status', entityType: 'order', entityId: order.id, details: { from: current.status, to: status, orderNumber: order.orderNumber } });
 
   // Restock when fully cancelling/refunding a previously-fulfilling order.
   // Checkout deducts stock at creation, so we reverse it here. The transition
@@ -232,17 +241,7 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
 
   // Earn loyalty when marked paid (for bank_transfer/pickup later paid at POS)
   if (status === 'paid' && current.status !== 'paid') {
-    try {
-      const pts = Math.floor(Number(order.total));
-      if (pts>0) {
-        let acc = await prisma.loyaltyAccount.findUnique({ where:{ email: order.email } });
-        if(!acc) acc = await prisma.loyaltyAccount.create({ data:{ email: order.email, points:0, tier:'seedling' } });
-        const newPoints = acc.points + pts;
-        const tier = newPoints>=500?'garden': newPoints>=100?'blossom':'seedling';
-        await prisma.loyaltyAccount.update({ where:{ id:acc.id }, data:{ points:newPoints, tier } });
-        await prisma.loyaltyTransaction.create({ data:{ accountId:acc.id, pointsDelta:pts, reason:'purchase', orderId:order.id } });
-      }
-    } catch {}
+    await earnForOrder(prisma, { email: order.email, total: order.total, orderId: order.id, reason: 'purchase' });
   }
   res.json(order);
 }));

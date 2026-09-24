@@ -9,6 +9,7 @@ import { upload } from '../middleware/upload.js';
 import sharp from 'sharp';
 import crypto from 'crypto';
 import { putObject, deleteObjectByUrl } from '../services/storage.js';
+import { audit } from '../lib/audit.js';
 const requireAuth = authenticate;
 
 const router = Router();
@@ -45,8 +46,10 @@ router.get('/', asyncHandler(async (req, res) => {
     let authed = false;
     try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
     if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+    where.deletedAt = null;
   } else {
     where.isActive = true;
+    where.deletedAt = null;
   }
   if (featured === 'true') where.isFeatured = true;
   if (type) where.type = type;
@@ -67,7 +70,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   const slug = String(req.params.slug).slice(0,200);
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
   const product = await prisma.product.findUnique({
-    where: { slug },
+    where: { slug, deletedAt: null },
     include: { images: { orderBy: { sortOrder: 'asc' } }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
   });
   if (!product) return res.status(404).json({ error: 'Not found', code: 'not_found' });
@@ -78,8 +81,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(productSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
   const product = await prisma.product.create({ data: { ...data, price: data.price, compareAtPrice: data.compareAtPrice ?? undefined, cost: data.cost ?? undefined } });
-  // audit log for price changes
-  try { await prisma.metaSyncLog.create({ data: { action: 'product_create', productId: product.id, status: 'success', message: `Created ${product.title} $${product.price} by ${req.user.email}` } }); } catch {}
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_create', entityType: 'product', entityId: product.id, details: { title: product.title, price: String(product.price) } });
   res.status(201).json(product);
 }));
 
@@ -89,13 +91,20 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
   const before = await prisma.product.findUnique({ where: { id: req.params.id }, select: { price: true, title: true } });
   const product = await prisma.product.update({ where: { id: req.params.id }, data });
   if (before && data.price !== undefined && String(before.price) !== String(data.price)) {
-    try { await prisma.metaSyncLog.create({ data: { action: 'product_price_update', productId: product.id, status: 'success', message: `Price ${before.price}→${data.price} by ${req.user.email}` } }); } catch {}
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_price_update', entityType: 'product', entityId: product.id, details: { from: String(before.price), to: String(data.price) } });
+  } else if (before) {
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_update', entityType: 'product', entityId: product.id, details: { fields: Object.keys(data) } });
   }
   res.json(product);
 }));
 
+// Soft delete — keeps historical OrderLine/CartItem/StockMovement FKs intact.
 router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
-  await prisma.product.delete({ where: { id: req.params.id } });
+  const id = String(req.params.id).slice(0,100);
+  const product = await prisma.product.findUnique({ where: { id }, select: { title: true } });
+  if (!product) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  await prisma.product.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_delete', entityType: 'product', entityId: id, details: { title: product.title } });
   res.json({ ok: true });
 }));
 

@@ -78,8 +78,16 @@ router.get('/movements', asyncHandler(async (req, res) => {
   if (type) where.type = String(type).slice(0,50);
   if (productId) where.OR = [{ productId: String(productId).slice(0,100) }, { rawMaterialId: String(productId).slice(0,100) }, { variantId: String(productId).slice(0,100) }];
   if (locationId) where.locationId = String(locationId).slice(0,100);
-  if (from) where.createdAt = { gte: new Date(String(from)) };
-  if (to) where.createdAt = { ...(where.createdAt || {}), lte: new Date(String(to)) };
+  if (from) {
+    const d = new Date(String(from));
+    if (Number.isNaN(d.getTime())) return res.status(400).json({ error: 'Invalid from date', code: 'validation_failed' });
+    where.createdAt = { gte: d };
+  }
+  if (to) {
+    const d = new Date(String(to));
+    if (Number.isNaN(d.getTime())) return res.status(400).json({ error: 'Invalid to date', code: 'validation_failed' });
+    where.createdAt = { ...(where.createdAt || {}), lte: d };
+  }
   const [movements, total] = await Promise.all([
     prisma.stockMovement.findMany({
       where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit,
@@ -170,9 +178,19 @@ router.get('/reconciliation', asyncHandler(async (req, res) => {
 }));
 
 // Stocktake: submit counted quantities; compute variance; persist record + stocktake movements
-router.post('/stocktake', asyncHandler(async (req, res) => {
-  const { locationId, notes, items } = req.body;
-  if (!locationId || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'locationId + items required', code: 'validation_failed' });
+const stocktakeLineSchema = z.object({
+  productId: z.string().min(8).max(100).optional().nullable(),
+  variantId: z.string().min(8).max(100).optional().nullable(),
+  rawMaterialId: z.string().min(8).max(100).optional().nullable(),
+  countedQty: z.number().int().finite().min(0).max(1000000),
+}).refine((l) => l.productId || l.rawMaterialId, { message: 'Each line needs productId or rawMaterialId' });
+const stocktakeSchema = z.object({
+  locationId: z.string().min(8).max(100),
+  notes: z.string().max(2000).optional().nullable(),
+  items: z.array(stocktakeLineSchema).min(1).max(500),
+}).strict();
+router.post('/stocktake', validate(stocktakeSchema), asyncHandler(async (req, res) => {
+  const { locationId, notes, items } = req.validated;
   const lines = [];
   for (const it of items) {
     if (!it.productId && !it.rawMaterialId) continue;
@@ -188,8 +206,7 @@ router.post('/stocktake', asyncHandler(async (req, res) => {
     const counted = Math.max(0, Math.round(Number(it.countedQty) || 0));
     lines.push({ ...it, variantId: vId, expectedQty: expected, countedQty: counted, variance: counted - expected });
   }
-  if (!lines.length) return res.status(400).json({ error: 'No valid lines', code: 'validation_failed' });
-  const stocktake = await prisma.$transaction(async (tx) => {
+  if (!lines.length) return res.status(400).json({ error: 'No valid lines', code: 'validation_failed' });  const stocktake = await prisma.$transaction(async (tx) => {
     const st = await tx.stocktake.create({ data: { locationId, notes: notes ? String(notes).slice(0,2000) : null, countedBy: req.user.id, status: 'completed', completedAt: new Date(), lines: { create: lines.map(l => ({ productId: l.productId || null, variantId: l.variantId || null, rawMaterialId: l.rawMaterialId || null, expectedQty: l.expectedQty, countedQty: l.countedQty, variance: l.variance })) } } });
     for (const l of lines) {
       const delta = l.variance;
@@ -201,7 +218,7 @@ router.post('/stocktake', asyncHandler(async (req, res) => {
         const level = await tx.inventoryLevel.findFirst({ where: { productId: l.productId, variantId: vId, locationId } });
         if (level) await tx.inventoryLevel.update({ where: { id: level.id }, data: { onHand: l.countedQty } });
         else await tx.inventoryLevel.create({ data: { productId: l.productId, variantId: vId, locationId, onHand: l.countedQty } });
-        if (vId) await tx.productVariant.update({ where: { id: vId }, data: { inventoryQuantity: l.countedQty } }).catch(()=>{});
+        if (vId) await tx.productVariant.update({ where: { id: vId }, data: { inventoryQuantity: l.countedQty } });
       }
       await tx.stockMovement.create({ data: { productId: l.productId || null, variantId: l.variantId || null, rawMaterialId: l.rawMaterialId || null, locationId, type: 'stocktake', quantity: delta, reason: `Stocktake variance (expected ${l.expectedQty}, counted ${l.countedQty})`, reference: st.id, userId: req.user.id } });
     }
@@ -222,12 +239,17 @@ router.get('/stocktakes/:id', asyncHandler(async (req, res) => {
 }));
 
 // Transfer qty between locations (atomic out + in with shared reference)
-router.post('/transfer', asyncHandler(async (req, res) => {
-  const { productId, variantId, rawMaterialId, fromLocationId, toLocationId, quantity } = req.body;
-  if (!fromLocationId || !toLocationId || !quantity || !Number.isFinite(quantity)) return res.status(400).json({ error: 'fromLocationId, toLocationId, quantity required', code: 'validation_failed' });
-  if (fromLocationId === toLocationId) return res.status(400).json({ error: 'from and to must differ', code: 'validation_failed' });
-  const qty = Math.round(Number(quantity));
-  if (qty <= 0) return res.status(400).json({ error: 'quantity must be > 0', code: 'validation_failed' });
+const transferSchema = z.object({
+  productId: z.string().min(8).max(100).optional().nullable(),
+  variantId: z.string().min(8).max(100).optional().nullable(),
+  rawMaterialId: z.string().min(8).max(100).optional().nullable(),
+  fromLocationId: z.string().min(8).max(100),
+  toLocationId: z.string().min(8).max(100),
+  quantity: z.number().int().finite().min(1).max(1000000),
+}).refine((t) => t.productId || t.rawMaterialId, { message: 'productId or rawMaterialId required' }).refine((t) => t.fromLocationId !== t.toLocationId, { message: 'from and to must differ' });
+router.post('/transfer', validate(transferSchema), asyncHandler(async (req, res) => {
+  const { productId, variantId, rawMaterialId, fromLocationId, toLocationId, quantity } = req.validated;
+  const qty = quantity;
   const ref = `TRF-${Date.now()}`;
   const vId = variantId || null;
   await prisma.$transaction(async (tx) => {

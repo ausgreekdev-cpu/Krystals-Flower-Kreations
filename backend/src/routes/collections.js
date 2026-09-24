@@ -15,7 +15,7 @@ router.get('/', asyncHandler(async (req, res) => {
     try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
     if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   }
-  const cols = await prisma.collection.findMany({ where: all ? {} : { isActive: true }, orderBy: { sortOrder: 'asc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
+  const cols = await prisma.collection.findMany({ where: all ? { deletedAt: null } : { isActive: true, deletedAt: null }, orderBy: { sortOrder: 'asc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
   res.json(cols);
 }));
 
@@ -23,7 +23,7 @@ router.get('/', asyncHandler(async (req, res) => {
 router.get('/:slug', asyncHandler(async (req, res) => {
   const slug = String(req.params.slug).slice(0,200);
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
-  const col = await prisma.collection.findUnique({ where: { slug }, include: { products: { include: { product: { include: { images: true } } } } } });
+  const col = await prisma.collection.findUnique({ where: { slug, deletedAt: null }, include: { products: { include: { product: { include: { images: true } } } } } });
   if (!col || !col.isActive) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   res.json(col);
 }));
@@ -48,7 +48,10 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
 }));
 
 router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
-  await prisma.collection.delete({ where: { id: String(req.params.id).slice(0,100) } });
+  const id = String(req.params.id).slice(0,100);
+  const col = await prisma.collection.findUnique({ where: { id } });
+  if (!col) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  await prisma.collection.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
   res.json({ ok: true });
 }));
 

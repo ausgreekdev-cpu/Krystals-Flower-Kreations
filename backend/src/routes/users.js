@@ -4,6 +4,7 @@ import prisma from '../lib/prisma.js';
 import { requireAuth, requireRole, ROLE_RANK } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { audit } from '../lib/audit.js';
 
 const router = Router();
 
@@ -82,8 +83,7 @@ router.patch('/:id/role', requireAuth, requireRole('admin','developer'), validat
     }
   }
   const user = await prisma.user.update({ where: { id: target.id }, data: { role: req.validated.role } });
-  // Structured audit log (persistent AuditLog table lands with a later change)
-  console.log(JSON.stringify({ level: 'info', event: 'role_change', byUserId: req.user.id, byEmail: req.user.email, targetUserId: target.id, targetEmail: target.email, fromRole: target.role, toRole: req.validated.role, at: new Date().toISOString() }));
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'role_change', entityType: 'user', entityId: target.id, details: { fromRole: target.role, toRole: req.validated.role, targetEmail: target.email } });
   res.json({ id: user.id, email: user.email, role: user.role });
 }));
 

@@ -65,7 +65,7 @@ router.post('/:id/receive', asyncHandler(async (req, res) => {
         const level = await tx.inventoryLevel.findFirst({ where: { productId: l.productId, variantId: vId, locationId: locId } });
         if (level) await tx.inventoryLevel.update({ where: { id: level.id }, data: { onHand: { increment: remaining } } });
         else await tx.inventoryLevel.create({ data: { productId: l.productId, variantId: vId, locationId: locId, onHand: remaining } });
-        if (vId) await tx.productVariant.update({ where: { id: vId }, data: { inventoryQuantity: { increment: remaining } } }).catch(()=>{});
+        if (vId) await tx.productVariant.update({ where: { id: vId }, data: { inventoryQuantity: { increment: remaining } } });
         await tx.stockMovement.create({ data: { productId: l.productId, variantId: vId, locationId: locId, type: 'po', quantity: remaining, reason: `PO ${po.poNumber} received`, reference: po.id, userId: req.user.id } });
       }
       await tx.purchaseOrderLine.update({ where: { id: l.id }, data: { receivedQty: l.receivedQty + remaining } });

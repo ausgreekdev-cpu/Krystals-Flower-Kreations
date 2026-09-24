@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
+import { audit } from '../lib/audit.js';
 
 const router = Router();
 const validateLimit = rateLimit('discount_validate', 20, 1);
@@ -14,7 +15,7 @@ const admin = Router();
 admin.use(requireAuth, requireRole('admin', 'developer', 'maker', 'staff'));
 
 admin.get('/', asyncHandler(async (req, res) => {
-  const discounts = await prisma.discount.findMany({ orderBy: { code: 'asc' } });
+  const discounts = await prisma.discount.findMany({ where: { deletedAt: null }, orderBy: { code: 'asc' } });
   res.json(discounts);
 }));
 
@@ -42,6 +43,7 @@ admin.post('/', validate(discountSchema), asyncHandler(async (req, res) => {
       endsAt: data.endsAt ? new Date(data.endsAt) : undefined,
     },
   });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'discount_create', entityType: 'discount', entityId: disc.id, details: { code: disc.code, type: disc.type, value: String(disc.value) } });
   res.status(201).json(disc);
 }));
 
@@ -61,7 +63,11 @@ admin.patch('/:id', validate(discountSchema.partial().strict()), asyncHandler(as
 }));
 
 admin.delete('/:id', asyncHandler(async (req, res) => {
-  await prisma.discount.delete({ where: { id: req.params.id } });
+  const id = String(req.params.id).slice(0,100);
+  const disc = await prisma.discount.findUnique({ where: { id } });
+  if (!disc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  await prisma.discount.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'discount_delete', entityType: 'discount', entityId: id, details: { code: disc.code } });
   res.json({ ok: true });
 }));
 

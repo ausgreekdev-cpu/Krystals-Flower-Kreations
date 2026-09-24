@@ -133,12 +133,14 @@ model Collection {
   imageUrl    String?
   sortOrder   Int     @default(0)
   isActive    Boolean @default(true)
+  deletedAt   DateTime?
 
   products CollectionProduct[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([deletedAt])
   @@map("collections")
 }
 
@@ -172,6 +174,7 @@ model Product {
   heightMm      Int?
   isActive      Boolean     @default(true)
   isFeatured    Boolean     @default(false)
+  deletedAt     DateTime?
   metaTitle     String?
   metaDescription String?   @db.Text
   // Paper/craft specifics
@@ -204,6 +207,7 @@ model Product {
 
   @@index([isActive, isFeatured])
   @@index([type])
+  @@index([deletedAt])
   @@map("products")
 }
 
@@ -566,7 +570,9 @@ model Discount {
   startsAt    DateTime?
   endsAt      DateTime?
   isActive    Boolean  @default(true)
+  deletedAt   DateTime?
 
+  @@index([deletedAt])
   @@map("discounts")
 }
 
@@ -964,4 +970,22 @@ model RateLimitBucket {
 
   @@index([expiresAt])
   @@map("rate_limit_buckets")
+}
+
+// Immutable audit trail of sensitive admin/money actions (role changes, deletes,
+// settings edits, order status, price changes, etc).
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
