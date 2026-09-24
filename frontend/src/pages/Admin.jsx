@@ -312,17 +312,48 @@ function Orders({ data, reload, token }) {
   );
 }
 
+const INVENTORY_SUBS = [
+  { id: 'stock', label: 'Stock' },
+  { id: 'low', label: 'Low stock' },
+  { id: 'stocktake', label: 'Stocktake' },
+  { id: 'purchase', label: 'Purchase orders' },
+  { id: 'transfer', label: 'Transfers' },
+  { id: 'movements', label: 'Movements' },
+  { id: 'lots', label: 'Lots' },
+];
+
 function Inventory({ data, reload, token }) {
+  const [sub, setSub] = useState('stock');
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-gray-200">
+        {INVENTORY_SUBS.map((s) => (
+          <button key={s.id} onClick={() => setSub(s.id)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${sub === s.id ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-royal-50'}`}>{s.label}</button>
+        ))}
+      </div>
+      {sub === 'stock' && <InventoryStock data={data} reload={reload} token={token} />}
+      {sub === 'low' && <InventoryLow data={data} reload={reload} token={token} />}
+      {sub === 'stocktake' && <InventoryStocktake data={data} reload={reload} token={token} />}
+      {sub === 'purchase' && <InventoryPurchase data={data} reload={reload} token={token} />}
+      {sub === 'transfer' && <InventoryTransfer data={data} reload={reload} token={token} />}
+      {sub === 'movements' && <InventoryMovements data={data} reload={reload} token={token} />}
+      {sub === 'lots' && <InventoryLots data={data} reload={reload} token={token} />}
+    </div>
+  );
+}
+
+function InventoryStock({ data, reload, token }) {
   const toast = useToast();
   const [adjusting, setAdjusting] = useState(null);
   const [setVals, setSetVals] = useState({});
-  const [materialEditor, setMaterialEditor] = useState(null); // null | {} (new) | mat (edit)
+  const [thresholdVals, setThresholdVals] = useState({});
+  const [materialEditor, setMaterialEditor] = useState(null);
   const [locationEditor, setLocationEditor] = useState(null);
   const levels = Array.isArray(data.levels) ? data.levels : [];
   const materials = Array.isArray(data.materials) ? data.materials : [];
   const recon = Array.isArray(data.recon) ? data.recon : [];
   const locations = Array.isArray(data.locations) ? data.locations : [];
-  const movements = Array.isArray(data.movements) ? data.movements : [];
   const drifted = recon.filter((r) => !r.ok);
   async function adjustLevel(l, delta) {
     setAdjusting(l.id);
@@ -337,6 +368,13 @@ function Inventory({ data, reload, token }) {
     try { await adminApi.inventory.set({ productId: l.productId, variantId: l.variantId || null, locationId: l.locationId, onHand, reason: 'Admin set' }, token); toast(`Set to ${onHand}`); reload(); }
     catch (e) { toast(e.message, 'error'); }
     finally { setAdjusting(null); setSetVals((s) => ({ ...s, [l.id]: '' })); }
+  }
+  async function setThreshold(l, val) {
+    const t = val === '' ? null : Number(val);
+    setAdjusting(l.id);
+    try { await adminApi.inventory.threshold(l.id, t, token); toast('Threshold updated'); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setAdjusting(null); setThresholdVals((s) => ({ ...s, [l.id]: '' })); }
   }
   async function adjustMat(m, delta) {
     setAdjusting(m.id);
@@ -354,17 +392,19 @@ function Inventory({ data, reload, token }) {
   }
   return (
     <div className="space-y-5">
-      {drifted.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {drifted.length} variants drift: ledger vs onHand — see reconciliation below</div>}
+      {drifted.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {drifted.length} items drift: actual vs recorded — run a Stocktake or check Reconciliation</div>}
       <Card title={`Product stock — ${levels.length} levels`}>
         <div className="space-y-1.5">
           {levels.slice(0, 30).map((l) => (
             <div key={l.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
               <span className="font-medium text-gray-700 flex-1 min-w-[160px]">{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-gray-400">@{l.location?.name}</span></span>
-              <span className={`font-bold ${l.onHand <= 5 ? 'text-red-600' : 'text-gray-800'}`}>{l.onHand}</span>
+              <span className={`font-bold ${l.onHand <= (l.lowStockThreshold ?? 5) ? 'text-red-600' : 'text-gray-800'}`}>{l.onHand}</span>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, 1)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
-              <input value={setVals[l.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder="set to…" className="w-20 border border-gray-300 rounded-lg px-2 py-1" />
+              <input value={setVals[l.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder="set…" className="w-16 border border-gray-300 rounded-lg px-2 py-1" />
               <button disabled={adjusting === l.id} onClick={() => setLevel(l, setVals[l.id])} className="px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800">Set</button>
+              <input value={thresholdVals[l.id] ?? ''} onChange={(e) => setThresholdVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder={`lo ${l.lowStockThreshold ?? 5}`} title="Low-stock threshold" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-gray-500" />
+              <button disabled={adjusting === l.id} onClick={() => setThreshold(l, thresholdVals[l.id])} className="px-2 py-1 rounded-lg bg-royal-100 text-royal-700 text-xs font-semibold hover:bg-royal-200">Thr</button>
             </div>
           ))}
           {levels.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No levels — seed inventory</div>}
@@ -378,7 +418,7 @@ function Inventory({ data, reload, token }) {
               <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-gray-800'}`}>{m.onHand}</span>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, 10)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, -10)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
-              <input value={setVals[m.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [m.id]: e.target.value }))} placeholder="set to…" className="w-20 border border-gray-300 rounded-lg px-2 py-1" />
+              <input value={setVals[m.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [m.id]: e.target.value }))} placeholder="set…" className="w-16 border border-gray-300 rounded-lg px-2 py-1" />
               <button disabled={adjusting === m.id} onClick={() => setMat(m, setVals[m.id])} className="px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800">Set</button>
               <Btn small color="ghost" onClick={() => setMaterialEditor(m)}>Edit</Btn>
             </div>
@@ -392,22 +432,10 @@ function Inventory({ data, reload, token }) {
           {locations.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No locations</div>}
         </div>
       </Card>
-      {movements.length > 0 && (
-        <Card title={`Recent stock movements — ${movements.length}`}>
-          <div className="space-y-1">
-            {movements.slice(0, 20).map((mv) => (
-              <div key={mv.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5">
-                <span className="text-gray-700 truncate mr-2">{mv.product?.title || mv.rawMaterial?.name || mv.variant?.title || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-gray-400">{mv.type} • {mv.reason}</span></span>
-                <span className="text-gray-400 shrink-0">{new Date(mv.createdAt).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-      <Card title={`Reconciliation — ledger vs quantity (${drifted.length} drift)`}>
+      <Card title={`Reconciliation — actual vs recorded (${drifted.length} drift)`}>
         <div className="space-y-1">
-          {recon.slice(0, 12).map((r) => <div key={r.variantId} className={`flex justify-between text-xs border-b border-gray-100 py-1 ${r.ok ? '' : 'text-red-600'}`}><span>{r.product} — {r.title}</span><span>{r.inventoryQuantity} vs ledger {r.ledgerTotal} {r.ok ? '✓' : `drift ${r.drift}`}</span></div>)}
-          {recon.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No variants</div>}
+          {recon.slice(0, 15).map((r) => <div key={r.key} className={`flex justify-between text-xs border-b border-gray-100 py-1 ${r.ok ? '' : 'text-red-600'}`}><span>{r.title}</span><span>{r.actual} vs {r.recorded} {r.ok ? '✓' : `drift ${r.drift}`}</span></div>)}
+          {recon.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No items to reconcile</div>}
         </div>
       </Card>
       {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
@@ -474,6 +502,284 @@ function LocationModal({ location, onClose, onSaved, token }) {
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} /> Default location</label>
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name}>{busy ? 'Saving…' : 'Add'}</Btn></div>
+  </Modal>;
+}
+
+function InventoryLow({ data, reload, token }) {
+  const [low, setLow] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { adminApi.inventory.lowStock(token).then((d) => { setLow(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false)); }, [token]);
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-gray-500">{low.length} items below threshold</div>
+      {loading ? <p className="text-xs text-gray-400 py-6 text-center">Loading…</p> : (
+        <div className="space-y-1.5">
+          {low.map((l, i) => (
+            <div key={i} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${l.type === 'material' ? 'bg-amber-100 text-amber-700' : l.type === 'product' ? 'bg-royal-100 text-royal-700' : 'bg-sky-100 text-sky-700'}`}>{l.type}</span>
+              <span className="font-medium text-gray-800 flex-1 truncate">{l.name} <span className="text-gray-400">• {l.sku}</span></span>
+              <span className="text-xs text-gray-500">{l.location}</span>
+              <span className="font-bold text-red-600">{l.onHand} <span className="text-gray-400 font-normal">/ {l.threshold}</span></span>
+            </div>
+          ))}
+          {low.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">All stocked ✓</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InventoryStocktake({ data, reload, token }) {
+  const toast = useToast();
+  const locations = Array.isArray(data.locations) ? data.locations : [];
+  const levels = Array.isArray(data.levels) ? data.levels : [];
+  const materials = Array.isArray(data.materials) ? data.materials : [];
+  const [locationId, setLocationId] = useState(locations.find((l) => l.isDefault)?.id || locations[0]?.id || '');
+  const [counts, setCounts] = useState({});
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState([]);
+  useEffect(() => { adminApi.inventory.stocktakes(token).then((d) => setHistory(Array.isArray(d) ? d : [])).catch(() => {}); }, [token]);
+  const items = [
+    ...levels.filter((l) => !locationId || l.locationId === locationId).map((l) => ({ key: `p-${l.id}`, productId: l.productId, variantId: l.variantId || null, rawMaterialId: null, name: `${l.product?.title || l.productId}${l.variant ? ` — ${l.variant.title}` : ''}`, expected: l.onHand })),
+    ...materials.map((m) => ({ key: `m-${m.id}`, productId: null, variantId: null, rawMaterialId: m.id, name: `${m.name} (material)`, expected: Math.round(Number(m.onHand)) })),
+  ];
+  async function submit() {
+    if (!locationId) return toast('Select a location', 'error');
+    const itemsPayload = items.map((it) => ({ productId: it.productId, variantId: it.variantId, rawMaterialId: it.rawMaterialId, countedQty: counts[it.key] ?? it.expected }));
+    setBusy(true);
+    try { await adminApi.inventory.stocktake({ locationId, notes, items: itemsPayload }, token); toast('Stocktake complete — variance applied'); setCounts({}); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-4">
+      <Card title="Count stock">
+        <div className="flex items-end gap-3 mb-3">
+          <div><label className="block text-xs font-semibold text-gray-600 mb-1">Location</label>
+            <select className="border border-gray-300 rounded-xl px-3 py-2 text-sm" value={locationId} onChange={(e) => setLocationId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+          </div>
+          <div className="flex-1"><label className="block text-xs font-semibold text-gray-600 mb-1">Notes (optional)</label><input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+        </div>
+        <div className="max-h-96 overflow-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+          {items.map((it) => (
+            <div key={it.key} className="flex items-center gap-3 px-3 py-2 text-sm">
+              <span className="text-gray-700 flex-1 truncate">{it.name}</span>
+              <span className="text-xs text-gray-400">expected {it.expected}</span>
+              <input type="number" value={counts[it.key] ?? it.expected} onChange={(e) => setCounts((c) => ({ ...c, [it.key]: e.target.value }))} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-right" />
+              {counts[it.key] !== undefined && Number(counts[it.key]) !== it.expected && <span className={`text-xs font-bold ${Number(counts[it.key]) - it.expected > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{(Number(counts[it.key]) - it.expected > 0 ? '+' : '') + (Number(counts[it.key]) - it.expected)}</span>}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3"><Btn onClick={submit} disabled={busy || !locationId}>{busy ? 'Applying…' : 'Complete stocktake'}</Btn></div>
+      </Card>
+      <Card title={`Stocktake history — ${history.length}`}>
+        <div className="space-y-1">{history.map((h) => <div key={h.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span>{h.location?.name} • {h.status}</span><span className="text-gray-400">{new Date(h.createdAt).toLocaleString()} • {h._count?.lines} lines</span></div>)}</div>
+      </Card>
+    </div>
+  );
+}
+
+function InventoryPurchase({ data, reload, token }) {
+  const toast = useToast();
+  const materials = Array.isArray(data.materials) ? data.materials : [];
+  const [creating, setCreating] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [pos, setPos] = useState([]);
+  useEffect(() => { adminApi.purchaseOrders.list(token).then((d) => setPos(Array.isArray(d) ? d : [])).catch(() => {}); }, [token]);
+  async function doDelete() { try { await adminApi.purchaseOrders.remove(confirmDel.id, token); toast('PO deleted'); setPos((p) => p.filter((x) => x.id !== confirmDel.id)); } catch (e) { toast(e.message, 'error'); } }
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{pos.length} purchase orders</div><Btn onClick={() => setCreating(true)}>+ New purchase order</Btn></div>
+      {pos.map((po) => (
+        <div key={po.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+          <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800">{po.poNumber} — {po.supplier}</div><div className="text-xs text-gray-500">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
+          <StatusBadge value={po.status} />
+          <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>
+          <Btn small color="red" onClick={() => setConfirmDel(po)}>Delete</Btn>
+        </div>
+      ))}
+      {pos.length === 0 && !creating && <div className="text-xs text-gray-400 py-10 text-center">No purchase orders — create one to track supplier stock</div>}
+      {creating && <POModal materials={materials} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('PO created'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete purchase order" message={`Delete ${confirmDel.poNumber}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+function POModal({ materials, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [supplier, setSupplier] = useState('');
+  const [notes, setNotes] = useState('');
+  const [lines, setLines] = useState([{ rawMaterialId: '', qty: 10, unitCost: '' }]);
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  function setLine(i, k, v) { setLines((l) => l.map((x, idx) => (idx === i ? { ...x, [k]: v } : x))); }
+  function rmLine(i) { setLines((l) => l.filter((_, idx) => idx !== i)); }
+  async function save() {
+    if (!supplier) return toast('Supplier required', 'error');
+    const clean = lines.filter((l) => l.rawMaterialId && Number(l.qty) > 0);
+    if (!clean.length) return toast('Add at least one line', 'error');
+    setBusy(true);
+    try { await adminApi.purchaseOrders.create({ supplier, notes, lines: clean.map((l) => ({ rawMaterialId: l.rawMaterialId, qty: Number(l.qty), unitCost: l.unitCost === '' ? undefined : Number(l.unitCost) })) }, token); onSaved(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title="New purchase order" onClose={onClose} wide>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Supplier</label><input className={input} value={supplier} onChange={(e) => setSupplier(e.target.value)} /></div>
+        <div><label className={label}>Notes</label><input className={input} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+      </div>
+      <div><div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-gray-600">Lines</label><button onClick={() => setLines((l) => [...l, { rawMaterialId: materials[0]?.id || '', qty: 10, unitCost: '' }])} className="text-xs text-royal-700 font-semibold hover:underline">+ Add line</button></div>
+        <div className="space-y-2">
+          {lines.map((l, i) => (
+            <div key={i} className="grid grid-cols-[1fr_70px_80px_auto] gap-2 items-center">
+              <select className={input} value={l.rawMaterialId} onChange={(e) => setLine(i, 'rawMaterialId', e.target.value)}><option value="">Select material…</option>{materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+              <input type="number" className={input} value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)} />
+              <input type="number" step="0.01" className={input} value={l.unitCost} onChange={(e) => setLine(i, 'unitCost', e.target.value)} placeholder="$/unit" />
+              <button onClick={() => rmLine(i)} className="w-7 h-7 rounded-lg bg-red-50 text-red-600 font-bold hover:bg-red-100">✕</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create PO'}</Btn></div>
+  </Modal>;
+}
+
+function InventoryTransfer({ data, reload, token }) {
+  const toast = useToast();
+  const locations = Array.isArray(data.locations) ? data.locations : [];
+  const levels = Array.isArray(data.levels) ? data.levels : [];
+  const materials = Array.isArray(data.materials) ? data.materials : [];
+  const [fromId, setFromId] = useState(locations[0]?.id || '');
+  const [toId, setToId] = useState(locations[1]?.id || locations[0]?.id || '');
+  const [items, setItems] = useState([{ productId: '', variantId: '', rawMaterialId: '', qty: 1 }]);
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const productOptions = levels.map((l) => ({ value: l.productId, label: `${l.product?.title || l.productId}${l.variant ? ` — ${l.variant.title}` : ''}`, variantId: l.variantId || null, rawMaterialId: null }));
+  const materialOptions = materials.map((m) => ({ value: m.id, label: `${m.name} (material)`, rawMaterialId: m.id, variantId: null }));
+  const allOptions = [...productOptions, ...materialOptions];
+  function setItem(i, k, v) { setItems((it) => it.map((x, idx) => (idx === i ? { ...x, [k]: v } : x))); }
+  async function submit() {
+    if (!fromId || !toId || fromId === toId) return toast('Pick two different locations', 'error');
+    setBusy(true);
+    try {
+      for (const it of items) {
+        const opt = allOptions.find((o) => o.value === it.productId);
+        if (!opt || !Number(it.qty)) continue;
+        await adminApi.inventory.transfer({ productId: opt.rawMaterialId ? null : opt.value, variantId: opt.variantId || null, rawMaterialId: opt.rawMaterialId || null, fromLocationId: fromId, toLocationId: toId, quantity: Number(it.qty) }, token);
+      }
+      toast('Transfer complete'); reload();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Card title="Transfer stock between locations">
+      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+        <div><label className={label}>From</label><select className={input} value={fromId} onChange={(e) => setFromId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+        <div><label className={label}>To</label><select className={input} value={toId} onChange={(e) => setToId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+      </div>
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <div key={i} className="grid grid-cols-[1fr_80px_auto] gap-2 items-center">
+            <select className={input} value={it.productId} onChange={(e) => setItem(i, 'productId', e.target.value)}><option value="">Select item…</option>{allOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+            <input type="number" min="1" className={input} value={it.qty} onChange={(e) => setItem(i, 'qty', e.target.value)} />
+            <button onClick={() => setItems((x) => x.filter((_, idx) => idx !== i))} className="w-7 h-7 rounded-lg bg-red-50 text-red-600 font-bold hover:bg-red-100">✕</button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-2"><Btn small color="ghost" onClick={() => setItems((x) => [...x, { productId: '', variantId: '', rawMaterialId: '', qty: 1 }])}>+ Add item</Btn><Btn onClick={submit} disabled={busy}>{busy ? 'Transferring…' : 'Transfer'}</Btn></div>
+    </Card>
+  );
+}
+
+function InventoryMovements({ data, reload, token }) {
+  const [page, setPage] = useState(1);
+  const [type, setType] = useState('');
+  const [movs, setMovs] = useState({ data: [], total: 0, page: 1, pages: 1 });
+  const [loading, setLoading] = useState(true);
+  const TYPES = ['in', 'out', 'adjustment', 'sale', 'return', 'stocktake', 'po', 'transfer', 'bom_deduct'];
+  useEffect(() => {
+    setLoading(true);
+    adminApi.inventory.movements(token, { limit: 25, page, type }).then((d) => { setMovs(d); setLoading(false); }).catch(() => setLoading(false));
+  }, [page, type, token]);
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 flex-wrap">
+        <button onClick={() => { setType(''); setPage(1); }} className={`px-3 py-1 rounded-full text-xs font-semibold ${type === '' ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>All</button>
+        {TYPES.map((t) => <button key={t} onClick={() => { setType(t); setPage(1); }} className={`px-3 py-1 rounded-full text-xs font-semibold ${type === t ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>{t}</button>)}
+      </div>
+      <div className="text-xs text-gray-500">{movs.total} movements</div>
+      <div className="space-y-1">
+        {movs.data.map((mv) => (
+          <div key={mv.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5">
+            <span className="text-gray-700 truncate mr-2">{mv.product?.title || mv.rawMaterial?.name || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-gray-400">{mv.type} • {mv.location?.name || ''} {mv.reason ? `• ${mv.reason}` : ''}</span></span>
+            <span className="text-gray-400 shrink-0">{new Date(mv.createdAt).toLocaleString()}</span>
+          </div>
+        ))}
+        {movs.data.length === 0 && <div className="text-xs text-gray-400 py-6 text-center">No movements</div>}
+      </div>
+      {movs.pages > 1 && <div className="flex items-center gap-2 justify-end text-xs"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40">Prev</button><span>{movs.page}/{movs.pages}</span><button disabled={page >= movs.pages} onClick={() => setPage(page + 1)} className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40">Next</button></div>}
+    </div>
+  );
+}
+
+function InventoryLots({ data, reload, token }) {
+  const toast = useToast();
+  const materials = Array.isArray(data.materials) ? data.materials : [];
+  const levels = Array.isArray(data.levels) ? data.levels : [];
+  const locations = Array.isArray(data.locations) ? data.locations : [];
+  const [lots, setLots] = useState([]);
+  const [expiring, setExpiring] = useState([]);
+  const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    adminApi.inventory.lots(token).then((d) => setLots(Array.isArray(d) ? d : [])).catch(() => {});
+    adminApi.inventory.expiring(token).then((d) => setExpiring(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [token]);
+  const productOptions = levels.map((l) => ({ value: l.productId, label: l.product?.title || l.productId, variantId: l.variantId || null, rawMaterialId: null }));
+  const materialOptions = materials.map((m) => ({ value: m.id, label: `${m.name} (material)`, rawMaterialId: m.id, variantId: null }));
+  const allOptions = [...productOptions, ...materialOptions];
+  return (
+    <div className="space-y-4">
+      {expiring.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {expiring.length} lots expiring within 14 days</div>}
+      <Card title={`Lots — ${lots.length}`} actions={<Btn small color="ghost" onClick={() => setCreating(true)}>+ Receive lot</Btn>}>
+        <div className="space-y-1">{lots.slice(0, 30).map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="text-gray-700">{l.product?.title || l.rawMaterial?.name || l.variant?.title || '—'} {l.lotNumber ? `• ${l.lotNumber}` : ''}</span><span className="text-gray-400">{l.location?.name} • {l.remainingQty}/{l.quantity} left{l.expiresAt ? ` • exp ${new Date(l.expiresAt).toLocaleDateString('en-AU')}` : ''}</span></div>)}{lots.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No lots</div>}</div>
+      </Card>
+      {creating && <LotModal options={allOptions} locations={locations} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('Lot received'); reload(); }} token={token} />}
+    </div>
+  );
+}
+function LotModal({ options, locations, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ productId: options[0]?.value || '', variantId: '', rawMaterialId: options[0]?.rawMaterialId || null, locationId: locations.find((l) => l.isDefault)?.id || locations[0]?.id || '', lotNumber: '', quantity: 10, costPerUnit: '', expiresAt: '' }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  async function save() {
+    setBusy(true);
+    try {
+      const opt = options.find((o) => o.value === form.productId);
+      await adminApi.inventory.createLot({ productId: opt?.rawMaterialId ? null : form.productId, variantId: form.variantId || null, rawMaterialId: opt?.rawMaterialId || null, locationId: form.locationId, lotNumber: form.lotNumber || null, quantity: Number(form.quantity), costPerUnit: form.costPerUnit === '' ? null : Number(form.costPerUnit), expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null }, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title="Receive into lot" onClose={onClose}>
+    <div className="space-y-3">
+      <div><label className={label}>Item</label><select className={input} value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })}><option value="">Select…</option>{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Location</label><select className={input} value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+        <div><label className={label}>Lot number</label><input className={input} value={form.lotNumber} onChange={(e) => setForm({ ...form, lotNumber: e.target.value })} /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><label className={label}>Quantity</label><input type="number" className={input} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></div>
+        <div><label className={label}>Cost/unit ($)</label><input type="number" step="0.01" className={input} value={form.costPerUnit} onChange={(e) => setForm({ ...form, costPerUnit: e.target.value })} /></div>
+        <div><label className={label}>Expires</label><input type="date" className={input} value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></div>
+      </div>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Receive'}</Btn></div>
   </Modal>;
 }
 
@@ -546,8 +852,12 @@ function ProductModal({ product, onClose, onSaved, token }) {
     isFeatured: !!product?.isFeatured, isActive: product ? !!product.isActive : true,
     madeToOrderDays: product?.madeToOrderDays || 5,
   }));
+  const [variants, setVariants] = useState([]);
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  useEffect(() => {
+    if (product?.id) adminApi.variants.list(product.id, token).then(setVariants).catch(() => {});
+  }, [product?.id, token]);
   async function save() {
     setBusy(true);
     try {
@@ -557,6 +867,24 @@ function ProductModal({ product, onClose, onSaved, token }) {
       onSaved();
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
+  }
+  async function addVariant() {
+    if (!product?.id) return toast('Save the product first to add variants', 'error');
+    const title = window.prompt('Variant title (e.g. "Small — 6 stem")');
+    if (!title) return;
+    try {
+      const res = await adminApi.variants.create(product.id, { title, price: Number(form.price) || 0, inventoryQuantity: 0 }, token);
+      setVariants((v) => [...v, res]); toast('Variant added');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function saveVariant(v, field, value) {
+    try { await adminApi.variants.update(v.id, { [field]: value }, token); setVariants((vs) => vs.map((x) => (x.id === v.id ? { ...x, [field]: value } : x))); toast('Variant updated'); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+  async function deleteVariant(v) {
+    if (!window.confirm(`Delete variant "${v.title}"?`)) return;
+    try { await adminApi.variants.remove(v.id, token); setVariants((vs) => vs.filter((x) => x.id !== v.id)); toast('Variant deleted'); }
+    catch (e) { toast(e.message, 'error'); }
   }
   const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-gray-600 mb-1';
@@ -582,6 +910,24 @@ function ProductModal({ product, onClose, onSaved, token }) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} /> Featured</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active (visible in shop)</label>
       </div>
+      {product && (
+        <div className="mt-4 border border-gray-200 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2"><label className="text-xs font-semibold text-gray-600">Variants ({variants.length})</label><button onClick={addVariant} className="text-xs text-royal-700 font-semibold hover:underline">+ Add variant</button></div>
+          <div className="space-y-1">
+            {variants.map((v) => (
+              <div key={v.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
+                <input value={v.title} onChange={(e) => saveVariant(v, 'title', e.target.value)} className="flex-1 min-w-[140px] border border-gray-200 rounded-lg px-2 py-1" />
+                <span className="text-gray-400">${Number(v.price).toFixed(2)}</span>
+                <span className="text-gray-400">{v.inventoryQuantity} in stock</span>
+                <button onClick={() => saveVariant(v, 'inventoryQuantity', v.inventoryQuantity + 1)} className="w-6 h-6 rounded bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
+                <button onClick={() => saveVariant(v, 'inventoryQuantity', Math.max(0, v.inventoryQuantity - 1))} className="w-6 h-6 rounded bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
+                <button onClick={() => deleteVariant(v)} className="text-red-500 hover:underline">Del</button>
+              </div>
+            ))}
+            {variants.length === 0 && <div className="text-xs text-gray-400">No variants — add sizes/options if this product varies</div>}
+          </div>
+        </div>
+      )}
       {product && (product.images || []).length > 0 && (
         <div className="mt-4">
           <label className="block text-xs font-semibold text-gray-600 mb-1">Images</label>

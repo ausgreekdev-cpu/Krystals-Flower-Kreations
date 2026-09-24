@@ -44,17 +44,26 @@ export async function handler(event, context){
           promoted++;
         }
       }
-      // Low-stock alert: raw materials onHand <= lowThreshold
+      // Low-stock alert: raw materials + product levels + variants
       try {
-        const mats = await prisma.rawMaterial.findMany().catch(()=>[]);
-        const lowStock = mats.filter(m => m.onHand <= m.lowThreshold);
+        const defaultThreshold = Number((await prisma.setting.findUnique({ where: { key: 'low_stock_default' } }).catch(()=>null))?.value || 5);
+        const [mats, levels, variants] = await Promise.all([
+          prisma.rawMaterial.findMany().catch(()=>[]),
+          prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } } } }).catch(()=>[]),
+          prisma.productVariant.findMany({ include: { product: { select: { title: true } } } }).catch(()=>[]),
+        ]);
+        const lowStock = [
+          ...mats.filter(m => m.onHand <= m.lowThreshold).map(m => `${m.name} (${m.onHand}/${m.lowThreshold})`),
+          ...levels.filter(l => l.onHand <= (l.lowStockThreshold ?? defaultThreshold)).map(l => `${l.product?.title || l.productId} (${l.onHand}/${l.lowStockThreshold ?? defaultThreshold})`),
+          ...variants.filter(v => v.inventoryQuantity <= defaultThreshold).map(v => `${v.product?.title} — ${v.title} (${v.inventoryQuantity}/${defaultThreshold})`),
+        ];
         lowCount = lowStock.length;
         if (lowStock.length>0) {
           let sendEmail;
           try { sendEmail = (await import("../../backend/src/services/email.js")).sendEmail; }
           catch { sendEmail = (await import("../../../backend/src/services/email.js")).sendEmail; }
-          const names = lowStock.map(m=> `${m.name} (${m.onHand}/${m.lowThreshold})`).join(', ');
-          await sendEmail({ to: process.env.COMPANY_EMAIL || 'krystal@krystalsflowerkreations.com.au', subject: `Low stock: ${lowStock.length} materials`, text: `Low stock alert:\n${names}\n\nCheck BOM / materials at /admin?tab=inventory` }).catch(()=>{});
+          const names = lowStock.join(', ');
+          await sendEmail({ to: process.env.COMPANY_EMAIL || 'krystal@krystalsflowerkreations.com.au', subject: `Low stock: ${lowStock.length} items`, text: `Low stock alert:\n${names}\n\nCheck Inventory at /admin?tab=inventory` }).catch(()=>{});
         }
       } catch {}
     } catch(e){ console.log('[scheduled] reminder/promotion skipped', e.message); }

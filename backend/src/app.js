@@ -34,6 +34,7 @@ import discountsRoutes, { adminDiscountsRouter } from './routes/discounts.js';
 import usersRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 import shippingAdminRoutes from './routes/shippingAdmin.js';
+import purchaseOrderRoutes from './routes/purchaseOrders.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -121,6 +122,7 @@ app.use('/api/discounts/admin', adminDiscountsRouter);
 app.use('/api/users', usersRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/shipping', shippingAdminRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 
 // Collections (thin) — kept for compat, now also via collectionsRoutes at /api/collections
 app.get('/api/collections-legacy', async (req, res, next) => {

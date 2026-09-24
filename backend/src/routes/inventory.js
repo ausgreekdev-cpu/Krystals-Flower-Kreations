@@ -42,14 +42,52 @@ router.post('/adjust', adjustLimit, validate(adjustSchema), asyncHandler(async (
   res.json(level);
 }));
 
+router.get('/low-stock', asyncHandler(async (req, res) => {
+  const defaultThreshold = Number((await prisma.setting.findUnique({ where: { key: 'low_stock_default' } }))?.value || 5);
+  const [levels, materials, variants] = await Promise.all([
+    prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } }, location: { select: { name: true } } } }),
+    prisma.rawMaterial.findMany(),
+    prisma.productVariant.findMany({ include: { product: { select: { title: true } } } }),
+  ]);
+  const low = [];
+  for (const l of levels) {
+    const threshold = l.lowStockThreshold ?? defaultThreshold;
+    if (l.onHand <= threshold) low.push({ type: 'product', id: l.id, name: l.product?.title || l.productId, location: l.location?.name, onHand: l.onHand, threshold, sku: null });
+  }
+  for (const m of materials) {
+    if (Number(m.onHand) <= Number(m.lowThreshold)) low.push({ type: 'material', id: m.id, name: m.name, location: '—', onHand: Number(m.onHand), threshold: Number(m.lowThreshold), sku: m.sku });
+  }
+  for (const v of variants) {
+    if (v.inventoryQuantity <= defaultThreshold) low.push({ type: 'variant', id: v.id, name: `${v.product?.title} — ${v.title}`, location: '—', onHand: v.inventoryQuantity, threshold: defaultThreshold, sku: v.sku });
+  }
+  res.json(low);
+}));
+
+// Set a product-level low-stock threshold (null clears to default)
+router.post('/threshold', validate(z.object({ levelId: z.string().min(8).max(100), lowStockThreshold: z.number().int().finite().min(0).max(100000).nullable().optional() }).strict()), asyncHandler(async (req, res) => {
+  const { levelId, lowStockThreshold } = req.validated;
+  const level = await prisma.inventoryLevel.update({ where: { id: levelId }, data: { lowStockThreshold: lowStockThreshold ?? null } });
+  res.json(level);
+}));
+
 router.get('/movements', asyncHandler(async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit), 10) || 30));
-  const movements = await prisma.stockMovement.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    include: { product: { select: { title: true } }, rawMaterial: { select: { name: true } }, location: { select: { name: true } }, user: { select: { email: true } } },
-  });
-  res.json(movements);
+  const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
+  const { type, productId, locationId, from, to } = req.query;
+  const where = {};
+  if (type) where.type = String(type).slice(0,50);
+  if (productId) where.OR = [{ productId: String(productId).slice(0,100) }, { rawMaterialId: String(productId).slice(0,100) }, { variantId: String(productId).slice(0,100) }];
+  if (locationId) where.locationId = String(locationId).slice(0,100);
+  if (from) where.createdAt = { gte: new Date(String(from)) };
+  if (to) where.createdAt = { ...(where.createdAt || {}), lte: new Date(String(to)) };
+  const [movements, total] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit,
+      include: { product: { select: { title: true } }, rawMaterial: { select: { name: true } }, location: { select: { name: true } }, user: { select: { email: true } } },
+    }),
+    prisma.stockMovement.count({ where }),
+  ]);
+  res.json({ data: movements, total, page, limit, pages: Math.ceil(total / limit) });
 }));
 
 // Exact-set onHand (vs increment-only /adjust). Writes stockMovement + variant inventoryQuantity.
@@ -100,17 +138,139 @@ router.delete('/locations/:id', requireAuth, requireRole('admin','developer'), a
   res.json({ ok: true });
 }));
 
-// Reconciliation: compare InventoryLevel.onHand vs sum(InventoryLedger.delta) per variant
+// Reconciliation: compare actual onHand (variants + product levels + raw materials) vs ledger/movement sums
 router.get('/reconciliation', asyncHandler(async (req, res) => {
-  const variants = await prisma.productVariant.findMany({ select: { id: true, title: true, inventoryQuantity: true, product: { select: { title: true } } }, take: 100 });
+  const [variants, levels, materials] = await Promise.all([
+    prisma.productVariant.findMany({ select: { id: true, title: true, inventoryQuantity: true, product: { select: { title: true } } }, take: 500 }),
+    prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } } }, take: 500 }),
+    prisma.rawMaterial.findMany({ select: { id: true, name: true, onHand: true, sku: true } }),
+  ]);
   const ledgerSums = await prisma.inventoryLedger.groupBy({ by: ['variantId'], _sum: { delta: true } });
   const ledgerMap = Object.fromEntries(ledgerSums.map(l=> [l.variantId, l._sum.delta||0]));
-  const rows = variants.map(v=> {
-    const ledgerTotal = ledgerMap[v.id]||0;
-    const drift = v.inventoryQuantity - ledgerTotal;
-    return { variantId: v.id, title: v.title, product: v.product.title, inventoryQuantity: v.inventoryQuantity, ledgerTotal, drift, ok: drift===0 };
-  });
+  const movementByProduct = await prisma.stockMovement.groupBy({ by: ['productId'], _sum: { quantity: true }, where: { productId: { not: null }, type: { not: 'stocktake' } } });
+  const productMovementMap = Object.fromEntries(movementByProduct.map(m => [m.productId, m._sum.quantity || 0]));
+  const rows = [
+    ...variants.map(v=> {
+      const ledgerTotal = ledgerMap[v.id]||0;
+      const drift = v.inventoryQuantity - ledgerTotal;
+      return { kind: 'variant', key: v.id, title: `${v.product.title} — ${v.title}`, actual: v.inventoryQuantity, recorded: ledgerTotal, drift, ok: drift===0 };
+    }),
+    ...levels.map(l=> {
+      const recorded = productMovementMap[l.productId] || 0;
+      const drift = l.onHand - recorded;
+      return { kind: 'product', key: l.id, title: l.product?.title || l.productId, actual: l.onHand, recorded, drift, ok: drift===0 };
+    }),
+    ...materials.map(m=> {
+      const recorded = productMovementMap[m.id] || 0;
+      const drift = Number(m.onHand) - recorded;
+      return { kind: 'material', key: m.id, title: m.name, actual: Number(m.onHand), recorded, drift, ok: drift===0 };
+    }),
+  ];
   res.json(rows);
+}));
+
+// Stocktake: submit counted quantities; compute variance; persist record + stocktake movements
+router.post('/stocktake', asyncHandler(async (req, res) => {
+  const { locationId, notes, items } = req.body;
+  if (!locationId || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'locationId + items required', code: 'validation_failed' });
+  const lines = [];
+  for (const it of items) {
+    if (!it.productId && !it.rawMaterialId) continue;
+    const vId = it.variantId || null;
+    let expected = 0;
+    if (it.rawMaterialId) {
+      const m = await prisma.rawMaterial.findUnique({ where: { id: it.rawMaterialId } });
+      if (m) expected = Math.round(Number(m.onHand));
+    } else {
+      const level = await prisma.inventoryLevel.findFirst({ where: { productId: it.productId, variantId: vId, locationId } });
+      expected = level?.onHand ?? 0;
+    }
+    const counted = Math.max(0, Math.round(Number(it.countedQty) || 0));
+    lines.push({ ...it, variantId: vId, expectedQty: expected, countedQty: counted, variance: counted - expected });
+  }
+  if (!lines.length) return res.status(400).json({ error: 'No valid lines', code: 'validation_failed' });
+  const stocktake = await prisma.$transaction(async (tx) => {
+    const st = await tx.stocktake.create({ data: { locationId, notes: notes ? String(notes).slice(0,2000) : null, countedBy: req.user.id, status: 'completed', completedAt: new Date(), lines: { create: lines.map(l => ({ productId: l.productId || null, variantId: l.variantId || null, rawMaterialId: l.rawMaterialId || null, expectedQty: l.expectedQty, countedQty: l.countedQty, variance: l.variance })) } } });
+    for (const l of lines) {
+      const delta = l.variance;
+      if (delta === 0) continue;
+      if (l.rawMaterialId) {
+        await tx.rawMaterial.update({ where: { id: l.rawMaterialId }, data: { onHand: l.countedQty } });
+      } else {
+        const vId = l.variantId || null;
+        const level = await tx.inventoryLevel.findFirst({ where: { productId: l.productId, variantId: vId, locationId } });
+        if (level) await tx.inventoryLevel.update({ where: { id: level.id }, data: { onHand: l.countedQty } });
+        else await tx.inventoryLevel.create({ data: { productId: l.productId, variantId: vId, locationId, onHand: l.countedQty } });
+        if (vId) await tx.productVariant.update({ where: { id: vId }, data: { inventoryQuantity: l.countedQty } }).catch(()=>{});
+      }
+      await tx.stockMovement.create({ data: { productId: l.productId || null, variantId: l.variantId || null, rawMaterialId: l.rawMaterialId || null, locationId, type: 'stocktake', quantity: delta, reason: `Stocktake variance (expected ${l.expectedQty}, counted ${l.countedQty})`, reference: st.id, userId: req.user.id } });
+    }
+    return st;
+  });
+  res.status(201).json(stocktake);
+}));
+
+router.get('/stocktakes', asyncHandler(async (req, res) => {
+  const stocktakes = await prisma.stocktake.findMany({ orderBy: { createdAt: 'desc' }, take: 30, include: { location: { select: { name: true } }, _count: { select: { lines: true } } } });
+  res.json(stocktakes);
+}));
+
+router.get('/stocktakes/:id', asyncHandler(async (req, res) => {
+  const st = await prisma.stocktake.findUnique({ where: { id: String(req.params.id).slice(0,100) }, include: { location: { select: { name: true } }, lines: { include: { product: { select: { title: true } }, variant: { select: { title: true } }, rawMaterial: { select: { name: true } } } } } });
+  if (!st) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  res.json(st);
+}));
+
+// Transfer qty between locations (atomic out + in with shared reference)
+router.post('/transfer', asyncHandler(async (req, res) => {
+  const { productId, variantId, rawMaterialId, fromLocationId, toLocationId, quantity } = req.body;
+  if (!fromLocationId || !toLocationId || !quantity || !Number.isFinite(quantity)) return res.status(400).json({ error: 'fromLocationId, toLocationId, quantity required', code: 'validation_failed' });
+  if (fromLocationId === toLocationId) return res.status(400).json({ error: 'from and to must differ', code: 'validation_failed' });
+  const qty = Math.round(Number(quantity));
+  if (qty <= 0) return res.status(400).json({ error: 'quantity must be > 0', code: 'validation_failed' });
+  const ref = `TRF-${Date.now()}`;
+  const vId = variantId || null;
+  await prisma.$transaction(async (tx) => {
+    if (rawMaterialId) {
+      const m = await tx.rawMaterial.findUnique({ where: { id: rawMaterialId } });
+      if (!m || Number(m.onHand) < qty) throw Object.assign(new Error('Insufficient stock at source'), { status: 422, code: 'out_of_stock' });
+      await tx.rawMaterial.update({ where: { id: rawMaterialId }, data: { onHand: { decrement: qty } } });
+      await tx.stockMovement.create({ data: { rawMaterialId, locationId: fromLocationId, type: 'transfer', quantity: -qty, reason: `Transfer to ${toLocationId}`, reference: ref, userId: req.user.id } });
+    } else {
+      const src = await tx.inventoryLevel.findFirst({ where: { productId, variantId: vId, locationId: fromLocationId } });
+      if (!src || src.onHand < qty) throw Object.assign(new Error('Insufficient stock at source'), { status: 422, code: 'out_of_stock' });
+      await tx.inventoryLevel.update({ where: { id: src.id }, data: { onHand: { decrement: qty } } });
+      await tx.stockMovement.create({ data: { productId, variantId: vId, locationId: fromLocationId, type: 'transfer', quantity: -qty, reason: `Transfer to ${toLocationId}`, reference: ref, userId: req.user.id } });
+      const dst = await tx.inventoryLevel.findFirst({ where: { productId, variantId: vId, locationId: toLocationId } });
+      if (dst) await tx.inventoryLevel.update({ where: { id: dst.id }, data: { onHand: { increment: qty } } });
+      else await tx.inventoryLevel.create({ data: { productId, variantId: vId, locationId: toLocationId, onHand: qty } });
+    }
+    await tx.stockMovement.create({ data: { productId: productId || null, variantId: vId || null, rawMaterialId: rawMaterialId || null, locationId: toLocationId, type: 'transfer', quantity: qty, reason: `Transfer from ${fromLocationId}`, reference: ref, userId: req.user.id } });
+  });
+  res.json({ ok: true, reference: ref });
+}));
+
+// Lots: list + create (receive into a lot) + expiry check
+router.get('/lots', asyncHandler(async (req, res) => {
+  const lots = await prisma.inventoryLot.findMany({ orderBy: { receivedAt: 'desc' }, take: 100, include: { product: { select: { title: true } }, variant: { select: { title: true } }, rawMaterial: { select: { name: true } }, location: { select: { name: true } } } });
+  res.json(lots);
+}));
+
+router.post('/lots', validate(z.object({
+  productId: z.string().min(8).max(100).optional().nullable(), variantId: z.string().min(8).max(100).optional().nullable(),
+  rawMaterialId: z.string().min(8).max(100).optional().nullable(), locationId: z.string().min(8).max(100), lotNumber: z.string().max(100).optional().nullable(),
+  quantity: z.number().int().finite().min(1).max(1000000), costPerUnit: z.number().finite().nonnegative().max(1000000).optional().nullable(),
+  expiresAt: z.string().datetime().optional().nullable(),
+}).strict()), asyncHandler(async (req, res) => {
+  const d = req.validated;
+  const lot = await prisma.inventoryLot.create({ data: { ...d, quantity: d.quantity, remainingQty: d.quantity, costPerUnit: d.costPerUnit ?? undefined, expiresAt: d.expiresAt ? new Date(d.expiresAt) : undefined } });
+  res.status(201).json(lot);
+}));
+
+router.get('/expiring', asyncHandler(async (req, res) => {
+  const soon = new Date(Date.now() + 14 * 86400000);
+  const lots = await prisma.inventoryLot.findMany({ where: { expiresAt: { not: null, lte: soon }, remainingQty: { gt: 0 } }, orderBy: { expiresAt: 'asc' }, include: { product: { select: { title: true } }, variant: { select: { title: true } }, rawMaterial: { select: { name: true } } } });
+  res.json(lots);
 }));
 
 export default router;
