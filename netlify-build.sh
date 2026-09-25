@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 echo "=== Netlify Build — Krystal's Flower Kreations ==="
+# The Netlify site env sets NODE_ENV=production (required at function runtime).
+# npm treats it as `omit=dev`, which would skip vite/tailwind/prisma CLI and fail
+# the build with "vite: not found". Unset it for the build process only — the
+# function runtime env is set by Netlify independently of this shell.
+unset NODE_ENV
 echo "Node: $(node --version) | NPM: $(npm --version)"
 echo "PWD: $(pwd) | base: $PWD"
 # Auto-detect repo root: if backend/frontend not in pwd, we were run from base=mobile
@@ -31,6 +36,11 @@ if [ -f package-lock.json ]; then
   npm ci --prefer-offline --no-audit 2>&1 || npm install --no-audit 2>&1
 else
   npm install --no-audit 2>&1
+fi
+# Fail fast with a clear message if devDependencies were skipped (NODE_ENV=production etc.)
+if ! npx --no-install vite --version >/dev/null 2>&1; then
+  echo "ERROR: vite not found after frontend install — devDependencies were skipped." >&2
+  exit 1
 fi
 
 echo "=== Vite build (VITE_API_URL is baked at build) ==="

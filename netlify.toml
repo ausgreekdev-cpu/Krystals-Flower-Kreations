@@ -7,7 +7,6 @@
 [build.environment]
   NODE_VERSION = "22"
   NPM_CONFIG_CACHE = "/opt/buildhome/.npm"
-  NPM_CONFIG_OPTIONAL = "true"
   NPM_CONFIG_AUDIT = "false"
   NPM_CONFIG_FUND = "false"
 
