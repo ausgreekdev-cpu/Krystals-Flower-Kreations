@@ -127,3 +127,19 @@ test('PUT settings: non-staff is forbidden', async () => {
   });
   assert.equal(res.status, 403);
 });
+
+test('POS open without openingCash applies pos_till_float_default', async () => {
+  const res = await api(srv.base, '/api/pos/session/open', {
+    method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ location: 'Settings float check' }),
+  });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  assert.equal(Number(res.body.openingCash), 50, 'schema default till float is 50');
+
+  const explicit = await api(srv.base, '/api/pos/session/open', {
+    method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ location: 'Settings float explicit', openingCash: 25 }),
+  });
+  assert.equal(explicit.status, 201);
+  assert.equal(Number(explicit.body.openingCash), 25, 'explicit openingCash still wins');
+});

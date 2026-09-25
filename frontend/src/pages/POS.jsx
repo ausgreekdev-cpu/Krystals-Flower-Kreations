@@ -8,6 +8,7 @@ export default function POS(){
   const [cart,setCart]=useState([]);
   const [queue,setQueue]=useState([]);
   const [toast,setToast]=useState(''); const [toastErr,setToastErr]=useState(false);
+  const [receipt,setReceipt]=useState(null);
   const token = localStorage.getItem('token') || '';
   function showToast(msg, isErr=false){ setToast(msg); setToastErr(isErr); setTimeout(()=>setToast(''), 4000); }
 
@@ -18,8 +19,9 @@ export default function POS(){
   useEffect(()=>{ if(!token){ window.location.replace('/login?next=/pos'); return; } loadProducts(); loadSession(); refreshQueue(); const off=onOnline(()=>{ flushQueue(token).then(refreshQueue); }); return off; }, []);
 
   async function openSession(){
-    const res = await fetch('/api/pos/session/open', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify({ location:'Perth Studio', openingCash: 50 }) });
-    if(res.ok){ setSession(await res.json()); showToast('Till opened — Perth Studio $50'); } else if(res.status===401){ localStorage.removeItem('token'); window.location.assign('/login?expired=1&next=/pos'); } else showToast('Your account needs maker/admin access to open the till', true);
+    // openingCash omitted on purpose — the backend applies the pos_till_float_default setting
+    const res = await fetch('/api/pos/session/open', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify({ location:'Perth Studio' }) });
+    if(res.ok){ const s = await res.json(); setSession(s); showToast(`Till opened — ${s.location} $${Number(s.openingCash).toFixed(2)} float`); } else if(res.status===401){ localStorage.removeItem('token'); window.location.assign('/login?expired=1&next=/pos'); } else showToast('Your account needs maker/admin access to open the till', true);
   }
   function addToCart(p){
     setCart(c=>{ const ex=c.find(i=>i.productId===p.id); if(ex) return c.map(i=> i.productId===p.id? {...i, quantity:i.quantity+1}:i); return [...c, { productId:p.id, title:p.title, price:Number(p.price), quantity:1 }]; });
@@ -37,6 +39,7 @@ export default function POS(){
       if(!res.ok){ const j=await res.json().catch(()=>({error:res.statusText, code:res.status})); throw new Error(j.error || 'Sale failed'); }
       const order = await res.json();
       showToast(`Sale ${order.orderNumber} — $${Number(order.total).toFixed(2)} • ${order.lines?.length||cart.length} items`);
+      setReceipt({ orderNumber: order.orderNumber, total: Number(order.total), items: order.lines?.length || cart.length, method: paymentMethod, footer: order.receiptFooter || '' });
       setCart([]);
     }catch(e){
       if(!isOnline()){
@@ -58,7 +61,17 @@ export default function POS(){
           {queue.length>0 && <span className="bg-amber-500 text-white px-3 py-1 rounded-full">{queue.length} queued</span>}
         </div>
       </div>
-      {!session ? <button onClick={openSession} className="bg-bloom-500 text-white px-6 py-3 rounded-xl font-bold">Open Till — $50 float</button> : (
+      {receipt && (
+        <div className="bg-white border-2 border-dashed border-bloom-200 rounded-2xl p-4 max-w-md mx-auto text-center space-y-1">
+          <div className="text-xs font-bold text-bloom-500 tracking-widest">RECEIPT</div>
+          <div className="font-black text-lg">{receipt.orderNumber}</div>
+          <div className="text-2xl font-black text-bloom-700">${receipt.total.toFixed(2)}</div>
+          <div className="text-xs text-gray-500">{receipt.items} items • paid by {receipt.method}</div>
+          {receipt.footer && <div className="text-xs text-gray-500 border-t border-gray-100 pt-2 mt-2">{receipt.footer}</div>}
+          <button onClick={() => setReceipt(null)} className="text-xs font-bold text-royal-600 hover:underline">Dismiss</button>
+        </div>
+      )}
+      {!session ? <button onClick={openSession} className="bg-bloom-500 text-white px-6 py-3 rounded-xl font-bold">Open Till</button> : (
         <div className="bg-bloom-50 border border-bloom-100 rounded-2xl p-4 flex justify-between items-center">
           <div><div className="font-bold text-bloom-700">Till open — {session.location}</div><div className="text-xs text-gray-600">Opened {new Date(session.openedAt).toLocaleString()} • Float ${Number(session.openingCash).toFixed(2)}</div></div>
           <div className="text-xs text-gray-500">Queue flushes on reconnect</div>

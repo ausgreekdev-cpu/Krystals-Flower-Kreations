@@ -197,9 +197,13 @@ export const adminApi = {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),
     open: (body: any, token: string) => req<any>('/api/pos/session/open', { method: 'POST', body: JSON.stringify(body), token }),
     close: (id: string, closingCash: number, token: string) => req<any>(`/api/pos/session/${id}/close`, { method: 'POST', body: JSON.stringify({ closingCash }), token }),
+    sessions: (token: string) => req<any[]>('/api/pos/sessions', { token }),
+    sales: (token: string) => req<any[]>('/api/pos/sessions/sales', { token }),
   },
   settings: {
     get: () => req<any>('/api/settings'),
+    all: (token: string) => req<any>('/api/settings/all', { token }),
+    schema: (token: string) => req<any>('/api/settings/schema', { token }),
     save: (body: any, token: string) => req<any>('/api/settings', { method: 'PUT', body: JSON.stringify(body), token }),
   },
   users: {
@@ -240,12 +244,5 @@ export const adminApi = {
   },
   bookings: {
     list: (token: string) => req<any[]>('/api/bookings', { token }),
-  },
-  pos: {
-    current: (token: string) => req<any>('/api/pos/session/current', { token }),
-    open: (body: any, token: string) => req<any>('/api/pos/session/open', { method: 'POST', body: JSON.stringify(body), token }),
-    close: (id: string, closingCash: number, token: string) => req<any>(`/api/pos/session/${id}/close`, { method: 'POST', body: JSON.stringify({ closingCash }), token }),
-    sessions: (token: string) => req<any[]>('/api/pos/sessions', { token }),
-    sales: (token: string) => req<any[]>('/api/pos/sessions/sales', { token }),
   },
 };

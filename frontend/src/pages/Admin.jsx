@@ -243,8 +243,8 @@ export default function AdminStudio() {
 function signOut() { clearSession(); window.location.assign('/login'); }
 
 function Skeleton() { return <div className="animate-pulse space-y-3"><div className="h-24 bg-gray-100 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /></div>; }
-function Card({ title, children, actions }) {
-  return <div className="border border-gray-200 rounded-2xl p-4"><div className="flex items-center justify-between mb-3"><h3 className="font-bold text-sm text-gray-800">{title}</h3>{actions}</div>{children}</div>;
+function Card({ title, children, actions, description }) {
+  return <div className="border border-gray-200 rounded-2xl p-4"><div className="flex items-center justify-between mb-3"><div><h3 className="font-bold text-sm text-gray-800">{title}</h3>{description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}</div>{actions}</div>{children}</div>;
 }
 const Btn = ({ children, onClick, color = 'royal', disabled, small }) => (
   <button onClick={onClick} disabled={disabled}
@@ -1017,6 +1017,11 @@ function WorkshopModal({ onClose, onSaved, token }) {
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  useEffect(() => {
+    adminApi.settings.get()
+      .then((s) => { const cap = Number(s?.workshop_default_capacity); if (Number.isFinite(cap) && cap >= 1) setForm((f) => ({ ...f, capacity: cap })); })
+      .catch(() => {});
+  }, []);
   async function save() {
     setBusy(true);
     try { await adminApi.workshops.create({ ...form, price: Number(form.price), capacity: Number(form.capacity) }, token); onSaved(); }
@@ -1719,73 +1724,150 @@ function Reports({ data }) {
     </div></div>;
 }
 
-function Settings({ data, reload, token }) {
+const COLOR_PRESETS = [
+  { name: 'Bloom Rose', theme_primary: '#B85C5C', theme_primary_dark: '#4A2C2A', theme_bg: '#FFF7F0', theme_secondary: '#F4C7C3' },
+  { name: 'Royal', theme_primary: '#7C3AED', theme_primary_dark: '#4C1D95', theme_bg: '#F7F5FF', theme_secondary: '#DDD6FE' },
+  { name: 'Sage', theme_primary: '#6B8F71', theme_primary_dark: '#33502F', theme_bg: '#F4F7F2', theme_secondary: '#D8E6D3' },
+  { name: 'Ocean', theme_primary: '#2C7A8C', theme_primary_dark: '#134E5A', theme_bg: '#F0F8FA', theme_secondary: '#CCE7EC' },
+];
+
+function Settings({ reload, token }) {
   const toast = useToast();
-  const [form, setForm] = useState(() => ({
-    // business
-    abn: data.settings?.abn || '', business_name: data.settings?.business_name || '', business_address: data.settings?.business_address || '', tax_gst_rate: data.settings?.tax_gst_rate || '0.10',
-    // theme
-    theme_primary: data.settings?.theme_primary || '', theme_primary_dark: data.settings?.theme_primary_dark || '', theme_bg: data.settings?.theme_bg || '', theme_admin_purple: data.settings?.theme_admin_purple || '', theme_color: data.settings?.theme_color || '', theme_font: data.settings?.theme_font || '',
-    // criteria
-    labour_rate_per_hour: data.settings?.labour_rate_per_hour || '55', bom_margin: data.settings?.bom_margin || '1.30',
-    shipping_free_over: data.settings?.shipping_free_over || '150',
-    loyalty_blossom_threshold: data.settings?.loyalty_blossom_threshold || '100', loyalty_garden_threshold: data.settings?.loyalty_garden_threshold || '500', loyalty_earn_rate: data.settings?.loyalty_earn_rate || '1', loyalty_redeem_rate: data.settings?.loyalty_redeem_rate || '5',
-    configurator_floor: data.settings?.configurator_floor || '45', configurator_per_stem: data.settings?.configurator_per_stem || '9.5', configurator_vase: data.settings?.configurator_vase || '22', configurator_greenery: data.settings?.configurator_greenery || '12', low_stock_default: data.settings?.low_stock_default || '5',
-  }));
+  const [meta, setMeta] = useState(null);
+  const [values, setValues] = useState(null);
+  const [section, setSection] = useState('business');
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-gray-600 mb-1';
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  async function save() {
-    setBusy(true);
-    try { await adminApi.settings.save(form, token); toast('Settings saved'); reload(); }
-    catch (e) { toast(e.message, 'error'); }
-    finally { setBusy(false); }
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const [m, all] = await Promise.all([adminApi.settings.schema(token), adminApi.settings.all(token)]);
+        if (!live) return;
+        setMeta(m); setValues(all); setSection(m?.sections?.[0]?.id || 'business');
+      } catch (e) { toast(e.message, 'error'); }
+    })();
+    return () => { live = false; };
+  }, [token]);
+
+  const setV = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+  const fields = meta && values ? meta.settings.filter((f) => f.section === section) : [];
+  const sectionLabel = meta?.sections.find((s) => s.id === section)?.label || section;
+
+  async function saveSection() {
+    setBusy(true); setFieldErrors({});
+    const payload = {};
+    for (const f of fields) payload[f.key] = values[f.key] ?? f.default ?? '';
+    try {
+      await adminApi.settings.save(payload, token);
+      toast(`${sectionLabel} saved`);
+      reload();
+    } catch (e) {
+      if (e.details && typeof e.details === 'object') setFieldErrors(e.details);
+      toast(e.message, 'error');
+    } finally { setBusy(false); }
   }
-  const colorInput = (k, placeholder) => (
-    <div className="flex items-end gap-2"><input type="color" value={/^#[0-9a-fA-F]{6}$/.test(form[k]) ? form[k] : '#B85C5C'} onChange={(e) => set(k, e.target.value)} className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer" /><input className={input} value={form[k]} onChange={(e) => set(k, e.target.value)} placeholder={placeholder} /></div>
+
+  function renderField(f) {
+    const v = values[f.key] ?? f.default ?? '';
+    const err = fieldErrors[f.key];
+    const hint = err || f.description;
+    const cls = err ? `${input} border-red-400` : input;
+    const wrap = (children) => (
+      <div key={f.key}>
+        <label className={label}>{f.label}{f.unit ? <span className="text-gray-400 font-normal"> ({f.unit})</span> : null}</label>
+        {children}
+        {hint && <div className={`text-[11px] mt-1 ${err ? 'text-red-500' : 'text-gray-400'}`}>{hint}</div>}
+      </div>
+    );
+    switch (f.type) {
+      case 'textarea':
+        return wrap(<textarea className={cls} rows={3} value={v} maxLength={f.max} placeholder={f.placeholder} onChange={(e) => setV(f.key, e.target.value)} />);
+      case 'toggle': {
+        const on = v === '1';
+        return wrap(
+          <button type="button" role="switch" aria-checked={on} onClick={() => setV(f.key, on ? '0' : '1')}
+            className={`inline-flex items-center h-7 w-12 rounded-full p-0.5 transition-colors ${on ? 'bg-royal-600 justify-end' : 'bg-gray-300 justify-start'}`}>
+            <span className="h-6 w-6 rounded-full bg-white shadow border border-gray-200 block" />
+          </button>
+        );
+      }
+      case 'select':
+        return wrap(<select className={cls} value={v} onChange={(e) => setV(f.key, e.target.value)}>{(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>);
+      case 'color': {
+        const hex = /^#[0-9a-fA-F]{6}$/.test(v) ? v : (/^#[0-9a-fA-F]{6}$/.test(f.default || '') ? f.default : '#B85C5C');
+        return wrap(
+          <div className="flex items-center gap-2">
+            <input type="color" value={hex} onChange={(e) => setV(f.key, e.target.value)} className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer" />
+            <input className={cls} value={v} onChange={(e) => setV(f.key, e.target.value)} placeholder={f.default || '#RRGGBB'} />
+          </div>
+        );
+      }
+      case 'number':
+        return wrap(<input type="number" className={cls} value={v} min={f.min} max={f.max} step="any" onChange={(e) => setV(f.key, e.target.value)} />);
+      case 'csv': {
+        const selected = new Set(String(v || '').split(',').map((s) => s.trim()).filter(Boolean));
+        return wrap(
+          <div className="flex flex-wrap gap-2">
+            {(f.options || []).map((o) => {
+              const on = selected.has(o.value);
+              return (
+                <button key={o.value} type="button"
+                  onClick={() => { const next = new Set(selected); if (on) next.delete(o.value); else next.add(o.value); setV(f.key, Array.from(next).join(',')); }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${on ? 'bg-royal-600 text-white border-royal-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      }
+      default:
+        return wrap(<input type={f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text'} className={cls} value={v} maxLength={f.max} placeholder={f.placeholder} onChange={(e) => setV(f.key, e.target.value)} />);
+    }
+  }
+
+  if (!meta || !values) return <div className="text-sm text-gray-500 py-10 text-center">Loading settings…</div>;
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-4">
+      <nav className="sm:w-52 shrink-0 space-y-1">
+        {meta.sections.map((s) => (
+          <button key={s.id} onClick={() => { setSection(s.id); setFieldErrors({}); }}
+            className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${section === s.id ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            {s.label}
+          </button>
+        ))}
+      </nav>
+      <div className="flex-1 min-w-0">
+        <Card title={sectionLabel} description={section === 'appearance' ? 'Colours apply live to the shop (theme + browser tab colour).' : undefined}>
+          {section === 'appearance' && (
+            <div className="mb-4">
+              <span className={label}>Palette presets</span>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_PRESETS.map((p) => (
+                  <button key={p.name} type="button"
+                    onClick={() => { const { name, ...colors } = p; void name; setValues((s) => ({ ...s, ...colors })); }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 text-xs font-semibold hover:bg-gray-50">
+                    <span className="w-4 h-4 rounded-full border border-black/10" style={{ background: p.theme_primary }} />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid sm:grid-cols-2 gap-3">{fields.map(renderField)}</div>
+          <div className="mt-4 flex items-center gap-3">
+            <Btn onClick={saveSection} disabled={busy || !values}>{busy ? 'Saving…' : `Save ${sectionLabel.toLowerCase()}`}</Btn>
+            <span className="text-xs text-gray-400">{fields.length} settings in this section</span>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
-  return <div className="space-y-4">
-    <Card title="Business">
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div><label className={label}>Business name</label><input className={input} value={form.business_name} onChange={(e) => set('business_name', e.target.value)} /></div>
-        <div><label className={label}>ABN</label><input className={input} value={form.abn} onChange={(e) => set('abn', e.target.value)} /></div>
-        <div><label className={label}>Business address</label><input className={input} value={form.business_address} onChange={(e) => set('business_address', e.target.value)} /></div>
-        <div><label className={label}>GST rate (decimal)</label><input className={input} value={form.tax_gst_rate} onChange={(e) => set('tax_gst_rate', e.target.value)} /></div>
-      </div>
-    </Card>
-    <Card title="Web options — colours & fonts" description="Changes apply live to the shop (theme + browser tab colour).">
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div><label className={label}>Primary colour (buttons/accents)</label>{colorInput('theme_primary', '#B85C5C')}</div>
-        <div><label className={label}>Dark shade (text on light)</label>{colorInput('theme_primary_dark', '#4A2C2A')}</div>
-        <div><label className={label}>Background tint</label>{colorInput('theme_bg', '#FFF7F0')}</div>
-        <div><label className={label}>Admin purple accent</label>{colorInput('theme_admin_purple', '#7C3AED')}</div>
-        <div><label className={label}>Browser theme colour</label>{colorInput('theme_color', '#B85C5C')}</div>
-        <div><label className={label}>Font family</label>
-          <select className={input} value={form.theme_font} onChange={(e) => set('theme_font', e.target.value)}>
-            <option value="">Inter (default)</option><option value="Georgia, serif">Georgia (serif)</option><option value="'Times New Roman', serif">Times (serif)</option><option value="system-ui, sans-serif">System UI</option><option value="'Courier New', monospace">Monospace</option>
-          </select>
-        </div>
-      </div>
-    </Card>
-    <Card title="Business criteria">
-      <div className="grid sm:grid-cols-3 gap-3">
-        <div><label className={label}>Labour rate ($/hr)</label><input className={input} value={form.labour_rate_per_hour} onChange={(e) => set('labour_rate_per_hour', e.target.value)} /></div>
-        <div><label className={label}>BOM margin (×)</label><input className={input} value={form.bom_margin} onChange={(e) => set('bom_margin', e.target.value)} /></div>
-        <div><label className={label}>Free shipping over ($)</label><input className={input} value={form.shipping_free_over} onChange={(e) => set('shipping_free_over', e.target.value)} /></div>
-        <div><label className={label}>Loyalty — blossom threshold (pts)</label><input className={input} value={form.loyalty_blossom_threshold} onChange={(e) => set('loyalty_blossom_threshold', e.target.value)} /></div>
-        <div><label className={label}>Loyalty — garden threshold (pts)</label><input className={input} value={form.loyalty_garden_threshold} onChange={(e) => set('loyalty_garden_threshold', e.target.value)} /></div>
-        <div><label className={label}>Loyalty — earn rate (pts/$)</label><input className={input} value={form.loyalty_earn_rate} onChange={(e) => set('loyalty_earn_rate', e.target.value)} /></div>
-        <div><label className={label}>Loyalty — redeem ($ per 100 pts)</label><input className={input} value={form.loyalty_redeem_rate} onChange={(e) => set('loyalty_redeem_rate', e.target.value)} /></div>
-        <div><label className={label}>Configurator floor ($)</label><input className={input} value={form.configurator_floor} onChange={(e) => set('configurator_floor', e.target.value)} /></div>
-        <div><label className={label}>Configurator per-stem ($)</label><input className={input} value={form.configurator_per_stem} onChange={(e) => set('configurator_per_stem', e.target.value)} /></div>
-        <div><label className={label}>Configurator vase add-on ($)</label><input className={input} value={form.configurator_vase} onChange={(e) => set('configurator_vase', e.target.value)} /></div>
-        <div><label className={label}>Configurator greenery add-on ($)</label><input className={input} value={form.configurator_greenery} onChange={(e) => set('configurator_greenery', e.target.value)} /></div>
-        <div><label className={label}>Low-stock default threshold</label><input className={input} value={form.low_stock_default} onChange={(e) => set('low_stock_default', e.target.value)} /></div>
-      </div>
-    </Card>
-    <div className="flex gap-2"><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save all settings'}</Btn></div>
-  </div>;
 }
 
 function NotebookAdmin({ data, onSave, token }) {

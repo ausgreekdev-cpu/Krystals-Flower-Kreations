@@ -6,16 +6,24 @@ import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { earnForOrder } from '../services/loyaltyService.js';
+import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
 const requireAuth = authenticate;
 router.use(requireAuth, requireRole('admin','developer','maker','staff'));
 const posLimit = rateLimit('pos_sale', 30, 1);
 
-const openSchema = z.object({ location: z.string().max(100).optional(), openingCash: z.number().finite().nonnegative().max(10000).default(0) }).strict();
+const openSchema = z.object({ location: z.string().max(100).optional(), openingCash: z.number().finite().nonnegative().max(10000).optional() }).strict();
 router.post('/session/open', validate(openSchema), asyncHandler(async (req, res) => {
   const { location, openingCash } = req.validated;
-  const session = await prisma.posSession.create({ data: { openedBy: req.user.id, location: location || 'Perth Studio', openingCash: openingCash || 0 } });
+  // Opening cash omitted → apply the admin-configured default till float
+  let float = openingCash;
+  if (float === undefined) {
+    const S = await getSettings();
+    const parsed = Number(S.pos_till_float_default);
+    float = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  }
+  const session = await prisma.posSession.create({ data: { openedBy: req.user.id, location: location || 'Perth Studio', openingCash: float } });
   res.status(201).json(session);
 }));
 
@@ -119,7 +127,8 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
   // Loyalty is best-effort and must NOT share the sale transaction (a failure
   // would abort the whole sale). Run it after, on the global client.
   await earnForOrder(prisma, { email, total, orderId: order.id, reason: 'purchase' }).catch(()=>{});
-  res.status(201).json(order);
+  const S = await getSettings();
+  res.status(201).json({ ...order, receiptFooter: S.pos_receipt_footer || '' });
 }));
 
 export default router;

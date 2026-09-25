@@ -31,6 +31,7 @@ test('POS: open till, make a sale, close till', async () => {
   });
   assert.equal(sale.status, 201, JSON.stringify(sale.body));
   assert.equal(sale.body.status, 'paid');
+  assert.equal(typeof sale.body.receiptFooter, 'string', 'sale response carries the receipt footer setting');
 
   const close = await api(srv.base, `/api/pos/session/${sessionId}/close`, {
     method: 'POST',
