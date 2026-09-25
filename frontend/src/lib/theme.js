@@ -1,6 +1,8 @@
 // Applies runtime-editable brand theme (colours + font) from /api/settings.
-// Reads the public settings endpoint and maps keys to CSS variables on :root.
+// Shares the public-settings cache (publicSettings.js) with the rest of the
+// storefront so theme + copy come from a single fetch.
 import { registerThemeSettings } from './colorMode.js';
+import { loadPublicSettings } from './publicSettings.js';
 
 const THEME_MAP = [
   { key: 'theme_primary', var: '--bloom-500' },
@@ -26,12 +28,11 @@ export function hexToRgbTriplet(hex) {
   return `${parseInt(h.slice(0, 2), 16)} ${parseInt(h.slice(2, 4), 16)} ${parseInt(h.slice(4, 6), 16)}`;
 }
 
-export async function applyTheme() {
+export async function applyTheme({ force = false } = {}) {
   const root = document.documentElement;
   try {
-    const res = await fetch('/api/settings', { cache: 'no-store' });
-    if (!res.ok) return null;
-    const s = await res.json();
+    const s = await loadPublicSettings({ force });
+    if (!s) return null;
     for (const { key, var: v } of THEME_MAP) {
       const triplet = hexToRgbTriplet(s[key]);
       if (triplet) root.style.setProperty(v, triplet);

@@ -1,8 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { cartApi } from '../lib/api/customClient';
+import { usePublicSettings } from '../lib/publicSettings';
 
 export default function Product(){
+  const s = usePublicSettings();
   const {slug}=useParams(); const nav=useNavigate(); const [p,setP]=useState(null); const [variantId,setVariantId]=useState(null); const [qty,setQty]=useState(1); const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
   useEffect(()=>{
     fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=> setP(d)).catch(e=>{ setErr(e.message); setP({ error:true }); });
@@ -54,7 +56,7 @@ export default function Product(){
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">ABN on invoice</span>
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">Click & collect 6000</span>
         </div>
-        <div className="mt-4 text-xs text-muted border-t pt-3">Earn 1 Bloom pt per $1 • Blossom at 100 pts • Free Perth delivery over $150</div>
+        <div className="mt-4 text-xs text-muted border-t pt-3">{`Earn ${s.loyalty_earn_rate || 1} Bloom pt per $1 • Blossom at ${s.loyalty_blossom_threshold || 100} pts • Free Perth delivery over $${Number(s.shipping_free_over) || 150}`}</div>
       </div>
     </div>
   );

@@ -1,16 +1,39 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { subscribe, nextColorMode, getColorMode } from './lib/colorMode';
+import { usePublicSettings } from './lib/publicSettings';
 
 const MODE_ICONS = { system: '🖥️', light: '☀️', dark: '🌙' };
 const MODE_LABELS = { system: 'System', light: 'Light', dark: 'Dark' };
 const MODES_NEXT = { system: 'light', light: 'dark', dark: 'system' };
+
+const FALLBACK_SHIPPING_NOTE = 'Metro $12, WA regional $18, national $22 — free over $150. Click & collect 6000.';
+const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
+const FALLBACK_BUSINESS = "Krystal's Flower Kreations";
+
+// Staff who are signed in bypass maintenance mode server-side, so don't cover
+// their screen with the takeover.
+function currentStaffRole() {
+  try {
+    const t = localStorage.getItem('token');
+    if (!t) return null;
+    const payload = JSON.parse(atob(String(t).split('.')[1]));
+    return ['staff', 'maker', 'admin', 'developer'].includes(payload.role) ? payload.role : null;
+  } catch { return null; }
+}
+
+function LogoMark({ src }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) return <img src={src} alt="" className="w-8 h-8 rounded-full object-cover" onError={() => setFailed(true)} />;
+  return <span className="w-8 h-8 rounded-full bg-bloom-500 text-white grid place-items-center text-sm">✿</span>;
+}
 
 export default function App(){
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [q, setQ] = useState('');
   const [colorMode, setColorModeState] = useState(() => getColorMode() || 'system');
+  const s = usePublicSettings();
   const nav = useNavigate();
   useEffect(()=>{
     const off = subscribe((mode) => setColorModeState(mode));
@@ -30,20 +53,53 @@ export default function App(){
     if(q.trim()) nav(`/shop?q=${encodeURIComponent(q.trim())}`);
     else nav('/shop');
   }
+  // Settings-driven copy (all keys come from GET /api/settings)
+  const phone = s.contact_phone || import.meta.env.VITE_PHONE || '+61 8 XXXX XXXX';
+  const email = s.contact_email || FALLBACK_EMAIL;
+  const businessName = s.business_name || FALLBACK_BUSINESS;
+  const showAnnouncement = Boolean(s.announcement_text) && s.announcement_enabled !== '0';
+  const showModeToggle = s.show_color_mode_toggle !== '0';
+  const inMaintenance = s.maintenance_mode === '1' && !currentStaffRole();
+  const socials = [
+    { label: 'Instagram', url: s.instagram_url },
+    { label: 'Facebook', url: s.facebook_url },
+    { label: 'TikTok', url: s.tiktok_url },
+    { label: 'Etsy', url: s.etsy_url },
+    { label: 'WhatsApp', url: s.whatsapp_url },
+  ].filter(x => x.url);
+  if (inMaintenance) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-surface px-6">
+        <div className="max-w-md w-full bg-surface2 border rounded-3xl p-8 text-center">
+          <div className="text-5xl">✿</div>
+          <h1 className="text-2xl font-black text-ink mt-4">{businessName}</h1>
+          <p className="text-muted mt-3 text-sm">{s.maintenance_message || "We're giving the studio a quick refresh — back shortly."}</p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link to="/login" className="bg-bloom-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm">Staff sign-in</Link>
+            <a href={`mailto:${email}`} className="border px-5 py-2.5 rounded-xl font-bold text-sm">Contact us</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar for desktop */}
       <div className="hidden md:block bg-bloom-700 text-white text-xs">
-        <div className="max-w-7xl mx-auto px-4 py-1.5 flex justify-between">
-          <span>Perth WA studio • Made-to-order 3-7 days • Free Perth delivery over $150</span>
-          <span className="flex gap-4"><a href={`tel:${import.meta.env.VITE_PHONE || '+61800000000'}`} className="hover:underline">{import.meta.env.VITE_PHONE || '+61 8 XXXX XXXX'}</a><a href="mailto:krystal@krystalsflowerkreations.com.au" className="hover:underline">krystal@krystalsflowerkreations.com.au</a></span>
+        <div className="max-w-7xl mx-auto px-4 py-1.5 flex justify-between gap-4">
+          {showAnnouncement ? (
+            s.announcement_link
+              ? <a href={s.announcement_link} className="hover:underline truncate">{s.announcement_text}</a>
+              : <span className="truncate">{s.announcement_text}</span>
+          ) : <span />}
+          <span className="flex gap-4 shrink-0"><a href={`tel:${phone}`} className="hover:underline">{phone}</a><a href={`mailto:${email}`} className="hover:underline">{email}</a></span>
         </div>
       </div>
       <header className="bg-surface2/95 backdrop-blur border-b sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
           <Link to="/" className="font-black text-ink text-xl tracking-tight flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-bloom-500 text-white grid place-items-center text-sm">✿</span>
-            <span className="hidden sm:inline">Krystal's Flower Kreations</span><span className="sm:hidden">Krystal's</span>
+            <LogoMark src={s.logo_url} />
+            <span className="hidden sm:inline">{businessName}</span><span className="sm:hidden">{businessName.split(' ')[0]}</span>
           </Link>
           {/* Desktop search */}
           <form onSubmit={onSearch} className="hidden lg:flex flex-1 max-w-md mx-6">
@@ -62,10 +118,12 @@ export default function App(){
               Cart {cartCount>0 && <span className="bg-bloom-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">{cartCount}</span>}
             </Link>
             <Link to="/admin" className="text-muted hover:text-highlight py-2 hidden lg:inline">Admin</Link>
-            <button onClick={toggleColorMode} title={`Colour mode: ${MODE_LABELS[colorMode]} — click for ${MODE_LABELS[MODES_NEXT[colorMode]]}`}
-              aria-label={`Colour mode: ${MODE_LABELS[colorMode]}. Click to change.`} className="py-2 px-1.5 rounded-lg hover:bg-surface3" >
-              {MODE_ICONS[colorMode]}
-            </button>
+            {showModeToggle && (
+              <button onClick={toggleColorMode} title={`Colour mode: ${MODE_LABELS[colorMode]} — click for ${MODE_LABELS[MODES_NEXT[colorMode]]}`}
+                aria-label={`Colour mode: ${MODE_LABELS[colorMode]}. Click to change.`} className="py-2 px-1.5 rounded-lg hover:bg-surface3" >
+                {MODE_ICONS[colorMode]}
+              </button>
+            )}
           </nav>
           {/* Mobile hamburger */}
           <button onClick={()=>setMobileOpen(!mobileOpen)} className="md:hidden ml-auto p-2 rounded-lg border hover:bg-surface3" aria-label="Menu">
@@ -86,7 +144,7 @@ export default function App(){
               <Link onClick={()=>setMobileOpen(false)} to="/pos" className="bg-surface2 border rounded-xl p-3">POS</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/cart" className="bg-surface2 border rounded-xl p-3 relative">Cart {cartCount>0 && <span className="absolute top-2 right-2 bg-bloom-500 text-white text-[10px] px-1.5 rounded-full">{cartCount}</span>}</Link>
               <Link onClick={()=>setMobileOpen(false)} to="/kanban" className="bg-surface2 border rounded-xl p-3">Kanban</Link>
-              <button onClick={toggleColorMode} className="bg-surface2 border rounded-xl p-3 text-left">Colour mode — {MODE_ICONS[colorMode]} {MODE_LABELS[colorMode]}</button>
+              {showModeToggle && <button onClick={toggleColorMode} className="bg-surface2 border rounded-xl p-3 text-left">Colour mode — {MODE_ICONS[colorMode]} {MODE_LABELS[colorMode]}</button>}
             </div>
           </div>
         )}
@@ -94,7 +152,7 @@ export default function App(){
       <section className="bg-gradient-to-br from-bloom-500 to-bloom-700 text-white">
         <div className="max-w-7xl mx-auto px-4 py-14 md:py-20 grid lg:grid-cols-2 gap-10 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-3 py-1 text-xs">Perth WA • GST-inclusive • Click & collect</div>
+            <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-3 py-1 text-xs">{s.hero_badge_text || 'Perth WA • GST-inclusive • Click & collect'}</div>
             <h1 className="text-4xl md:text-5xl font-black leading-tight mt-4 max-w-2xl">Paper florist & armature art — Cricut + origami blooms that last forever</h1>
             <p className="mt-4 max-w-2xl text-white/90 text-base md:text-lg">Perth, Western Australia. Everlasting bouquets, sculptural armatures, Cricut SVG templates & hands-on workshops. Perth delivery & click & collect.</p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -128,17 +186,26 @@ export default function App(){
       <section className="max-w-7xl mx-auto px-4 pb-10">
         <div className="bg-surface2 border rounded-3xl p-6 md:p-8 grid md:grid-cols-3 gap-6">
           <div><div className="font-bold text-ink">Why everlasting?</div><p className="text-sm text-muted mt-2">No wilting, no water, hypoallergenic. Perfect for Perth heat and FIFO homes.</p></div>
-          <div><div className="font-bold text-ink">Perth delivery</div><p className="text-sm text-muted mt-2">Metro $12, WA regional $18, national $22 — free over $150. Click & collect 6000.</p></div>
+          <div><div className="font-bold text-ink">Perth delivery</div><p className="text-sm text-muted mt-2">{s.shipping_note || FALLBACK_SHIPPING_NOTE}</p></div>
           <div><div className="font-bold text-ink">Workshops</div><p className="text-sm text-muted mt-2">Max 12, kits included, QR ticket. Beginner Cricut to advanced origami.</p></div>
         </div>
       </section>
       <footer className="mt-auto border-t bg-surface2">
         <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-8 text-sm">
-          <div><div className="font-black text-ink">Krystal's Flower Kreations</div><div className="text-muted mt-2">Perth WA • Handmade • GST inclusive</div><div className="text-muted mt-1">Follow @krystalsflowerkreations</div></div>
+          <div>
+            <div className="font-black text-ink">{businessName}</div>
+            <div className="text-muted mt-2">{s.business_address ? `${s.business_address} • ` : ''}Handmade • GST inclusive</div>
+            {s.opening_hours && <div className="text-muted mt-1">{s.opening_hours}</div>}
+            {socials.length > 0 && (
+              <div className="flex flex-wrap gap-3 mt-2">
+                {socials.map(x => <a key={x.label} href={x.url} target="_blank" rel="noreferrer" className="text-muted hover:text-highlight">{x.label}</a>)}
+              </div>
+            )}
+          </div>
           <div><div className="font-bold">Shop</div><div className="mt-2 space-y-1 text-muted"><Link to="/shop" className="hover:text-highlight block">All bouquets</Link><Link to="/configurator" className="hover:text-highlight block">Custom</Link><Link to="/workshops" className="hover:text-highlight block">Workshops</Link></div></div>
-          <div><div className="font-bold">Help</div><div className="mt-2 space-y-1 text-muted"><Link to="/blog" className="hover:text-highlight block">Journal</Link><Link to="/notebook" className="hover:text-highlight block">Notebook</Link><Link to="/privacy" className="hover:text-highlight block">Privacy</Link><span className="block">krystal@krystalsflowerkreations.com.au</span></div></div>
+          <div><div className="font-bold">Help</div><div className="mt-2 space-y-1 text-muted"><Link to="/blog" className="hover:text-highlight block">Journal</Link><Link to="/notebook" className="hover:text-highlight block">Notebook</Link><Link to="/privacy" className="hover:text-highlight block">Privacy</Link><a href={`mailto:${email}`} className="hover:text-highlight block">{email}</a></div></div>
         </div>
-        <div className="border-t py-4 text-center text-xs text-muted">© {new Date().getFullYear()} Krystal's Flower Kreations — Perth WA • ABN {import.meta.env.VITE_ABN || 'XX XXX XXX XXX'} on invoices</div>
+        <div className="border-t py-4 text-center text-xs text-muted">© {new Date().getFullYear()} {businessName} — Perth WA • ABN {s.abn || import.meta.env.VITE_ABN || 'XX XXX XXX XXX'} on invoices</div>
       </footer>
     </div>
   );

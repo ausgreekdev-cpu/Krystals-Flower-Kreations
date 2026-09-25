@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useConfiguratorStore, estimateLocalPrice } from './useConfiguratorStore';
 import { ordersApi } from '../../lib/api/customClient';
+import { usePublicSettings } from '../../lib/publicSettings';
 import ARViewer from '../../components/ARViewer';
 import NotebookPanel from '../../components/NotebookPanel';
 
@@ -16,7 +17,13 @@ const TEMPLATES = [
 
 export default function Configurator(){
   const { spec, setSpec } = useConfiguratorStore();
-  const est = estimateLocalPrice(spec);
+  const s = usePublicSettings();
+  const est = estimateLocalPrice(spec, s);
+  const num = (v, d) => (v === undefined || v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
+  const greeneryPrice = num(s.configurator_greenery, 12);
+  const vasePrice = num(s.configurator_vase, 22);
+  const labourRate = num(s.labour_rate_per_hour, 55);
+  const marginPct = Math.round((num(s.bom_margin, 1.3) - 1) * 100);
   const [form,setForm]=useState({ email:'', name:'', postcode:'6000' });
   const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
   useEffect(()=>{ /* pricing derived */ }, [spec]);
@@ -48,8 +55,8 @@ export default function Configurator(){
         <h3 className="font-bold">3 · Stems & Armature</h3>
         <div className="flex items-center gap-3">Stems <input type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} /> {spec.stemCount}</div>
         <div className="flex items-center gap-3">Armature mm <input type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} /> {spec.armatureHeightMm}</div>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+$12)</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+$22)</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+${greeneryPrice})</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+${vasePrice})</label>
       </section>
       <section className="bg-surface2 p-4 rounded-2xl border">
         <h3 className="font-bold">4 · Cricut Template — $0 Inkscape SVG</h3>
@@ -74,7 +81,7 @@ export default function Configurator(){
         <div className="flex justify-between"><span>Unit</span><span className="font-bold">${est.unitPrice.toFixed(2)} AUD</span></div>
         <div className="flex justify-between mt-1"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)}</span></div>
         <div className="flex justify-between mt-1 text-sm opacity-80"><span>Est. craft time</span><span>{est.estimatedMinutes} min</span></div>
-        <div className="text-xs opacity-60 mt-2">Live BOM: sheet cost × stems + labour $55/hr × minutes + 30% margin. Manual sheet price you set — no supplier API fees. Earn 1 Bloom pt per $1.</div>
+        <div className="text-xs opacity-60 mt-2">{`Live BOM: sheet cost × stems + labour $${labourRate}/hr × minutes + ${marginPct}% margin. Manual sheet price you set — no supplier API fees. Earn 1 Bloom pt per $1.`}</div>
         <button onClick={submit} className="w-full mt-4 bg-bloom-500 py-3 rounded-xl font-bold">Create Custom Order → Drafting/Proofing</button>
       </div>
     </div>

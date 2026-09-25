@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom';
+import { usePublicSettings } from '../lib/publicSettings';
 export default function NotFound(){
+  const s = usePublicSettings();
+  const email = s.contact_email || 'krystal@krystalsflowerkreations.com.au';
   return (
     <div className="max-w-3xl mx-auto p-12 text-center">
       <div className="text-6xl">✿</div>
@@ -10,7 +13,7 @@ export default function NotFound(){
         <Link to="/shop" className="border px-6 py-3 rounded-xl font-bold hover:bg-surface3">Shop</Link>
         <Link to="/configurator" className="border px-6 py-3 rounded-xl font-bold hover:bg-surface3">Configurator</Link>
       </div>
-      <p className="text-xs text-muted mt-6">If you followed a QR ticket, check the code or contact krystal@krystalsflowerkreations.com.au</p>
+      <p className="text-xs text-muted mt-6">If you followed a QR ticket, check the code or contact <a href={`mailto:${email}`} className="underline hover:text-highlight">{email}</a></p>
     </div>
   );
 }
