@@ -1,15 +1,23 @@
 import prisma from '../lib/prisma.js';
+import { getSettings } from '../lib/settingsSchema.js';
 
-// AU shipping calculator — zone matched by postcode prefix
+// AU shipping calculator — zone matched by postcode prefix.
+// The global `shipping_free_over` setting is the single admin knob for the
+// free-shipping threshold (applied on top of any zone rate `freeOver`).
 export async function calculateShipping({ postcode, subtotal, weightGrams }) {
+  const freeOverSetting = await getSettings({ onlyPublic: true })
+    .then(s => Number(s.shipping_free_over) || 0)
+    .catch(() => 0);
   const zones = await prisma.shippingZone.findMany({ include: { rates: true }, where: { isActive: true } });
   if (!zones.length) {
     // Fallback: Perth studio defaults until admin configures zones
+    const freeOver = freeOverSetting || 150;
     return {
       name: 'Standard (Perth Studio)',
-      price: subtotal >= 150 ? 0 : 15,
+      price: subtotal >= freeOver ? 0 : 15,
       zone: 'fallback',
       note: 'Configure Shipping Zones in admin',
+      freeOver,
     };
   }
   // Simple postcode match — expand to full table later
@@ -21,8 +29,10 @@ export async function calculateShipping({ postcode, subtotal, weightGrams }) {
     } catch { return z.postcodes.includes(postcode); }
   }) || zones[0];
   const rate = zone.rates.find(r => r.isActive && (!r.maxWeightGrams || weightGrams <= r.maxWeightGrams)) || zone.rates[0];
-  const price = rate.freeOver && subtotal >= Number(rate.freeOver) ? 0 : Number(rate.price);
-  return { zone: zone.name, name: rate.name, price };
+  const zoneFree = rate.freeOver && subtotal >= Number(rate.freeOver);
+  const settingFree = freeOverSetting > 0 && subtotal >= freeOverSetting;
+  const price = zoneFree || settingFree ? 0 : Number(rate.price);
+  return { zone: zone.name, name: rate.name, price, freeOver: freeOverSetting || rate.freeOver || 0 };
 }
 
 export async function calculateGstInclusive(total) {

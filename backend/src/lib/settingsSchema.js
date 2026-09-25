@@ -13,6 +13,7 @@ export const SECTIONS = [
   { id: 'contact', label: 'Contact & Social' },
   { id: 'storefront', label: 'Storefront & SEO' },
   { id: 'payments', label: 'Payments & Pickup' },
+  { id: 'orders', label: 'Checkout & Orders' },
   { id: 'shipping', label: 'Shipping' },
   { id: 'workshops', label: 'Workshops' },
   { id: 'notifications', label: 'Notifications' },
@@ -43,6 +44,13 @@ const PAY_METHOD_OPTIONS = [
   { value: 'manual', label: 'Manual' },
 ];
 
+const SHOP_SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'price_asc', label: 'Price: low to high' },
+  { value: 'price_desc', label: 'Price: high to low' },
+  { value: 'title_asc', label: 'Name A–Z' },
+];
+
 export const SETTINGS = [
   // ── Business ──────────────────────────────────────────────
   { key: 'business_name', section: 'business', label: 'Business name', type: 'text', default: "Krystal's Flower Kreations", public: true, max: 120 },
@@ -58,9 +66,17 @@ export const SETTINGS = [
   { key: 'instagram_url', section: 'contact', label: 'Instagram URL', type: 'url', default: '', public: true },
   { key: 'facebook_url', section: 'contact', label: 'Facebook URL', type: 'url', default: '', public: true },
   { key: 'opening_hours', section: 'contact', label: 'Opening hours', type: 'text', default: '', public: true, max: 200, placeholder: 'Mon–Fri 9am–5pm' },
+  { key: 'tiktok_url', section: 'contact', label: 'TikTok URL', type: 'url', default: '', public: true },
+  { key: 'etsy_url', section: 'contact', label: 'Etsy URL', type: 'url', default: '', public: true },
+  { key: 'whatsapp_url', section: 'contact', label: 'WhatsApp URL', type: 'url', default: '', public: true, placeholder: 'https://wa.me/614…' },
 
   // ── Storefront & SEO ──────────────────────────────────────
   { key: 'announcement_text', section: 'storefront', label: 'Announcement bar', type: 'text', default: 'Perth WA studio • Made-to-order 3-7 days • Free Perth delivery over $150', public: true, max: 200 },
+  { key: 'announcement_enabled', section: 'storefront', label: 'Show announcement bar', type: 'toggle', default: '1', public: true },
+  { key: 'announcement_link', section: 'storefront', label: 'Announcement link', type: 'url', default: '', public: true, description: 'Optional — the bar becomes clickable.' },
+  { key: 'hero_badge_text', section: 'storefront', label: 'Hero badge', type: 'text', default: 'Perth WA • GST-inclusive • Click & collect', public: true, max: 120 },
+  { key: 'shop_page_size', section: 'storefront', label: 'Shop page size', type: 'number', default: '0', public: true, min: 0, max: 240, unit: 'items', description: '0 = show everything.' },
+  { key: 'shop_sort_default', section: 'storefront', label: 'Shop default sort', type: 'select', default: 'newest', public: true, options: SHOP_SORT_OPTIONS },
   { key: 'handling_days_text', section: 'storefront', label: 'Handling time', type: 'text', default: '3-7 days', public: true, max: 60 },
   { key: 'site_meta_title', section: 'storefront', label: 'Meta title (SEO)', type: 'text', default: "Krystal's Flower Kreations — Paper Florist Perth WA", public: true, max: 70 },
   { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, armature art, Cricut SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
@@ -81,6 +97,14 @@ export const SETTINGS = [
   { key: 'pickup_address', section: 'payments', label: 'Pickup address', type: 'text', default: 'Perth Studio, WA', public: true, max: 200 },
   { key: 'pickup_instructions', section: 'payments', label: 'Pickup instructions', type: 'textarea', default: 'Pay on collection — you will receive a QR ticket for pickup.', public: true, max: 500 },
 
+  // ── Checkout & orders ─────────────────────────────────────
+  { key: 'min_order_amount', section: 'orders', label: 'Minimum order total', type: 'number', default: '0', public: true, min: 0, max: 100000, unit: '$', description: '0 = no minimum.' },
+  { key: 'enable_order_notes', section: 'orders', label: 'Order notes field', type: 'toggle', default: '1', public: true },
+  { key: 'order_notes_placeholder', section: 'orders', label: 'Order notes placeholder', type: 'text', default: 'Note (delivery instructions)', public: true, max: 120 },
+  { key: 'terms_url', section: 'orders', label: 'Terms URL', type: 'url', default: '', public: true },
+  { key: 'terms_required', section: 'orders', label: 'Require terms acceptance', type: 'toggle', default: '0', public: true, description: 'Checkout must be ticked as accepted when Terms URL is set.' },
+  { key: 'invoice_footer', section: 'orders', label: 'Invoice footer', type: 'textarea', default: '', public: false, max: 500, description: 'Appended to customer order emails.' },
+
   // ── Shipping ──────────────────────────────────────────────
   { key: 'shipping_free_over', section: 'shipping', label: 'Free shipping over', type: 'number', default: '150', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'shipping_note', section: 'shipping', label: 'Shipping rates note', type: 'text', default: 'Metro $12, WA regional $18, national $22 — free over $150. Click & collect 6000.', public: true, max: 200 },
@@ -91,12 +115,18 @@ export const SETTINGS = [
   { key: 'workshop_reminder_2h_lead', section: 'workshops', label: 'Reminder 2 lead', type: 'number', default: '2', public: false, min: 1, max: 168, unit: 'h before' },
   { key: 'workshop_min_lead_hours', section: 'workshops', label: 'Minimum booking lead time', type: 'number', default: '0', public: true, min: 0, max: 720, unit: 'h before start' },
   { key: 'workshop_default_capacity', section: 'workshops', label: 'Default new-session capacity', type: 'number', default: '12', public: true, min: 1, max: 500, unit: 'seats' },
+  { key: 'workshop_bookings_enabled', section: 'workshops', label: 'Accept new bookings', type: 'toggle', default: '1', public: true, description: 'Off = bookings closed (existing bookings untouched).' },
+  { key: 'workshop_waitlist_enabled', section: 'workshops', label: 'Waitlist full sessions', type: 'toggle', default: '1', public: true, description: 'Off = full sessions reject with 409 instead of waitlisting.' },
 
   // ── Notifications ─────────────────────────────────────────
   { key: 'email_from_name', section: 'notifications', label: 'Email from name', type: 'text', default: "Krystal's Flower Kreations", public: false, max: 120 },
   { key: 'email_reply_to', section: 'notifications', label: 'Email reply-to', type: 'email', default: '', public: false, max: 254 },
   { key: 'low_stock_recipient', section: 'notifications', label: 'Low-stock alert recipient', type: 'email', default: '', public: false, max: 254, placeholder: 'defaults to COMPANY_EMAIL env' },
   { key: 'low_stock_alerts_enabled', section: 'notifications', label: 'Low-stock alerts', type: 'toggle', default: '1', public: false },
+  { key: 'admin_order_alert_enabled', section: 'notifications', label: 'New-order alert emails', type: 'toggle', default: '1', public: false },
+  { key: 'admin_order_alert_recipient', section: 'notifications', label: 'New-order alert recipient', type: 'email', default: '', public: false, placeholder: 'defaults to Contact email' },
+  { key: 'customer_status_emails_enabled', section: 'notifications', label: 'Status-update emails to customers', type: 'toggle', default: '1', public: false },
+  { key: 'email_signature', section: 'notifications', label: 'Email signature', type: 'textarea', default: '', public: false, max: 500, description: 'Appended to every customer email.' },
 
   // ── Loyalty ───────────────────────────────────────────────
   { key: 'loyalty_enabled', section: 'loyalty', label: 'Loyalty program active', type: 'toggle', default: '1', public: true },
@@ -105,6 +135,8 @@ export const SETTINGS = [
   { key: 'loyalty_earn_rate', section: 'loyalty', label: 'Earn rate', type: 'number', default: '1', public: true, min: 0, max: 1000, unit: 'pts/$' },
   { key: 'loyalty_redeem_rate', section: 'loyalty', label: 'Redeem value', type: 'number', default: '5', public: true, min: 0, max: 1000, unit: '$/100pts' },
   { key: 'loyalty_earn_cap', section: 'loyalty', label: 'Earn cap per order', type: 'number', default: '1000', public: false, min: 0, max: 100000, unit: 'pts' },
+  { key: 'loyalty_signup_bonus', section: 'loyalty', label: 'Signup bonus', type: 'number', default: '0', public: true, min: 0, max: 100000, unit: 'pts', description: '0 = none. Awarded when a customer registers.' },
+  { key: 'loyalty_min_redeem_points', section: 'loyalty', label: 'Minimum redeem', type: 'number', default: '100', public: true, min: 0, max: 10000, unit: 'pts', description: 'Smallest redeemable amount (must also be a multiple of 100).' },
 
   // ── POS ───────────────────────────────────────────────────
   { key: 'pos_receipt_footer', section: 'pos', label: 'Receipt footer', type: 'textarea', default: "Thank you! — Krystal's Flower Kreations • Perth WA", public: false, max: 300 },
@@ -112,6 +144,8 @@ export const SETTINGS = [
 
   // ── Appearance ────────────────────────────────────────────
   { key: 'default_color_mode', section: 'appearance', label: 'Default colour mode', type: 'select', default: 'system', public: true, options: COLOR_MODE_OPTIONS, description: 'For first-time visitors (their own choice is remembered).' },
+  { key: 'show_color_mode_toggle', section: 'appearance', label: 'Show light/dark toggle', type: 'toggle', default: '1', public: true, description: 'Hides the switch in the storefront header when off.' },
+  { key: 'logo_url', section: 'appearance', label: 'Logo image URL', type: 'url', default: '', public: true, description: 'Replaces the ✿ mark in the header when set.' },
   { key: 'theme_primary', section: 'appearance', label: 'Primary colour', type: 'color', default: '', public: true },
   { key: 'theme_primary_dark', section: 'appearance', label: 'Dark shade (text on light)', type: 'color', default: '', public: true },
   { key: 'theme_bg', section: 'appearance', label: 'Background tint', type: 'color', default: '', public: true },
@@ -125,6 +159,8 @@ export const SETTINGS = [
   { key: 'theme_dark_text', section: 'appearance', label: 'Dark mode text', type: 'color', default: '#E2E8F0', public: true },
 
   // ── Advanced ──────────────────────────────────────────────
+  { key: 'maintenance_mode', section: 'advanced', label: 'Maintenance mode', type: 'toggle', default: '0', public: true, description: 'Public API requests return 503. Admin sessions bypass it.' },
+  { key: 'maintenance_message', section: 'advanced', label: 'Maintenance message', type: 'text', default: "We're giving the studio a quick refresh — back shortly.", public: true, max: 200 },
   { key: 'low_stock_default', section: 'advanced', label: 'Low-stock default threshold', type: 'number', default: '5', public: false, min: 0, max: 100000, unit: 'units' },
   { key: 'cart_retention_hours', section: 'advanced', label: 'Cart retention', type: 'number', default: '24', public: false, min: 1, max: 720, unit: 'h' },
 ];

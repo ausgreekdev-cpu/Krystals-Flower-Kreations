@@ -7,7 +7,7 @@ import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { calculateShipping, calculateGstInclusive } from '../services/shipping.js';
 import { stripe } from '../services/stripe.js';
-import { sendOrderConfirmation } from '../services/email.js';
+import { sendOrderConfirmation, sendAdminOrderAlert, sendStatusUpdate } from '../services/email.js';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
 import { audit } from '../lib/audit.js';
@@ -47,12 +47,37 @@ const checkoutSchema = z.object({
   shippingPostcode: z.string().min(3).max(10).regex(/^[0-9A-Za-z ]+$/),
   discountCode: z.string().max(30).optional().nullable(),
   customerNote: z.string().max(2000).optional().nullable(),
+  acceptTerms: z.boolean().optional(),
   paymentMethod: z.enum(['cash','bank_transfer','pickup','manual']).default('manual'),
 }).strict();
 
 router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
+  const publicSettings = await getSettings({ onlyPublic: true });
   const idempotencyKey = req.headers['idempotency-key'] ? String(req.headers['idempotency-key']).slice(0,100) : null;
+
+  // Enforce the admin-configured payment methods list (checkout_payment_methods).
+  const enabledMethods = String(publicSettings.checkout_payment_methods || '').split(',').map(m => m.trim()).filter(Boolean);
+  if (enabledMethods.length && !enabledMethods.includes(data.paymentMethod)) {
+    const LABELS = { bank_transfer: 'Bank transfer', pickup: 'Pay on pickup', cash: 'Cash', manual: 'Manual' };
+    return res.status(422).json({
+      error: `${LABELS[data.paymentMethod] || data.paymentMethod} payments are not available right now`,
+      code: 'payment_method_disabled',
+      details: { enabled: enabledMethods },
+    });
+  }
+
+  // Terms acceptance (settings: terms_required + terms_url)
+  if (publicSettings.terms_required === '1' && !data.acceptTerms) {
+    return res.status(422).json({
+      error: 'Please accept the terms to continue',
+      code: 'terms_required',
+      details: { termsUrl: publicSettings.terms_url || null },
+    });
+  }
+
+  // Order notes can be switched off admin-side — ignore anything sent while disabled
+  if (publicSettings.enable_order_notes === '0') data.customerNote = null;
 
   // Idempotency: return existing order if same key already used
   if (idempotencyKey) {
@@ -84,8 +109,7 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
 
   let discountTotal = 0;
   let appliedDiscount = null;
-  if (data.discountCode) {
-    const disc = await prisma.discount.findUnique({ where: { code: data.discountCode.toUpperCase(), deletedAt: null } });
+  if (data.discountCode) {    const disc = await prisma.discount.findUnique({ where: { code: data.discountCode.toUpperCase(), deletedAt: null } });
     if (disc && disc.isActive) {
       const now = new Date();
       if (disc.startsAt && now < new Date(disc.startsAt)) {/* not started */ }
@@ -101,7 +125,18 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
     }
   }
 
-  const shipping = await calculateShipping({ postcode: data.shippingPostcode, subtotal: subtotal - discountTotal, weightGrams: weight });
+  // Minimum order total (settings: min_order_amount) — checked after discounts.
+  const minOrder = Number(publicSettings.min_order_amount) || 0;
+  const goodsTotal = subtotal - discountTotal;
+  if (minOrder > 0 && goodsTotal < minOrder) {
+    return res.status(422).json({
+      error: `Minimum order is $${minOrder.toFixed(2)}`,
+      code: 'below_minimum_order',
+      details: { minimum: minOrder, subtotal: goodsTotal },
+    });
+  }
+
+  const shipping = await calculateShipping({ postcode: data.shippingPostcode, subtotal: goodsTotal, weightGrams: weight });
   const total = Math.max(0, subtotal - discountTotal + shipping.price);
   const gst = await calculateGstInclusive(total);
 
@@ -190,8 +225,9 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
 
   // Email receipt (non-blocking, logs if SMTP not configured)
   await sendOrderConfirmation(order).catch(()=>{});
+  // Studio alert (settings: admin_order_alert_enabled / _recipient)
+  await sendAdminOrderAlert(order).catch(()=>{});
 
-  const publicSettings = await getSettings({ onlyPublic: true });
   res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) });
 }));
 
@@ -245,6 +281,9 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   if (status === 'paid' && current.status !== 'paid') {
     await earnForOrder(prisma, { email: order.email, total: order.total, orderId: order.id, reason: 'purchase' });
   }
+
+  // Customer status email (settings: customer_status_emails_enabled)
+  await sendStatusUpdate(order, current.status, status).catch(()=>{});
   res.json(order);
 }));
 

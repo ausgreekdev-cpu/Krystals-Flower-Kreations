@@ -11,7 +11,15 @@ before(async () => {
   const admin = await api(srv.base, '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }) });
   adminToken = admin.body.token;
 });
-after(async () => { await srv.close(); });
+after(async () => {
+  // Return the shared DB to schema defaults so leftover test values can't
+  // leak into other suites or the dev storefront.
+  await api(srv.base, '/api/settings/reset', {
+    method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ keys: ['theme_primary', 'announcement_text', 'email_from_name', 'checkout_payment_methods'] }),
+  }).catch(() => {});
+  await srv.close();
+});
 
 test('unit: normalizeSetting validates types and bounds', () => {
   assert.equal(normalizeSetting(SETTINGS_BY_KEY.tax_gst_rate, 0.25).value, '0.25');

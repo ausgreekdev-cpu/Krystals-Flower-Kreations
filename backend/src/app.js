@@ -41,6 +41,8 @@ import { requestLogger } from './middleware/request-log.js';
 import { globalRateLimit } from './middleware/rate-limit.js';
 import { notFound, errorHandler } from './middleware/error-handler.js';
 import { asyncHandler } from './middleware/async-handler.js';
+import { verifyToken } from './lib/auth.js';
+import { getSettings } from './lib/settingsSchema.js';
 import prisma from './lib/prisma.js';
 import { validateEnv } from './lib/config.js';
 
@@ -103,6 +105,29 @@ app.get('/health', asyncHandler(async (req, res) => {
   let db = false;
   try { await prisma.$queryRaw`SELECT 1`; db = true; } catch {}
   res.status(db ? 200 : 503).json({ status: db ? 'healthy' : 'unhealthy', db, timestamp: new Date().toISOString(), version: '1.0.0', requestId: req.id });
+}));
+
+// Maintenance mode (settings: maintenance_mode) — public reads of the API are
+// refused with 503 while the shop is "closed". Always allowed:
+//   • health probes (monitors), /api/settings (the SPA reads the flag/message),
+//   • /api/auth/* (staff must be able to log in), and anything where the
+//     Authorization token belongs to a staff/admin user (they bypass entirely).
+// Mutations are left alone so in-flight admin work never breaks.
+const MAINTENANCE_OPEN = /^\/api\/(health|settings|auth)(\/|$)/;
+app.use(asyncHandler(async (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (!req.path.startsWith('/api/')) return next();
+  if (MAINTENANCE_OPEN.test(req.path)) return next();
+  const s = await getSettings({ onlyPublic: true }).catch(() => null);
+  if (!s || s.maintenance_mode !== '1') return next();
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try {
+      const payload = verifyToken(header.slice(7));
+      if (payload?.role && ['staff', 'maker', 'admin', 'developer'].includes(payload.role)) return next();
+    } catch { /* fall through to 503 */ }
+  }
+  res.status(503).json({ error: s.maintenance_message || 'Down for maintenance', code: 'maintenance_mode' });
 }));
 
 // Routes — apply stricter per-route rate limits where needed inside routers

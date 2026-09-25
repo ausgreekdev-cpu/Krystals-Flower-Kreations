@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "seed": "node prisma/seed.js",
     "lint": "eslint src",
-    "test": "node --test"
+    "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
     "@prisma/client": "^5.19.1",

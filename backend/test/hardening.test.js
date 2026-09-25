@@ -35,7 +35,7 @@ test('order status: refunded cannot go back to paid', async () => {
   const cartId = cartRes.cartId || cartRes.cart?.id;
   const { body: co } = await api(srv.base, '/api/orders/checkout', {
     method: 'POST',
-    body: JSON.stringify({ cartId, email: customerEmail, shippingName: 'Hardening Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'manual' }),
+    body: JSON.stringify({ cartId, email: customerEmail, shippingName: 'Hardening Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'bank_transfer' }),
   });
   const orderId = co.order.id;
   // pending_payment → refunded (valid)
@@ -57,7 +57,7 @@ test('cancelling a tracked order restocks its stock', async () => {
   const cartId = cartRes.cartId || cartRes.cart?.id;
   const { body: co } = await api(srv.base, '/api/orders/checkout', {
     method: 'POST',
-    body: JSON.stringify({ cartId, email: customerEmail, shippingName: 'Hardening Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'manual' }),
+    body: JSON.stringify({ cartId, email: customerEmail, shippingName: 'Hardening Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'bank_transfer' }),
   });
   assert.equal(co.order.status, 'pending_payment');
   const mid = await api(srv.base, '/api/inventory/levels', { headers: { Authorization: `Bearer ${adminToken}` } });

@@ -28,6 +28,12 @@ test('login is case-insensitive on email', async () => {
 });
 
 test('public checkout with paymentMethod=cash is NOT marked paid', async () => {
+  // The store's enabled methods are admin-configured — open cash for this check.
+  const admin = await api(srv.base, '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }) });
+  await api(srv.base, '/api/settings', {
+    method: 'PUT', headers: { Authorization: `Bearer ${admin.body.token}` },
+    body: JSON.stringify({ checkout_payment_methods: 'bank_transfer,pickup,cash,manual' }),
+  });
   const { body: list } = await api(srv.base, '/api/products');
   const productId = list.products.find((p) => p.slug === 'eucalyptus-paper-rose-bouquet-blush').id;
   const { body: cartRes } = await api(srv.base, '/api/cart/add', { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) });

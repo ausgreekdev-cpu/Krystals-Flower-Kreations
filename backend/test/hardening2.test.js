@@ -88,7 +88,7 @@ test('checkout uses current price, not the stale cart snapshot', async () => {
   await api(srv.base, `/api/products/${productId}`, { method: 'PATCH', headers: { Authorization: `Bearer ${adminToken}` }, body: JSON.stringify({ price: 55 }) });
   const co = await api(srv.base, '/api/orders/checkout', {
     method: 'POST',
-    body: JSON.stringify({ cartId, email: `recheck_${Date.now()}@test.com`, shippingName: 'Recheck Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'manual' }),
+    body: JSON.stringify({ cartId, email: `recheck_${Date.now()}@test.com`, shippingName: 'Recheck Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'bank_transfer' }),
   });
   assert.equal(co.status, 200, JSON.stringify(co.body).slice(0, 300));
   const line = co.body.order.lines[0];

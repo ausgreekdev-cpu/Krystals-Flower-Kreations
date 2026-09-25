@@ -32,7 +32,7 @@ test('checkout enqueues an order confirmation email', async () => {
   const cartId = cartRes.cartId || cartRes.cart?.id;
   await api(srv.base, '/api/orders/checkout', {
     method: 'POST',
-    body: JSON.stringify({ cartId, email: `queue_${Date.now()}@test.com`, shippingName: 'Q Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'manual' }),
+    body: JSON.stringify({ cartId, email: `queue_${Date.now()}@test.com`, shippingName: 'Q Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'bank_transfer' }),
   });
   const after = await prisma.emailQueue.count({ where: { template: 'order_confirmation' } });
   assert.ok(after > before, 'an order_confirmation row was enqueued');

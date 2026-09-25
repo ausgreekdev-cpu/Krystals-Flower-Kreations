@@ -65,6 +65,10 @@ router.post('/redeem', authenticate, asyncHandler(async (req,res)=>{
   if (!cfg.enabled) return res.status(403).json({ error:'Loyalty program is currently disabled', code:'loyalty_disabled' });
   const { points, reason } = req.body;
   const pts = Math.max(1, Math.min(1000, parseInt(points,10) || 0));
+  // Admin-configured floor (settings: loyalty_min_redeem_points)
+  if (cfg.minRedeem > 0 && pts < cfg.minRedeem) {
+    return res.status(422).json({ error:`Minimum redeem is ${cfg.minRedeem} points`, code:'below_minimum_redeem', details:{ minimum: cfg.minRedeem } });
+  }
   const email = req.user.email;
   const acc = await prisma.loyaltyAccount.findUnique({ where:{ email } });
   if(!acc || acc.points < pts) return res.status(422).json({ error:`Insufficient points: have ${acc?.points||0}`, code:'insufficient_points' });

@@ -52,8 +52,13 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     kitAddOn: z.boolean().default(false),
   });
   const data = schema.parse(req.body);
-  // Booking lead-time (settings: workshop_min_lead_hours) — read before the tx.
-  const minLeadHours = Number((await getSettings({ onlyPublic: true })).workshop_min_lead_hours) || 0;
+  // Booking rules from settings (read before the tx): lead time, open/closed, waitlist.
+  const s = await getSettings({ onlyPublic: true });
+  const minLeadHours = Number(s.workshop_min_lead_hours) || 0;
+  if (s.workshop_bookings_enabled === '0') {
+    throw Object.assign(new Error('New bookings are currently closed'), { status: 409, code: 'bookings_closed' });
+  }
+  const waitlistEnabled = s.workshop_waitlist_enabled !== '0';
   const result = await prisma.$transaction(async (tx) => {
     const session = await tx.workshopSession.findUnique({ where: { id: req.params.sessionId }, include: { workshop: true } });
     if (!session) throw Object.assign(new Error('Session not found'), { status: 404, code: 'not_found' });
@@ -67,6 +72,9 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     });
     const status = updated.count === 1 ? 'confirmed' : 'waitlisted';
     if (updated.count !== 1) {
+      if (!waitlistEnabled) {
+        throw Object.assign(new Error('This session is full'), { status: 409, code: 'session_full' });
+      }
       // Waitlist: increment waitlistCount
       await tx.workshopSession.update({ where: { id: session.id }, data: { waitlistCount: { increment: data.quantity } } });
     }

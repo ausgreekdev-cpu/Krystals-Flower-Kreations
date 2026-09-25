@@ -36,7 +36,7 @@ test('GET /api/cart/ with X-Cart-Id returns the cart', async () => {
   assert.ok(body.items?.length >= 1);
 });
 
-test('checkout creates a pending manual order with shipping + GST', async () => {
+test('checkout creates a pending bank-transfer order with shipping + GST', async () => {
   const { status, body } = await api(srv.base, '/api/orders/checkout', {
     method: 'POST',
     body: JSON.stringify({
@@ -47,12 +47,12 @@ test('checkout creates a pending manual order with shipping + GST', async () => 
       shippingSuburb: 'Perth',
       shippingState: 'WA',
       shippingPostcode: '6000',
-      paymentMethod: 'manual',
+      paymentMethod: 'bank_transfer',
     }),
   });
   assert.equal(status, 200, JSON.stringify(body).slice(0, 300));
   assert.ok(body.order?.orderNumber, 'has order number');
-  assert.equal(body.order.paymentMethod, 'manual');
+  assert.equal(body.order.paymentMethod, 'bank_transfer');
   assert.equal(body.order.status, 'pending_payment');
   assert.ok(Number(body.order.total) > 0);
   assert.ok(body.gst !== undefined);
@@ -66,7 +66,7 @@ test('checkout rejects a missing cart', async () => {
       cartId: 'does-not-exist',
       email: 'buyer@test.com',
       shippingName: 'X', shippingAddress: 'X', shippingSuburb: 'Perth',
-      shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'manual',
+      shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'bank_transfer',
     }),
   });
   assert.equal(status, 400);

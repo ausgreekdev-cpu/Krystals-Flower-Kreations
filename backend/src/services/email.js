@@ -91,6 +91,14 @@ export async function drainEmailQueue(limit = 50) {
   return { drained: pending.length, sent };
 }
 
+// Shared sign-off: business identity + admin-configured email signature.
+async function signatureBlock(s = {}) {
+  const lines = [`— ${s.business_name || "Krystal's Flower Kreations"}, Perth WA`];
+  if (s.business_address) lines.push(s.business_address);
+  if (s.email_signature) lines.push(String(s.email_signature).trim());
+  return lines.join('\n');
+}
+
 export async function sendOrderConfirmation(order) {
   const subject = `Order ${order.orderNumber} — Krystal's Flower Kreations`;
   const s = await getSettings().catch(() => ({}));
@@ -98,8 +106,36 @@ export async function sendOrderConfirmation(order) {
   // from settings — previously the email promised details that never appeared).
   const paymentBlock = ['bank_transfer', 'pickup'].includes(order.paymentMethod)
     ? `\n\nPayment:\n${paymentInstructionsFor(order.paymentMethod, s)}\n` : '';
-  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystal's Flower Kreations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}\nWe will notify you when it's ready for pickup/dispatch.\n\n— ${s.business_name || "Krystal's Flower Kreations"}, Perth WA\n${s.business_address || process.env.BUSINESS_ADDRESS || ''}`;
+  const footer = s.invoice_footer ? `\n${String(s.invoice_footer).trim()}\n` : '';
+  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystal's Flower Kreations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}\nWe will notify you when it's ready for pickup/dispatch.\n${footer}\n${await signatureBlock(s)}`;
   const row = await enqueueEmail({ to: order.email, subject, text, template: 'order_confirmation', payload: { orderNumber: order.orderNumber } });
+  sendFromQueue(row).catch(()=>{});
+  return row;
+}
+
+// Studio notification for every new checkout (settings: admin_order_alert_*).
+export async function sendAdminOrderAlert(order) {
+  const s = await getSettings().catch(() => ({}));
+  if (s.admin_order_alert_enabled !== '1') return null;
+  const to = s.admin_order_alert_recipient || s.contact_email || process.env.COMPANY_EMAIL;
+  if (!to) return null;
+  const lines = (order.lines || []).map(l => `  ${l.quantity} × ${l.title} — $${Number(l.lineTotal).toFixed(2)}`).join('\n');
+  const subject = `New order ${order.orderNumber} — $${Number(order.total).toFixed(2)}`;
+  const text = `New order ${order.orderNumber}\n\n${order.shippingName}\n${order.shippingAddress}, ${order.shippingSuburb} ${order.shippingState} ${order.shippingPostcode}\nEmail: ${order.email}\nPayment: ${order.paymentMethod}\n\n${lines || ''}\n\nSubtotal $${Number(order.subtotal).toFixed(2)} • Discount $${Number(order.discountTotal).toFixed(2)} • Shipping $${Number(order.shippingCost).toFixed(2)} • TOTAL $${Number(order.total).toFixed(2)}\n\n${order.customerNote ? `Customer note: ${order.customerNote}\n\n` : ''}${await signatureBlock(s)}`;
+  const row = await enqueueEmail({ to, subject, text, template: 'admin_order_alert', payload: { orderNumber: order.orderNumber } });
+  sendFromQueue(row).catch(()=>{});
+  return row;
+}
+
+// Customer notification when staff change an order status
+// (settings: customer_status_emails_enabled).
+export async function sendStatusUpdate(order, fromStatus, toStatus) {
+  const s = await getSettings().catch(() => ({}));
+  if (s.customer_status_emails_enabled !== '1') return null;
+  if (!order.email || fromStatus === toStatus) return null;
+  const subject = `Order ${order.orderNumber} — ${toStatus.replace(/_/g, ' ')}`;
+  const text = `Hi ${order.shippingName || 'there'},\n\nYour order ${order.orderNumber} is now: ${toStatus.replace(/_/g, ' ')}.\nTotal: $${Number(order.total).toFixed(2)}\n\n${await signatureBlock(s)}`;
+  const row = await enqueueEmail({ to: order.email, subject, text, template: 'order_status_update', payload: { orderNumber: order.orderNumber, from: fromStatus, to: toStatus } });
   sendFromQueue(row).catch(()=>{});
   return row;
 }

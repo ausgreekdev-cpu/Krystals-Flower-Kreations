@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
 import { hashPassword, comparePassword, signToken } from '../lib/auth.js';
+import { awardSignupBonus } from '../services/loyaltyService.js';
 
 const router = Router();
 // bcrypt hash of a random string — used to equalise timing for unknown emails
@@ -19,8 +20,10 @@ router.post('/register', rateLimit('register', 5, 15), validate(registerSchema),
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return res.status(409).json({ error: 'Email already registered', code: 'conflict' });
   const user = await prisma.user.create({ data: { name: name.slice(0,100), email, password: await hashPassword(password), phone: phone?.slice(0,30), role: 'customer' } });
+  // Welcome points (settings: loyalty_signup_bonus) — never blocks registration.
+  const bonus = await awardSignupBonus(null, email).catch(() => null);
   const token = signToken(user);
-  res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role }, ...(bonus ? { signupBonus: bonus.points, loyaltyPoints: bonus.newPoints } : {}) });
 }));
 
 // Per-IP limit + per-account limit (stops distributed guessing against one account)
