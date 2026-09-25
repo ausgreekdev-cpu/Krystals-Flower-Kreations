@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClient';
+import { subscribe, nextColorMode, getColorMode, MODES } from '../lib/colorMode';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -36,6 +37,10 @@ function AdminInner({ user }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const token = getToken();
+  const [colorMode, setColorModeState] = useState(() => getColorMode() || 'system');
+  useEffect(() => subscribe((m) => setColorModeState(m)), []);
+  const toggleColorMode = () => { const n = nextColorMode(); setColorModeState(n); };
+  const nextModeLabel = MODES[(MODES.indexOf(colorMode) + 1) % MODES.length];
 
   async function load(tabId) {
     setLoading(true); setErr('');
@@ -130,7 +135,7 @@ function AdminInner({ user }) {
   useEffect(() => { load(tab); window.history.replaceState(null, '', `?tab=${tab}`); }, [tab]);
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-surface3">
       <div className="flex">
         <aside className="w-56 shrink-0 bg-black min-h-screen p-4 hidden lg:block">
           <div className="flex items-center gap-2 px-2 py-3">
@@ -151,22 +156,32 @@ function AdminInner({ user }) {
           <div className="mt-6 border-t border-white/10 pt-4 px-2">
             <div className="text-white text-xs font-semibold truncate">{user?.name || user?.email}</div>
             <div className="text-white/50 text-[10px] truncate">{user?.email} • {user?.role}</div>
+            <button onClick={toggleColorMode} title={`Click for ${nextModeLabel}`}
+              className="mt-2 w-full text-xs text-white/70 hover:text-white border border-white/20 rounded-lg px-2 py-1.5">
+              {colorMode === 'system' ? '🖥️' : colorMode === 'light' ? '☀️' : '🌙'} {colorMode} → {nextModeLabel}
+            </button>
             <button onClick={signOut} className="mt-2 text-xs text-white/70 hover:text-white underline">Sign out</button>
           </div>
         </aside>
 
         <div className="flex-1 min-w-0">
-          <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between lg:hidden">
+          <header className="bg-surface2 border-b border-line px-6 py-4 flex items-center justify-between lg:hidden">
             <h1 className="font-black text-royal-700">Studio Manager</h1>
-            <button onClick={signOut} className="text-xs border border-gray-300 rounded-full px-3 py-1.5 text-gray-600">Sign out</button>
+            <div className="flex items-center gap-2">
+              <button onClick={toggleColorMode} title={`Click for ${nextModeLabel}`}
+                className="text-xs border border-line-strong rounded-full px-3 py-1.5 text-muted">
+                {colorMode === 'system' ? '🖥️' : colorMode === 'light' ? '☀️' : '🌙'} {colorMode}
+              </button>
+              <button onClick={signOut} className="text-xs border border-line-strong rounded-full px-3 py-1.5 text-muted">Sign out</button>
+            </div>
           </header>
           <div className="p-4 lg:p-6">
             <div className="flex items-center justify-between gap-3 mb-5">
               <div>
-                <h1 className="text-2xl font-black text-gray-900">{TABS.find((t) => t.id === tab)?.label}</h1>
-                <p className="text-xs text-gray-500 mt-0.5">Krystal's Flower Kreations — Perth WA studio</p>
+                <h1 className="text-2xl font-black text-ink">{TABS.find((t) => t.id === tab)?.label}</h1>
+                <p className="text-xs text-muted mt-0.5">Krystal's Flower Kreations — Perth WA studio</p>
               </div>
-              <a href="/api/health" target="_blank" rel="noreferrer" className="text-xs border border-gray-300 rounded-full px-3 py-1.5 hover:bg-gray-50 text-gray-600">Health</a>
+              <a href="/api/health" target="_blank" rel="noreferrer" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">Health</a>
             </div>
             {err && <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{err}</div>}
 
@@ -174,11 +189,11 @@ function AdminInner({ user }) {
             <div className="flex gap-1.5 overflow-x-auto mb-4 lg:hidden pb-1">
               {TABS.map((t) => (
                 <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${tab === t.id ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>{t.icon} {t.label}</button>
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${tab === t.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted'}`}>{t.icon} {t.label}</button>
               ))}
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 lg:p-6 shadow-sm min-h-[60vh]">
+            <div className="bg-surface2 border border-line rounded-2xl p-4 lg:p-6 shadow-sm min-h-[60vh]">
               {loading ? <Skeleton /> : (
                 <>
                   {tab === 'overview' && <Overview data={data} onOpen={setTab} />}
@@ -227,12 +242,12 @@ export default function AdminStudio() {
       .catch(() => { clearSession(); toLogin(); });
   }, []);
 
-  if (user === undefined) return <div className="min-h-screen bg-gray-100 flex items-center justify-center text-sm text-gray-500">Checking session…</div>;
+  if (user === undefined) return <div className="min-h-screen bg-surface3 flex items-center justify-center text-sm text-muted">Checking session…</div>;
   if (user === null) return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 max-w-sm text-center space-y-3">
-        <h1 className="font-black text-gray-900">Staff access only</h1>
-        <p className="text-sm text-gray-600">This account doesn't have access to the studio console.</p>
+    <div className="min-h-screen bg-surface3 flex items-center justify-center p-4">
+      <div className="bg-surface2 border border-line rounded-2xl p-6 max-w-sm text-center space-y-3">
+        <h1 className="font-black text-ink">Staff access only</h1>
+        <p className="text-sm text-muted">This account doesn't have access to the studio console.</p>
         <button onClick={() => { clearSession(); window.location.assign('/login?next=/admin'); }} className="bg-royal-600 hover:bg-royal-700 text-white font-bold rounded-xl px-4 py-2 text-sm">Sign in as staff</button>
       </div>
     </div>
@@ -242,13 +257,13 @@ export default function AdminStudio() {
 
 function signOut() { clearSession(); window.location.assign('/login'); }
 
-function Skeleton() { return <div className="animate-pulse space-y-3"><div className="h-24 bg-gray-100 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /></div>; }
+function Skeleton() { return <div className="animate-pulse space-y-3"><div className="h-24 bg-surface3 rounded-xl" /><div className="h-40 bg-surface3 rounded-xl" /><div className="h-40 bg-surface3 rounded-xl" /></div>; }
 function Card({ title, children, actions, description }) {
-  return <div className="border border-gray-200 rounded-2xl p-4"><div className="flex items-center justify-between mb-3"><div><h3 className="font-bold text-sm text-gray-800">{title}</h3>{description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}</div>{actions}</div>{children}</div>;
+  return <div className="border border-line rounded-2xl p-4"><div className="flex items-center justify-between mb-3"><div><h3 className="font-bold text-sm text-ink">{title}</h3>{description && <p className="text-xs text-muted mt-0.5">{description}</p>}</div>{actions}</div>{children}</div>;
 }
 const Btn = ({ children, onClick, color = 'royal', disabled, small }) => (
   <button onClick={onClick} disabled={disabled}
-    className={`inline-flex items-center gap-1 rounded-xl font-semibold disabled:opacity-50 transition-colors ${small ? 'px-2.5 py-1 text-xs' : 'px-4 py-2 text-sm'} ${color === 'royal' ? 'bg-royal-600 text-white hover:bg-royal-700' : color === 'black' ? 'bg-gray-900 text-white hover:bg-gray-800' : color === 'ghost' ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : color === 'red' ? 'bg-red-600 text-white hover:bg-red-700' : color === 'amber' ? 'bg-amber-500 text-white hover:bg-amber-600' : ''}`}>{children}</button>
+    className={`inline-flex items-center gap-1 rounded-xl font-semibold disabled:opacity-50 transition-colors ${small ? 'px-2.5 py-1 text-xs' : 'px-4 py-2 text-sm'} ${color === 'royal' ? 'bg-royal-600 text-white hover:bg-royal-700' : color === 'black' ? 'bg-gray-900 text-white hover:bg-gray-800' : color === 'ghost' ? 'border border-line-strong text-ink hover:bg-surface3' : color === 'red' ? 'bg-red-600 text-white hover:bg-red-700' : color === 'amber' ? 'bg-amber-500 text-white hover:bg-amber-600' : ''}`}>{children}</button>
 );
 
 function Overview({ data, onOpen }) {
@@ -268,14 +283,14 @@ function Overview({ data, onOpen }) {
       <div className="grid lg:grid-cols-2 gap-4">
         <Card title="Recent orders" actions={<button onClick={() => onOpen('orders')} className="text-xs text-royal-700 hover:underline font-semibold">View all</button>}>
           <div className="space-y-1.5">
-            {orders.slice(0, 6).map((o) => <div key={o.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="font-medium text-gray-700">{o.orderNumber} <span className="text-gray-400">• {o.email}</span></span><StatusBadge value={o.status} /></div>)}
-            {orders.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No orders yet</div>}
+            {orders.slice(0, 6).map((o) => <div key={o.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{o.orderNumber} <span className="text-muted">• {o.email}</span></span><StatusBadge value={o.status} /></div>)}
+            {orders.length === 0 && <div className="text-xs text-muted py-4 text-center">No orders yet</div>}
           </div>
         </Card>
         <Card title="Low stock" actions={<button onClick={() => onOpen('inventory')} className="text-xs text-royal-700 hover:underline font-semibold">Manage</button>}>
           <div className="space-y-1.5">
-            {low.slice(0, 6).map((m) => <div key={m.id || m.sku} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="font-medium text-gray-700">{m.name || m.sku}</span><span className="text-amber-600 font-semibold">{m.onHand}/{m.lowThreshold}</span></div>)}
-            {low.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">All stocked ✓</div>}
+            {low.slice(0, 6).map((m) => <div key={m.id || m.sku} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{m.name || m.sku}</span><span className="text-amber-600 font-semibold">{m.onHand}/{m.lowThreshold}</span></div>)}
+            {low.length === 0 && <div className="text-xs text-muted py-4 text-center">All stocked ✓</div>}
           </div>
         </Card>
       </div>
@@ -283,9 +298,9 @@ function Overview({ data, onOpen }) {
   );
 }
 function Stat({ label, value, warn, accent }) {
-  return <div className={`p-4 rounded-2xl border ${warn ? 'bg-amber-50 border-amber-200' : accent ? 'bg-royal-50 border-royal-100' : 'bg-gray-50 border-gray-200'}`}>
-    <div className="text-xs text-gray-500">{label}</div>
-    <div className={`text-xl font-black mt-0.5 ${warn ? 'text-amber-600' : accent ? 'text-royal-700' : 'text-gray-900'}`}>{value}</div>
+  return <div className={`p-4 rounded-2xl border ${warn ? 'bg-amber-50 border-amber-200' : accent ? 'bg-royal-50 border-royal-100' : 'bg-surface3 border-line'}`}>
+    <div className="text-xs text-muted">{label}</div>
+    <div className={`text-xl font-black mt-0.5 ${warn ? 'text-amber-600' : accent ? 'text-royal-700' : 'text-ink'}`}>{value}</div>
   </div>;
 }
 
@@ -302,36 +317,36 @@ function Orders({ data, reload, token }) {
   }
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-500">{orders.length} orders (latest 100)</div>
+      <div className="text-xs text-muted">{orders.length} orders (latest 100)</div>
       {orders.map((o) => (
-        <div key={o.id} className="border border-gray-200 rounded-xl overflow-hidden">
-          <button onClick={() => setExpanded(expanded === o.id ? null : o.id)} className="w-full flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left">
-            <span className="font-bold text-sm text-gray-800">{o.orderNumber}</span>
-            <span className="text-xs text-gray-500">{o.email}</span>
+        <div key={o.id} className="border border-line rounded-xl overflow-hidden">
+          <button onClick={() => setExpanded(expanded === o.id ? null : o.id)} className="w-full flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-surface3 text-left">
+            <span className="font-bold text-sm text-ink">{o.orderNumber}</span>
+            <span className="text-xs text-muted">{o.email}</span>
             <StatusBadge value={o.status} />
             <StatusBadge value={o.paymentStatus} />
             <span className="ml-auto font-bold text-sm text-royal-700">${Number(o.total).toFixed(2)}</span>
           </button>
           {expanded === o.id && (
-            <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50">
+            <div className="border-t border-line px-4 py-3 bg-surface3/50">
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {ORDER_FLOW.map((s) => (
                   <button key={s} disabled={busy === `${o.id}-${s}`} onClick={() => move(o, s)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold ${o.status === s ? 'bg-royal-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-royal-50'}`}>{s.replace(/_/g, ' ')}</button>
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold ${o.status === s ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line-strong text-muted hover:bg-royal-50'}`}>{s.replace(/_/g, ' ')}</button>
                 ))}
               </div>
               <div className="grid sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <div className="font-bold text-gray-700 mb-1">Lines</div>
+                  <div className="font-bold text-ink mb-1">Lines</div>
                   {(o.lines || []).map((l, i) => <div key={i} className="flex justify-between py-0.5"><span>{l.title} × {l.quantity}</span><span>${Number(l.unitPrice).toFixed(2)}</span></div>)}
                 </div>
                 <div>
-                  <div className="font-bold text-gray-700 mb-1">Details</div>
-                  <div className="space-y-0.5 text-gray-600">
+                  <div className="font-bold text-ink mb-1">Details</div>
+                  <div className="space-y-0.5 text-muted">
                     <div>Ship: {o.shippingName} — {o.shippingSuburb} {o.shippingPostcode}</div>
                     <div>Subtotal ${Number(o.subtotal).toFixed(2)} • GST ${Number(o.taxTotal).toFixed(2)} • Ship ${Number(o.shippingCost).toFixed(2)}</div>
                     <div>Payment: {o.paymentMethod}</div>
-                    {(o.history || []).slice(-3).map((h, i) => <div key={i} className="text-gray-400">{h.fromStatus} → {h.toStatus} ({new Date(h.createdAt).toLocaleString()})</div>)}
+                    {(o.history || []).slice(-3).map((h, i) => <div key={i} className="text-muted">{h.fromStatus} → {h.toStatus} ({new Date(h.createdAt).toLocaleString()})</div>)}
                   </div>
                 </div>
               </div>
@@ -339,7 +354,7 @@ function Orders({ data, reload, token }) {
           )}
         </div>
       ))}
-      {orders.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No orders — login as admin@krystal.local (maker+ token required)</div>}
+      {orders.length === 0 && <div className="text-xs text-muted py-10 text-center">No orders — login as admin@krystal.local (maker+ token required)</div>}
     </div>
   );
 }
@@ -358,10 +373,10 @@ function Inventory({ data, reload, token }) {
   const [sub, setSub] = useState('stock');
   return (
     <div className="space-y-4">
-      <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-gray-200">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-line">
         {INVENTORY_SUBS.map((s) => (
           <button key={s.id} onClick={() => setSub(s.id)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${sub === s.id ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-royal-50'}`}>{s.label}</button>
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${sub === s.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted hover:bg-royal-50'}`}>{s.label}</button>
         ))}
       </div>
       {sub === 'stock' && <InventoryStock data={data} reload={reload} token={token} />}
@@ -428,46 +443,46 @@ function InventoryStock({ data, reload, token }) {
       <Card title={`Product stock — ${levels.length} levels`}>
         <div className="space-y-1.5">
           {levels.slice(0, 30).map((l) => (
-            <div key={l.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
-              <span className="font-medium text-gray-700 flex-1 min-w-[160px]">{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-gray-400">@{l.location?.name}</span></span>
-              <span className={`font-bold ${l.onHand <= (l.lowStockThreshold ?? 5) ? 'text-red-600' : 'text-gray-800'}`}>{l.onHand}</span>
+            <div key={l.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
+              <span className="font-medium text-ink flex-1 min-w-[160px]">{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-muted">@{l.location?.name}</span></span>
+              <span className={`font-bold ${l.onHand <= (l.lowStockThreshold ?? 5) ? 'text-red-600' : 'text-ink'}`}>{l.onHand}</span>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, 1)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
-              <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
-              <input value={setVals[l.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder="set…" className="w-16 border border-gray-300 rounded-lg px-2 py-1" />
+              <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, -1)} className="w-7 h-7 rounded-lg bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
+              <input value={setVals[l.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder="set…" className="w-16 border border-line-strong rounded-lg px-2 py-1" />
               <button disabled={adjusting === l.id} onClick={() => setLevel(l, setVals[l.id])} className="px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800">Set</button>
-              <input value={thresholdVals[l.id] ?? ''} onChange={(e) => setThresholdVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder={`lo ${l.lowStockThreshold ?? 5}`} title="Low-stock threshold" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-gray-500" />
+              <input value={thresholdVals[l.id] ?? ''} onChange={(e) => setThresholdVals((s) => ({ ...s, [l.id]: e.target.value }))} placeholder={`lo ${l.lowStockThreshold ?? 5}`} title="Low-stock threshold" className="w-14 border border-line-strong rounded-lg px-2 py-1 text-muted" />
               <button disabled={adjusting === l.id} onClick={() => setThreshold(l, thresholdVals[l.id])} className="px-2 py-1 rounded-lg bg-royal-100 text-royal-700 text-xs font-semibold hover:bg-royal-200">Thr</button>
             </div>
           ))}
-          {levels.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No levels — seed inventory</div>}
+          {levels.length === 0 && <div className="text-xs text-muted py-4 text-center">No levels — seed inventory</div>}
         </div>
       </Card>
       <Card title={`Raw materials — ${materials.length}`} actions={<Btn small color="ghost" onClick={() => setMaterialEditor({})}>+ Add material</Btn>}>
         <div className="space-y-1.5">
           {materials.map((m) => (
-            <div key={m.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
-              <span className="font-medium text-gray-700 flex-1 min-w-[160px]">{m.name} <span className="text-gray-400">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span></span>
-              <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-gray-800'}`}>{m.onHand}</span>
+            <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
+              <span className="font-medium text-ink flex-1 min-w-[160px]">{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span></span>
+              <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-ink'}`}>{m.onHand}</span>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, 10)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
-              <button disabled={adjusting === m.id} onClick={() => adjustMat(m, -10)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
-              <input value={setVals[m.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [m.id]: e.target.value }))} placeholder="set…" className="w-16 border border-gray-300 rounded-lg px-2 py-1" />
+              <button disabled={adjusting === m.id} onClick={() => adjustMat(m, -10)} className="w-7 h-7 rounded-lg bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
+              <input value={setVals[m.id] || ''} onChange={(e) => setSetVals((s) => ({ ...s, [m.id]: e.target.value }))} placeholder="set…" className="w-16 border border-line-strong rounded-lg px-2 py-1" />
               <button disabled={adjusting === m.id} onClick={() => setMat(m, setVals[m.id])} className="px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800">Set</button>
               <Btn small color="ghost" onClick={() => setMaterialEditor(m)}>Edit</Btn>
             </div>
           ))}
-          {materials.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No materials</div>}
+          {materials.length === 0 && <div className="text-xs text-muted py-4 text-center">No materials</div>}
         </div>
       </Card>
       <Card title={`Locations — ${locations.length}`} actions={<Btn small color="ghost" onClick={() => setLocationEditor({})}>+ Add location</Btn>}>
         <div className="space-y-1">
-          {locations.map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="font-medium text-gray-700">{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span><span className="text-gray-400">{l.address || ''}</span></div>)}
-          {locations.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No locations</div>}
+          {locations.map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span><span className="text-muted">{l.address || ''}</span></div>)}
+          {locations.length === 0 && <div className="text-xs text-muted py-4 text-center">No locations</div>}
         </div>
       </Card>
       <Card title={`Reconciliation — actual vs recorded (${drifted.length} drift)`}>
         <div className="space-y-1">
-          {recon.slice(0, 15).map((r) => <div key={r.key} className={`flex justify-between text-xs border-b border-gray-100 py-1 ${r.ok ? '' : 'text-red-600'}`}><span>{r.title}</span><span>{r.actual} vs {r.recorded} {r.ok ? '✓' : `drift ${r.drift}`}</span></div>)}
-          {recon.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No items to reconcile</div>}
+          {recon.slice(0, 15).map((r) => <div key={r.key} className={`flex justify-between text-xs border-b border-line py-1 ${r.ok ? '' : 'text-red-600'}`}><span>{r.title}</span><span>{r.actual} vs {r.recorded} {r.ok ? '✓' : `drift ${r.drift}`}</span></div>)}
+          {recon.length === 0 && <div className="text-xs text-muted py-4 text-center">No items to reconcile</div>}
         </div>
       </Card>
       {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
@@ -483,8 +498,8 @@ function MaterialModal({ material, locations, onClose, onSaved, token }) {
     costPerUnit: material ? Number(material.costPerUnit) : 0, supplier: material?.supplier || '', locationId: material?.locationId || '',
   }));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try {
@@ -519,8 +534,8 @@ function LocationModal({ location, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({ name: location?.name || '', address: location?.address || '', isDefault: !!location?.isDefault }));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try { await adminApi.inventory.createLocation({ ...form, address: form.address || null, isActive: true }, token); onSaved(); }
@@ -543,18 +558,18 @@ function InventoryLow({ token }) {
   useEffect(() => { adminApi.inventory.lowStock(token).then((d) => { setLow(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false)); }, [token]);
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-500">{low.length} items below threshold</div>
-      {loading ? <p className="text-xs text-gray-400 py-6 text-center">Loading…</p> : (
+      <div className="text-xs text-muted">{low.length} items below threshold</div>
+      {loading ? <p className="text-xs text-muted py-6 text-center">Loading…</p> : (
         <div className="space-y-1.5">
           {low.map((l, i) => (
-            <div key={i} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+            <div key={i} className="flex items-center gap-3 border border-line rounded-xl px-4 py-2.5 text-sm">
               <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${l.type === 'material' ? 'bg-amber-100 text-amber-700' : l.type === 'product' ? 'bg-royal-100 text-royal-700' : 'bg-sky-100 text-sky-700'}`}>{l.type}</span>
-              <span className="font-medium text-gray-800 flex-1 truncate">{l.name} <span className="text-gray-400">• {l.sku}</span></span>
-              <span className="text-xs text-gray-500">{l.location}</span>
-              <span className="font-bold text-red-600">{l.onHand} <span className="text-gray-400 font-normal">/ {l.threshold}</span></span>
+              <span className="font-medium text-ink flex-1 truncate">{l.name} <span className="text-muted">• {l.sku}</span></span>
+              <span className="text-xs text-muted">{l.location}</span>
+              <span className="font-bold text-red-600">{l.onHand} <span className="text-muted font-normal">/ {l.threshold}</span></span>
             </div>
           ))}
-          {low.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">All stocked ✓</div>}
+          {low.length === 0 && <div className="text-xs text-muted py-10 text-center">All stocked ✓</div>}
         </div>
       )}
     </div>
@@ -588,17 +603,17 @@ function InventoryStocktake({ data, reload, token }) {
     <div className="space-y-4">
       <Card title="Count stock">
         <div className="flex items-end gap-3 mb-3">
-          <div><label className="block text-xs font-semibold text-gray-600 mb-1">Location</label>
-            <select className="border border-gray-300 rounded-xl px-3 py-2 text-sm" value={locationId} onChange={(e) => setLocationId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+          <div><label className="block text-xs font-semibold text-muted mb-1">Location</label>
+            <select className="border border-line-strong rounded-xl px-3 py-2 text-sm" value={locationId} onChange={(e) => setLocationId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
           </div>
-          <div className="flex-1"><label className="block text-xs font-semibold text-gray-600 mb-1">Notes (optional)</label><input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+          <div className="flex-1"><label className="block text-xs font-semibold text-muted mb-1">Notes (optional)</label><input className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
         </div>
-        <div className="max-h-96 overflow-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+        <div className="max-h-96 overflow-auto border border-line rounded-xl divide-y divide-line">
           {items.map((it) => (
             <div key={it.key} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <span className="text-gray-700 flex-1 truncate">{it.name}</span>
-              <span className="text-xs text-gray-400">expected {it.expected}</span>
-              <input type="number" value={counts[it.key] ?? it.expected} onChange={(e) => setCounts((c) => ({ ...c, [it.key]: e.target.value }))} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-right" />
+              <span className="text-ink flex-1 truncate">{it.name}</span>
+              <span className="text-xs text-muted">expected {it.expected}</span>
+              <input type="number" value={counts[it.key] ?? it.expected} onChange={(e) => setCounts((c) => ({ ...c, [it.key]: e.target.value }))} className="w-20 border border-line-strong rounded-lg px-2 py-1 text-right" />
               {counts[it.key] !== undefined && Number(counts[it.key]) !== it.expected && <span className={`text-xs font-bold ${Number(counts[it.key]) - it.expected > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{(Number(counts[it.key]) - it.expected > 0 ? '+' : '') + (Number(counts[it.key]) - it.expected)}</span>}
             </div>
           ))}
@@ -606,7 +621,7 @@ function InventoryStocktake({ data, reload, token }) {
         <div className="mt-3"><Btn onClick={submit} disabled={busy || !locationId}>{busy ? 'Applying…' : 'Complete stocktake'}</Btn></div>
       </Card>
       <Card title={`Stocktake history — ${history.length}`}>
-        <div className="space-y-1">{history.map((h) => <div key={h.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span>{h.location?.name} • {h.status}</span><span className="text-gray-400">{new Date(h.createdAt).toLocaleString()} • {h._count?.lines} lines</span></div>)}</div>
+        <div className="space-y-1">{history.map((h) => <div key={h.id} className="flex justify-between text-xs border-b border-line py-1.5"><span>{h.location?.name} • {h.status}</span><span className="text-muted">{new Date(h.createdAt).toLocaleString()} • {h._count?.lines} lines</span></div>)}</div>
       </Card>
     </div>
   );
@@ -622,16 +637,16 @@ function InventoryPurchase({ data, reload, token }) {
   async function doDelete() { try { await adminApi.purchaseOrders.remove(confirmDel.id, token); toast('PO deleted'); setPos((p) => p.filter((x) => x.id !== confirmDel.id)); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{pos.length} purchase orders</div><Btn onClick={() => setCreating(true)}>+ New purchase order</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{pos.length} purchase orders</div><Btn onClick={() => setCreating(true)}>+ New purchase order</Btn></div>
       {pos.map((po) => (
-        <div key={po.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
-          <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800">{po.poNumber} — {po.supplier}</div><div className="text-xs text-gray-500">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
+        <div key={po.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+          <div className="flex-1 min-w-0"><div className="font-bold text-sm text-ink">{po.poNumber} — {po.supplier}</div><div className="text-xs text-muted">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
           <StatusBadge value={po.status} />
           <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>
           <Btn small color="red" onClick={() => setConfirmDel(po)}>Delete</Btn>
         </div>
       ))}
-      {pos.length === 0 && !creating && <div className="text-xs text-gray-400 py-10 text-center">No purchase orders — create one to track supplier stock</div>}
+      {pos.length === 0 && !creating && <div className="text-xs text-muted py-10 text-center">No purchase orders — create one to track supplier stock</div>}
       {creating && <POModal materials={materials} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('PO created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete purchase order" message={`Delete ${confirmDel.poNumber}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
@@ -643,8 +658,8 @@ function POModal({ materials, onClose, onSaved, token }) {
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState([{ rawMaterialId: '', qty: 10, unitCost: '' }]);
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   function setLine(i, k, v) { setLines((l) => l.map((x, idx) => (idx === i ? { ...x, [k]: v } : x))); }
   function rmLine(i) { setLines((l) => l.filter((_, idx) => idx !== i)); }
   async function save() {
@@ -662,7 +677,7 @@ function POModal({ materials, onClose, onSaved, token }) {
         <div><label className={label}>Supplier</label><input className={input} value={supplier} onChange={(e) => setSupplier(e.target.value)} /></div>
         <div><label className={label}>Notes</label><input className={input} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
       </div>
-      <div><div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-gray-600">Lines</label><button onClick={() => setLines((l) => [...l, { rawMaterialId: materials[0]?.id || '', qty: 10, unitCost: '' }])} className="text-xs text-royal-700 font-semibold hover:underline">+ Add line</button></div>
+      <div><div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-muted">Lines</label><button onClick={() => setLines((l) => [...l, { rawMaterialId: materials[0]?.id || '', qty: 10, unitCost: '' }])} className="text-xs text-royal-700 font-semibold hover:underline">+ Add line</button></div>
         <div className="space-y-2">
           {lines.map((l, i) => (
             <div key={i} className="grid grid-cols-[1fr_70px_80px_auto] gap-2 items-center">
@@ -688,8 +703,8 @@ function InventoryTransfer({ data, reload, token }) {
   const [toId, setToId] = useState(locations[1]?.id || locations[0]?.id || '');
   const [items, setItems] = useState([{ productId: '', variantId: '', rawMaterialId: '', qty: 1 }]);
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   const productOptions = levels.map((l) => ({ value: l.productId, label: `${l.product?.title || l.productId}${l.variant ? ` — ${l.variant.title}` : ''}`, variantId: l.variantId || null, rawMaterialId: null }));
   const materialOptions = materials.map((m) => ({ value: m.id, label: `${m.name} (material)`, rawMaterialId: m.id, variantId: null }));
   const allOptions = [...productOptions, ...materialOptions];
@@ -740,20 +755,20 @@ function InventoryMovements({ token }) {
   return (
     <div className="space-y-3">
       <div className="flex gap-1.5 overflow-x-auto pb-1 flex-wrap">
-        <button onClick={() => { setType(''); setPage(1); }} className={`px-3 py-1 rounded-full text-xs font-semibold ${type === '' ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>All</button>
-        {TYPES.map((t) => <button key={t} onClick={() => { setType(t); setPage(1); }} className={`px-3 py-1 rounded-full text-xs font-semibold ${type === t ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>{t}</button>)}
+        <button onClick={() => { setType(''); setPage(1); }} className={`px-3 py-1 rounded-full text-xs font-semibold ${type === '' ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted'}`}>All</button>
+        {TYPES.map((t) => <button key={t} onClick={() => { setType(t); setPage(1); }} className={`px-3 py-1 rounded-full text-xs font-semibold ${type === t ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted'}`}>{t}</button>)}
       </div>
-      <div className="text-xs text-gray-500">{movs.total} movements</div>
+      <div className="text-xs text-muted">{movs.total} movements</div>
       <div className="space-y-1">
         {movs.data.map((mv) => (
-          <div key={mv.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5">
-            <span className="text-gray-700 truncate mr-2">{mv.product?.title || mv.rawMaterial?.name || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-gray-400">{mv.type} • {mv.location?.name || ''} {mv.reason ? `• ${mv.reason}` : ''}</span></span>
-            <span className="text-gray-400 shrink-0">{new Date(mv.createdAt).toLocaleString()}</span>
+          <div key={mv.id} className="flex justify-between text-xs border-b border-line py-1.5">
+            <span className="text-ink truncate mr-2">{mv.product?.title || mv.rawMaterial?.name || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-muted">{mv.type} • {mv.location?.name || ''} {mv.reason ? `• ${mv.reason}` : ''}</span></span>
+            <span className="text-muted shrink-0">{new Date(mv.createdAt).toLocaleString()}</span>
           </div>
         ))}
-        {movs.data.length === 0 && <div className="text-xs text-gray-400 py-6 text-center">No movements</div>}
+        {movs.data.length === 0 && <div className="text-xs text-muted py-6 text-center">No movements</div>}
       </div>
-      {movs.pages > 1 && <div className="flex items-center gap-2 justify-end text-xs"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40">Prev</button><span>{movs.page}/{movs.pages}</span><button disabled={page >= movs.pages} onClick={() => setPage(page + 1)} className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40">Next</button></div>}
+      {movs.pages > 1 && <div className="flex items-center gap-2 justify-end text-xs"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 rounded-lg border border-line-strong disabled:opacity-40">Prev</button><span>{movs.page}/{movs.pages}</span><button disabled={page >= movs.pages} onClick={() => setPage(page + 1)} className="px-3 py-1 rounded-lg border border-line-strong disabled:opacity-40">Next</button></div>}
     </div>
   );
 }
@@ -777,7 +792,7 @@ function InventoryLots({ data, reload, token }) {
     <div className="space-y-4">
       {expiring.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {expiring.length} lots expiring within 14 days</div>}
       <Card title={`Lots — ${lots.length}`} actions={<Btn small color="ghost" onClick={() => setCreating(true)}>+ Receive lot</Btn>}>
-        <div className="space-y-1">{lots.slice(0, 30).map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="text-gray-700">{l.product?.title || l.rawMaterial?.name || l.variant?.title || '—'} {l.lotNumber ? `• ${l.lotNumber}` : ''}</span><span className="text-gray-400">{l.location?.name} • {l.remainingQty}/{l.quantity} left{l.expiresAt ? ` • exp ${new Date(l.expiresAt).toLocaleDateString('en-AU')}` : ''}</span></div>)}{lots.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No lots</div>}</div>
+        <div className="space-y-1">{lots.slice(0, 30).map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="text-ink">{l.product?.title || l.rawMaterial?.name || l.variant?.title || '—'} {l.lotNumber ? `• ${l.lotNumber}` : ''}</span><span className="text-muted">{l.location?.name} • {l.remainingQty}/{l.quantity} left{l.expiresAt ? ` • exp ${new Date(l.expiresAt).toLocaleDateString('en-AU')}` : ''}</span></div>)}{lots.length === 0 && <div className="text-xs text-muted py-4 text-center">No lots</div>}</div>
       </Card>
       {creating && <LotModal options={allOptions} locations={locations} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('Lot received'); reload(); }} token={token} />}
     </div>
@@ -787,8 +802,8 @@ function LotModal({ options, locations, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({ productId: options[0]?.value || '', variantId: '', rawMaterialId: options[0]?.rawMaterialId || null, locationId: locations.find((l) => l.isDefault)?.id || locations[0]?.id || '', lotNumber: '', quantity: 10, costPerUnit: '', expiresAt: '' }));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try {
@@ -838,17 +853,17 @@ function Products({ data, reload, token }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
-        <div className="text-xs text-gray-500">{products.length} products</div>
+        <div className="text-xs text-muted">{products.length} products</div>
         <Btn onClick={() => setEditing({})}>+ New product</Btn>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         {products.map((p) => (
-          <div key={p.id} className="border border-gray-200 rounded-xl p-3">
+          <div key={p.id} className="border border-line rounded-xl p-3">
             <div className="flex gap-3">
-              {p.images?.[0] ? <img src={p.images[0].url} alt={p.title} className="w-16 h-16 rounded-lg object-cover" loading="lazy" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 text-xs">no img</div>}
+              {p.images?.[0] ? <img src={p.images[0].url} alt={p.title} className="w-16 h-16 rounded-lg object-cover" loading="lazy" /> : <div className="w-16 h-16 rounded-lg bg-surface3 flex items-center justify-center text-muted text-xs">no img</div>}
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-gray-800 truncate">{p.title}</div>
-                <div className="text-xs text-gray-500">{p.sku} • ${Number(p.price).toFixed(2)} • {p.stockMode}</div>
+                <div className="font-bold text-sm text-ink truncate">{p.title}</div>
+                <div className="text-xs text-muted">{p.sku} • ${Number(p.price).toFixed(2)} • {p.stockMode}</div>
                 <div className="mt-1.5 flex items-center gap-2">
                   <StatusBadge value={p.isActive ? 'published' : 'archived'} />
                   {p.isFeatured && <span className="text-xs text-royal-700 font-semibold">★ featured</span>}
@@ -859,7 +874,7 @@ function Products({ data, reload, token }) {
               <Btn small color="ghost" onClick={() => setEditing(p)}>Edit</Btn>
               <Btn small color="ghost" onClick={() => toggle(p, 'isActive')}>{p.isActive ? 'Deactivate' : 'Activate'}</Btn>
               <Btn small color="ghost" onClick={() => toggle(p, 'isFeatured')}>{p.isFeatured ? 'Unfeature' : 'Feature'}</Btn>
-              <label className={`inline-flex items-center px-2.5 py-1 text-xs rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer font-semibold ${uploading === p.id ? 'opacity-50' : ''}`}>
+              <label className={`inline-flex items-center px-2.5 py-1 text-xs rounded-xl border border-line-strong text-ink hover:bg-surface3 cursor-pointer font-semibold ${uploading === p.id ? 'opacity-50' : ''}`}>
                 {uploading === p.id ? 'Uploading…' : 'Upload'}
                 <input type="file" accept="image/*" multiple className="hidden" disabled={uploading === p.id} onChange={(e) => e.target.files?.length && upload(p.id, e.target.files)} />
               </label>
@@ -868,7 +883,7 @@ function Products({ data, reload, token }) {
           </div>
         ))}
       </div>
-      {products.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No products</div>}
+      {products.length === 0 && <div className="text-xs text-muted py-10 text-center">No products</div>}
       {editing && <ProductModal product={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Product updated' : 'Product created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete product" message={`Delete "${confirmDel.title}"? This cannot be undone.`} confirmLabel="Delete" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
@@ -918,8 +933,8 @@ function ProductModal({ product, onClose, onSaved, token }) {
     try { await adminApi.variants.remove(v.id, token); setVariants((vs) => vs.filter((x) => x.id !== v.id)); toast('Variant deleted'); }
     catch (e) { toast(e.message, 'error'); }
   }
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   return (
     <Modal title={product ? 'Edit product' : 'New product'} onClose={onClose} wide>
       <div className="grid sm:grid-cols-2 gap-3">
@@ -943,30 +958,30 @@ function ProductModal({ product, onClose, onSaved, token }) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active (visible in shop)</label>
       </div>
       {product && (
-        <div className="mt-4 border border-gray-200 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-2"><label className="text-xs font-semibold text-gray-600">Variants ({variants.length})</label><button onClick={addVariant} className="text-xs text-royal-700 font-semibold hover:underline">+ Add variant</button></div>
+        <div className="mt-4 border border-line rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2"><label className="text-xs font-semibold text-muted">Variants ({variants.length})</label><button onClick={addVariant} className="text-xs text-royal-700 font-semibold hover:underline">+ Add variant</button></div>
           <div className="space-y-1">
             {variants.map((v) => (
-              <div key={v.id} className="flex items-center gap-2 text-xs border-b border-gray-100 py-1.5 flex-wrap">
-                <input value={v.title} onChange={(e) => saveVariant(v, 'title', e.target.value)} className="flex-1 min-w-[140px] border border-gray-200 rounded-lg px-2 py-1" />
-                <span className="text-gray-400">${Number(v.price).toFixed(2)}</span>
-                <span className="text-gray-400">{v.inventoryQuantity} in stock</span>
+              <div key={v.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
+                <input value={v.title} onChange={(e) => saveVariant(v, 'title', e.target.value)} className="flex-1 min-w-[140px] border border-line rounded-lg px-2 py-1" />
+                <span className="text-muted">${Number(v.price).toFixed(2)}</span>
+                <span className="text-muted">{v.inventoryQuantity} in stock</span>
                 <button onClick={() => saveVariant(v, 'inventoryQuantity', v.inventoryQuantity + 1)} className="w-6 h-6 rounded bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
-                <button onClick={() => saveVariant(v, 'inventoryQuantity', Math.max(0, v.inventoryQuantity - 1))} className="w-6 h-6 rounded bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">−</button>
+                <button onClick={() => saveVariant(v, 'inventoryQuantity', Math.max(0, v.inventoryQuantity - 1))} className="w-6 h-6 rounded bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
                 <button onClick={() => deleteVariant(v)} className="text-red-500 hover:underline">Del</button>
               </div>
             ))}
-            {variants.length === 0 && <div className="text-xs text-gray-400">No variants — add sizes/options if this product varies</div>}
+            {variants.length === 0 && <div className="text-xs text-muted">No variants — add sizes/options if this product varies</div>}
           </div>
         </div>
       )}
       {product && (product.images || []).length > 0 && (
         <div className="mt-4">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Images</label>
+          <label className="block text-xs font-semibold text-muted mb-1">Images</label>
           <div className="flex flex-wrap gap-2">
             {(product.images || []).map((img) => (
               <div key={img.id} className="relative group">
-                <img src={img.url} alt={img.alt || product.title} className="w-16 h-16 rounded-lg object-cover border border-gray-200" loading="lazy" />
+                <img src={img.url} alt={img.alt || product.title} className="w-16 h-16 rounded-lg object-cover border border-line" loading="lazy" />
                 <button type="button" title="Delete image"
                   onClick={async () => { try { await adminApi.products.deleteImage(product.id, img.id, token); onSaved(); } catch (e) { toast(e.message, 'error'); } }}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
@@ -990,22 +1005,22 @@ function Workshops({ data, reload, token }) {
   const workshops = Array.isArray(data.workshops) ? data.workshops : [];
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{workshops.length} workshops</div><Btn onClick={() => setCreating(true)}>+ New workshop</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{workshops.length} workshops</div><Btn onClick={() => setCreating(true)}>+ New workshop</Btn></div>
       {workshops.map((w) => (
-        <div key={w.id} className="border border-gray-200 rounded-xl p-4">
+        <div key={w.id} className="border border-line rounded-xl p-4">
           <div className="flex justify-between items-start gap-3">
-            <div><div className="font-bold text-gray-800">{w.title}</div><div className="text-xs text-gray-500">{w.location} • {w.capacity} cap • ${Number(w.price).toFixed(2)} • {w.level}</div></div>
+            <div><div className="font-bold text-ink">{w.title}</div><div className="text-xs text-muted">{w.location} • {w.capacity} cap • ${Number(w.price).toFixed(2)} • {w.level}</div></div>
             <Btn small color="ghost" onClick={() => setSessionFor(w)}>+ Session</Btn>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {(w.sessions || []).map((s) => (
-              <span key={s.id} className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">{new Date(s.startsAt).toLocaleDateString('en-AU')} {new Date(s.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {s.bookedCount}/{s.capacity}</span>
+              <span key={s.id} className="text-xs bg-surface3 border border-line rounded-lg px-2 py-1">{new Date(s.startsAt).toLocaleDateString('en-AU')} {new Date(s.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {s.bookedCount}/{s.capacity}</span>
             ))}
-            {(w.sessions || []).length === 0 && <span className="text-xs text-gray-400">No sessions yet</span>}
+            {(w.sessions || []).length === 0 && <span className="text-xs text-muted">No sessions yet</span>}
           </div>
         </div>
       ))}
-      {workshops.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No workshops</div>}
+      {workshops.length === 0 && <div className="text-xs text-muted py-10 text-center">No workshops</div>}
       {creating && <WorkshopModal onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('Workshop created'); reload(); }} token={token} />}
       {sessionFor && <SessionModal workshop={sessionFor} onClose={() => setSessionFor(null)} onSaved={() => { setSessionFor(null); toast('Session added'); reload(); }} token={token} />}
     </div>
@@ -1015,8 +1030,8 @@ function WorkshopModal({ onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState({ title: '', slug: '', price: '', capacity: 12, location: 'Perth Studio, WA', description: '' });
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   useEffect(() => {
     adminApi.settings.get()
       .then((s) => { const cap = Number(s?.workshop_default_capacity); if (Number.isFinite(cap) && cap >= 1) setForm((f) => ({ ...f, capacity: cap })); })
@@ -1057,8 +1072,8 @@ function SessionModal({ workshop, onClose, onSaved, token }) {
   }
   return <Modal title={`Add session — ${workshop.title}`} onClose={onClose}>
     <div className="space-y-3">
-      <div><label className="block text-xs font-semibold text-gray-600 mb-1">Starts at</label><input type="datetime-local" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div>
-      <div><label className="block text-xs font-semibold text-gray-600 mb-1">Capacity</label><input type="number" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></div>
+      <div><label className="block text-xs font-semibold text-muted mb-1">Starts at</label><input type="datetime-local" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div>
+      <div><label className="block text-xs font-semibold text-muted mb-1">Capacity</label><input type="number" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></div>
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !startsAt}>{busy ? 'Saving…' : 'Add session'}</Btn></div>
   </Modal>;
@@ -1075,18 +1090,18 @@ function Recipes({ data, reload, token }) {
   async function doDelete() { try { await adminApi.bom.deleteRecipe(confirmDel.id, token); toast('Recipe deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{recipes.length} recipes</div><Btn onClick={() => setCreating(true)}>+ New recipe</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{recipes.length} recipes</div><Btn onClick={() => setCreating(true)}>+ New recipe</Btn></div>
       {recipes.map((r) => (
-        <div key={r.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+        <div key={r.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm text-gray-800">{r.product?.title || r.variant?.title || 'Generic'} {r.variant ? `— ${r.variant.title}` : ''}</div>
-            <div className="text-xs text-gray-500">{r.lines?.length || 0} materials • labour {r.labourMinutesPerUnit}m + cricut {r.cricutMinutesPerUnit}m</div>
+            <div className="font-bold text-sm text-ink">{r.product?.title || r.variant?.title || 'Generic'} {r.variant ? `— ${r.variant.title}` : ''}</div>
+            <div className="text-xs text-muted">{r.lines?.length || 0} materials • labour {r.labourMinutesPerUnit}m + cricut {r.cricutMinutesPerUnit}m</div>
           </div>
           <Btn small color="ghost" onClick={() => setEditing(r)}>Edit</Btn>
           <Btn small color="red" onClick={() => setConfirmDel(r)}>Delete</Btn>
         </div>
       ))}
-      {recipes.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No recipes — create one to price configurator builds</div>}
+      {recipes.length === 0 && <div className="text-xs text-muted py-10 text-center">No recipes — create one to price configurator builds</div>}
       {(editing || creating) && <RecipeModal recipe={creating ? null : editing} materials={materials} products={products} onClose={() => { setEditing(null); setCreating(false); }} onSaved={() => { setEditing(null); setCreating(false); toast(creating ? 'Recipe created' : 'Recipe updated'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete recipe" message={`Delete recipe for "${confirmDel.product?.title || confirmDel.variant?.title || 'generic'}"?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
@@ -1099,8 +1114,8 @@ function RecipeModal({ recipe, materials, products, onClose, onSaved, token }) {
   const [cricut, setCricut] = useState(recipe?.cricutMinutesPerUnit ?? 8);
   const [lines, setLines] = useState(() => (recipe?.lines || []).map((l) => ({ rawMaterialId: l.rawMaterialId, qtyPerUnit: Number(l.qtyPerUnit) || 1, wasteFactor: Number.isFinite(Number(l.wasteFactor)) ? Number(l.wasteFactor) : 0.05 })));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   function addLine() { setLines((l) => [...l, { rawMaterialId: materials[0]?.id || '', qtyPerUnit: 1, wasteFactor: 0.05 }]); }
   function setLine(i, k, v) { setLines((l) => l.map((x, idx) => (idx === i ? { ...x, [k]: v } : x))); }
   function rmLine(i) { setLines((l) => l.filter((_, idx) => idx !== i)); }
@@ -1129,7 +1144,7 @@ function RecipeModal({ recipe, materials, products, onClose, onSaved, token }) {
         <div><label className={label}>Cricut min/unit</label><input type="number" className={input} value={cricut} onChange={(e) => setCricut(e.target.value)} /></div>
       </div>
       <div>
-        <div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-gray-600">Material lines</label><button onClick={addLine} className="text-xs text-royal-700 font-semibold hover:underline">+ Add material</button></div>
+        <div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-muted">Material lines</label><button onClick={addLine} className="text-xs text-royal-700 font-semibold hover:underline">+ Add material</button></div>
         <div className="space-y-2">
           {lines.map((l, i) => (
             <div key={i} className="grid grid-cols-[1fr_70px_70px_auto] gap-2 items-center">
@@ -1158,18 +1173,18 @@ function Collections({ data, reload, token }) {
   async function doDelete() { try { await adminApi.collections.remove(confirmDel.id, token); toast('Collection deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{collections.length} collections</div><Btn onClick={() => setCreating(true)}>+ New collection</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{collections.length} collections</div><Btn onClick={() => setCreating(true)}>+ New collection</Btn></div>
       {collections.map((c) => (
-        <div key={c.id} className="border border-gray-200 rounded-xl p-4">
+        <div key={c.id} className="border border-line rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800">{c.title}</div><div className="text-xs text-gray-500">{c.slug} • {(c.products || []).length} products</div></div>
+            <div className="flex-1 min-w-0"><div className="font-bold text-sm text-ink">{c.title}</div><div className="text-xs text-muted">{c.slug} • {(c.products || []).length} products</div></div>
             <StatusBadge value={c.isActive ? 'published' : 'archived'} />
             <Btn small color="ghost" onClick={() => setEditing(c)}>Manage</Btn>
             <Btn small color="red" onClick={() => setConfirmDel(c)}>Delete</Btn>
           </div>
         </div>
       ))}
-      {collections.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No collections</div>}
+      {collections.length === 0 && <div className="text-xs text-muted py-10 text-center">No collections</div>}
       {(editing || creating) && <CollectionModal collection={creating ? null : editing} products={products} onClose={() => { setEditing(null); setCreating(false); }} onSaved={() => { setEditing(null); setCreating(false); toast(creating ? 'Collection created' : 'Collection updated'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete collection" message={`Delete "${confirmDel.title}"? Products stay, membership removed.`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
@@ -1180,8 +1195,8 @@ function CollectionModal({ collection, products, onClose, onSaved, token }) {
   const [form, setForm] = useState(() => ({ title: collection?.title || '', slug: collection?.slug || '', description: collection?.description || '', isActive: collection ? !!collection.isActive : true }));
   const [members] = useState(() => (collection?.products || []).map((p) => ({ id: p.product?.id || p.productId, title: p.product?.title || p.productId, sortOrder: p.sortOrder || 0 })));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   const memberIds = new Set(members.map((m) => m.id));
   async function save() {
     if (!form.title || !form.slug) return toast('Title + slug required', 'error');
@@ -1211,14 +1226,14 @@ function CollectionModal({ collection, products, onClose, onSaved, token }) {
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active (visible in shop)</label>
       {collection && (
         <>
-          <div className="flex items-center justify-between"><label className="text-xs font-semibold text-gray-600">Products in collection ({members.length})</label><label className="text-xs text-gray-400">{products.length} available</label></div>
-          <div className="max-h-64 overflow-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+          <div className="flex items-center justify-between"><label className="text-xs font-semibold text-muted">Products in collection ({members.length})</label><label className="text-xs text-muted">{products.length} available</label></div>
+          <div className="max-h-64 overflow-auto border border-line rounded-xl divide-y divide-line">
             {products.map((p) => (
-              <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
+              <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface3 cursor-pointer">
                 <input type="checkbox" checked={memberIds.has(p.id)} onChange={() => toggleMember(p)} />
                 <img src={p.images?.[0]?.url || '/placeholder-bloom.jpg'} alt="" className="w-8 h-8 rounded object-cover" onError={(e) => { e.currentTarget.src = '/placeholder-bloom.jpg'; }} />
-                <span className="text-gray-700 flex-1 truncate">{p.title}</span>
-                <span className="text-xs text-gray-400">${Number(p.price).toFixed(2)}</span>
+                <span className="text-ink flex-1 truncate">{p.title}</span>
+                <span className="text-xs text-muted">${Number(p.price).toFixed(2)}</span>
               </label>
             ))}
           </div>
@@ -1245,15 +1260,15 @@ function MetaSync({ data, reload, token }) {
       <Card title="Meta Catalog — Facebook/Instagram Shopping">
         <div className="flex flex-wrap items-center gap-3">
           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${meta.configured ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{meta.configured ? '● Configured' : '○ Not configured'}</span>
-          <span className="text-xs text-gray-500">{meta.synced || 0} synced • {meta.pending || 0} pending</span>
+          <span className="text-xs text-muted">{meta.synced || 0} synced • {meta.pending || 0} pending</span>
           <div className="ml-auto flex gap-2"><Btn onClick={syncAll} disabled={busy || !meta.configured}>{busy ? 'Syncing…' : 'Sync all products'}</Btn></div>
         </div>
-        {!meta.configured && <p className="text-xs text-gray-500 mt-3">Set META_CATALOG_ID + META_ACCESS_TOKEN in Netlify env to enable.</p>}
+        {!meta.configured && <p className="text-xs text-muted mt-3">Set META_CATALOG_ID + META_ACCESS_TOKEN in Netlify env to enable.</p>}
       </Card>
       <Card title={`Sync log — ${logs.length} recent`}>
         <div className="space-y-1">{logs.map((l) => (
-          <div key={l.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="text-gray-700 truncate mr-2">{l.message || l.action} {l.productId ? `• ${l.productId.slice(-6)}` : ''}</span><span className="text-gray-400 shrink-0">{new Date(l.createdAt).toLocaleString()}</span></div>
-        ))}{logs.length === 0 && <div className="text-xs text-gray-400 py-4 text-center">No sync activity yet</div>}</div>
+          <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="text-ink truncate mr-2">{l.message || l.action} {l.productId ? `• ${l.productId.slice(-6)}` : ''}</span><span className="text-muted shrink-0">{new Date(l.createdAt).toLocaleString()}</span></div>
+        ))}{logs.length === 0 && <div className="text-xs text-muted py-4 text-center">No sync activity yet</div>}</div>
       </Card>
     </div>
   );
@@ -1264,19 +1279,19 @@ function Bookings({ data }) {
   const confirmed = bookings.filter((b) => b.status === 'confirmed' || b.status === 'attended').length;
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-500">{bookings.length} bookings • {confirmed} confirmed/attended</div>
+      <div className="text-xs text-muted">{bookings.length} bookings • {confirmed} confirmed/attended</div>
       {bookings.map((b) => (
-        <div key={b.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+        <div key={b.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3 text-sm">
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-gray-800">{b.name} <span className="text-gray-400 font-normal">• {b.email}</span></div>
-            <div className="text-xs text-gray-500">{b.session?.workshop?.title} • {b.session ? new Date(b.session.startsAt).toLocaleDateString('en-AU') : ''} • qty {b.quantity}</div>
+            <div className="font-bold text-ink">{b.name} <span className="text-muted font-normal">• {b.email}</span></div>
+            <div className="text-xs text-muted">{b.session?.workshop?.title} • {b.session ? new Date(b.session.startsAt).toLocaleDateString('en-AU') : ''} • qty {b.quantity}</div>
           </div>
           <StatusBadge value={b.status} />
           <span className="text-xs font-bold text-royal-700">${Number(b.totalPaid).toFixed(2)}</span>
-          {b.ticket && <span className="text-[10px] text-gray-400 font-mono" title={b.ticket.qrPayload}>✓ ticket</span>}
+          {b.ticket && <span className="text-[10px] text-muted font-mono" title={b.ticket.qrPayload}>✓ ticket</span>}
         </div>
       ))}
-      {bookings.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No bookings yet</div>}
+      {bookings.length === 0 && <div className="text-xs text-muted py-10 text-center">No bookings yet</div>}
     </div>
   );
 }
@@ -1290,19 +1305,19 @@ function Discounts({ data, reload, token }) {
   async function doDelete() { try { await adminApi.discounts.remove(confirmDel.id, token); toast('Discount deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{discounts.length} discount codes</div><Btn onClick={() => setEditing({})}>+ New code</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{discounts.length} discount codes</div><Btn onClick={() => setEditing({})}>+ New code</Btn></div>
       {discounts.map((d) => (
-        <div key={d.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+        <div key={d.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2"><span className="font-black text-royal-700">{d.code}</span><StatusBadge value={d.isActive ? 'published' : 'archived'} /></div>
-            <div className="text-xs text-gray-500">{d.type === 'percent' ? `${d.value}% off` : `$${Number(d.value).toFixed(2)} off`}{d.minSpend ? ` • min $${Number(d.minSpend).toFixed(2)}` : ''}{d.maxUses ? ` • used ${d.usedCount}/${d.maxUses}` : ''}</div>
+            <div className="text-xs text-muted">{d.type === 'percent' ? `${d.value}% off` : `$${Number(d.value).toFixed(2)} off`}{d.minSpend ? ` • min $${Number(d.minSpend).toFixed(2)}` : ''}{d.maxUses ? ` • used ${d.usedCount}/${d.maxUses}` : ''}</div>
           </div>
           <Btn small color="ghost" onClick={() => setEditing(d)}>Edit</Btn>
           <Btn small color="ghost" onClick={() => toggle(d)}>{d.isActive ? 'Disable' : 'Enable'}</Btn>
           <Btn small color="red" onClick={() => setConfirmDel(d)}>Delete</Btn>
         </div>
       ))}
-      {discounts.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No discounts</div>}
+      {discounts.length === 0 && <div className="text-xs text-muted py-10 text-center">No discounts</div>}
       {editing && <DiscountModal discount={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Discount updated' : 'Discount created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete discount" message={`Delete code "${confirmDel.code}"?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
@@ -1316,8 +1331,8 @@ function DiscountModal({ discount, onClose, onSaved, token }) {
     maxUses: discount?.maxUses || '', isActive: discount ? !!discount.isActive : true,
   }));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   async function save() {
     setBusy(true);
@@ -1359,14 +1374,14 @@ function Reviews({ data, reload, token }) {
   async function doReject() { try { await adminApi.reviews.reject(confirmReject.id, token); toast('Review rejected'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-500">{reviews.length} pending reviews</div>
+      <div className="text-xs text-muted">{reviews.length} pending reviews</div>
       {reviews.map((r) => (
-        <div key={r.id} className="border border-gray-200 rounded-xl p-4">
+        <div key={r.id} className="border border-line rounded-xl p-4">
           <div className="flex justify-between items-start gap-3">
-            <div className="flex-1"><div className="font-bold text-sm text-gray-800">{'★'.repeat(Math.max(1, r.rating || 5))}{'☆'.repeat(5 - Math.max(1, r.rating || 5))} — {r.name || 'Anonymous'}</div>
-              <div className="text-xs text-gray-500 mt-1">{r.product?.title || r.productId}</div>
-              {r.title && <div className="text-sm font-semibold text-gray-700 mt-1">{r.title}</div>}
-              <p className="text-sm text-gray-600 mt-1">{r.body || '—'}</p></div>
+            <div className="flex-1"><div className="font-bold text-sm text-ink">{'★'.repeat(Math.max(1, r.rating || 5))}{'☆'.repeat(5 - Math.max(1, r.rating || 5))} — {r.name || 'Anonymous'}</div>
+              <div className="text-xs text-muted mt-1">{r.product?.title || r.productId}</div>
+              {r.title && <div className="text-sm font-semibold text-ink mt-1">{r.title}</div>}
+              <p className="text-sm text-muted mt-1">{r.body || '—'}</p></div>
             <div className="flex gap-2 shrink-0">
               <Btn small color="royal" onClick={() => approve(r)}>Approve</Btn>
               <Btn small color="ghost" onClick={() => setConfirmReject(r)}>Reject</Btn>
@@ -1375,7 +1390,7 @@ function Reviews({ data, reload, token }) {
           </div>
         </div>
       ))}
-      {reviews.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No pending reviews</div>}
+      {reviews.length === 0 && <div className="text-xs text-muted py-10 text-center">No pending reviews</div>}
       {confirmDel && <ConfirmDialog title="Delete review" message="Delete this review permanently?" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
       {confirmReject && <ConfirmDialog title="Reject review" message={`Reject this review from ${confirmReject.name}? It will be removed (audited).`} confirmLabel="Reject" onConfirm={doReject} onClose={() => setConfirmReject(null)} />}
     </div>
@@ -1391,17 +1406,17 @@ function Blog({ data, reload, token }) {
   async function doDelete() { try { await adminApi.posts.remove(confirmDel.id, token); toast('Post deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{posts.length} posts</div><Btn onClick={() => setEditing({})}>+ New post</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{posts.length} posts</div><Btn onClick={() => setEditing({})}>+ New post</Btn></div>
       {posts.map((p) => (
-        <div key={p.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
-          <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800 truncate">{p.title}</div><div className="text-xs text-gray-500">{p.slug} • {new Date(p.publishedAt || p.createdAt).toLocaleDateString('en-AU')} • {p.viewCount || 0} views</div></div>
+        <div key={p.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+          <div className="flex-1 min-w-0"><div className="font-bold text-sm text-ink truncate">{p.title}</div><div className="text-xs text-muted">{p.slug} • {new Date(p.publishedAt || p.createdAt).toLocaleDateString('en-AU')} • {p.viewCount || 0} views</div></div>
           <StatusBadge value={p.status} />
           <Btn small color="ghost" onClick={() => setEditing(p)}>Edit</Btn>
           <Btn small color="ghost" onClick={() => setStatus(p, p.status === 'published' ? 'draft' : 'published')}>{p.status === 'published' ? 'Unpublish' : 'Publish'}</Btn>
           <Btn small color="red" onClick={() => setConfirmDel(p)}>Delete</Btn>
         </div>
       ))}
-      {posts.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No posts</div>}
+      {posts.length === 0 && <div className="text-xs text-muted py-10 text-center">No posts</div>}
       {editing && <PostModal post={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Post updated' : 'Post created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete post" message={`Delete "${confirmDel.title}"?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
@@ -1411,8 +1426,8 @@ function PostModal({ post, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState({ title: post?.title || '', slug: post?.slug || '', excerpt: post?.excerpt || '', content: post?.content || '', status: post?.status || 'draft', tags: post?.tags || [] });
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try {
@@ -1467,33 +1482,33 @@ function POS({ data, reload, token }) {
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-royal-50 border border-royal-100">
               <div className="font-bold text-royal-700">{s.location} — {s.status}</div>
-              <div className="text-xs text-gray-600 mt-1">Opened {new Date(s.openedAt).toLocaleString()} • Float ${Number(s.openingCash).toFixed(2)} • {s.payments?.length || 0} payments</div>
+              <div className="text-xs text-muted mt-1">Opened {new Date(s.openedAt).toLocaleString()} • Float ${Number(s.openingCash).toFixed(2)} • {s.payments?.length || 0} payments</div>
             </div>
             <Btn onClick={() => setClosing(true)}>Close till</Btn>
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="text-xs text-gray-500">No open till — open one to record POS sales.</div>
-            <div className="flex items-end gap-3"><div><label className="block text-xs font-semibold text-gray-600 mb-1">Opening float ($)</label><input type="number" className="w-32 border border-gray-300 rounded-xl px-3 py-2 text-sm" value={opening} onChange={(e) => setOpening(e.target.value)} /></div><Btn onClick={open} disabled={busy}>Open till</Btn></div>
+            <div className="text-xs text-muted">No open till — open one to record POS sales.</div>
+            <div className="flex items-end gap-3"><div><label className="block text-xs font-semibold text-muted mb-1">Opening float ($)</label><input type="number" className="w-32 border border-line-strong rounded-xl px-3 py-2 text-sm" value={opening} onChange={(e) => setOpening(e.target.value)} /></div><Btn onClick={open} disabled={busy}>Open till</Btn></div>
           </div>
         )}
       </Card>
       {sales.length > 0 && (
         <Card title={`POS sales — ${sales.length} • $${totalSales.toFixed(2)}`}>
           <div className="space-y-1">{sales.slice(0, 20).map((o) => (
-            <div key={o.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span className="font-medium text-gray-700">{o.orderNumber} <span className="text-gray-400">• {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-AU') : ''}</span></span><span className="font-bold text-royal-700">${Number(o.total).toFixed(2)}</span></div>
+            <div key={o.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{o.orderNumber} <span className="text-muted">• {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-AU') : ''}</span></span><span className="font-bold text-royal-700">${Number(o.total).toFixed(2)}</span></div>
           ))}</div>
         </Card>
       )}
       {sessions.length > 0 && (
         <Card title={`Till sessions — ${sessions.length}`}>
           <div className="space-y-1">{sessions.slice(0, 15).map((se) => (
-            <div key={se.id} className="flex justify-between text-xs border-b border-gray-100 py-1.5"><span>{se.location} • {new Date(se.openedAt).toLocaleString()}</span><span className="flex items-center gap-2"><StatusBadge value={se.status} />{se.variance !== null && se.variance !== undefined && <span className={Number(se.variance) < 0 ? 'text-red-600' : 'text-emerald-600'}>var ${Number(se.variance).toFixed(2)}</span>}</span></div>
+            <div key={se.id} className="flex justify-between text-xs border-b border-line py-1.5"><span>{se.location} • {new Date(se.openedAt).toLocaleString()}</span><span className="flex items-center gap-2"><StatusBadge value={se.status} />{se.variance !== null && se.variance !== undefined && <span className={Number(se.variance) < 0 ? 'text-red-600' : 'text-emerald-600'}>var ${Number(se.variance).toFixed(2)}</span>}</span></div>
           ))}</div>
         </Card>
       )}
       {closing && <Modal title="Close till" onClose={() => setClosing(false)}>
-        <div><label className="block text-xs font-semibold text-gray-600 mb-1">Closing cash ($)</label><input type="number" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" value={closingCash} onChange={(e) => setClosingCash(e.target.value)} /></div>
+        <div><label className="block text-xs font-semibold text-muted mb-1">Closing cash ($)</label><input type="number" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={closingCash} onChange={(e) => setClosingCash(e.target.value)} /></div>
         <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={() => setClosing(false)}>Cancel</Btn><Btn onClick={close} disabled={busy}>Close till</Btn></div>
       </Modal>}
     </div>
@@ -1517,20 +1532,20 @@ function Customers({ data, reload, token }) {
   }
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-500">{customers.length} customers</div>
+      <div className="text-xs text-muted">{customers.length} customers</div>
       <div className="space-y-1.5">
         {customers.map((c) => (
-          <div key={c.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-2.5 text-sm flex-wrap">
-            <span className="font-bold text-gray-800 flex-1 min-w-[160px]">{c.name || '—'}</span>
-            <span className="text-xs text-gray-500 truncate">{c.email}</span>
-            <span className="text-xs text-gray-500">{c.orders} orders • <span className="font-semibold text-royal-700">${Number(c.spend).toFixed(2)}</span></span>
-            <span className="text-xs font-semibold text-gray-700">{c.points} pts <span className="text-gray-400">({c.tier})</span></span>
+          <div key={c.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-2.5 text-sm flex-wrap">
+            <span className="font-bold text-ink flex-1 min-w-[160px]">{c.name || '—'}</span>
+            <span className="text-xs text-muted truncate">{c.email}</span>
+            <span className="text-xs text-muted">{c.orders} orders • <span className="font-semibold text-royal-700">${Number(c.spend).toFixed(2)}</span></span>
+            <span className="text-xs font-semibold text-ink">{c.points} pts <span className="text-muted">({c.tier})</span></span>
             <Btn small color="ghost" onClick={() => openDetail(c)}>View</Btn>
             <Btn small color="ghost" onClick={() => adjustLoyalty(c, -50)} disabled={busyLoyalty === c.id}>−50</Btn>
             <Btn small color="ghost" onClick={() => adjustLoyalty(c, 50)} disabled={busyLoyalty === c.id}>+50</Btn>
           </div>
         ))}
-        {customers.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No customers yet</div>}
+        {customers.length === 0 && <div className="text-xs text-muted py-10 text-center">No customers yet</div>}
       </div>
       {detail && <CustomerModal customer={detail} onClose={() => setDetail(null)} token={token} />}
     </div>
@@ -1553,27 +1568,27 @@ function CustomerModal({ customer, onClose, token }) {
   return (
     <Modal title={customer.name || customer.email} onClose={onClose} wide>
       <div className="space-y-4 text-sm">
-        <div className="text-xs text-gray-500">{customer.email} • {customer.role} • joined {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString('en-AU') : ''}</div>
-        <div className="flex items-end gap-3 border border-gray-200 rounded-xl p-3">
-          <div><label className="block text-xs font-semibold text-gray-600 mb-1">Loyalty points</label><input type="number" className="w-28 border border-gray-300 rounded-xl px-3 py-2 text-sm" value={points} onChange={(e) => setPoints(e.target.value)} /></div>
+        <div className="text-xs text-muted">{customer.email} • {customer.role} • joined {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString('en-AU') : ''}</div>
+        <div className="flex items-end gap-3 border border-line rounded-xl p-3">
+          <div><label className="block text-xs font-semibold text-muted mb-1">Loyalty points</label><input type="number" className="w-28 border border-line-strong rounded-xl px-3 py-2 text-sm" value={points} onChange={(e) => setPoints(e.target.value)} /></div>
           <Btn onClick={savePoints} disabled={busy}>{busy ? 'Saving…' : 'Set points'}</Btn>
         </div>
         <div>
-          <div className="font-bold text-gray-700 mb-1">Orders ({orders.length})</div>
-          <div className="space-y-1 max-h-40 overflow-auto">{orders.map((o) => <div key={o.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span>{o.orderNumber} <span className="text-gray-400">• {new Date(o.createdAt).toLocaleDateString('en-AU')}</span></span><span><StatusBadge value={o.status} /> <span className="font-bold text-royal-700">${Number(o.total).toFixed(2)}</span></span></div>)}{orders.length === 0 && <div className="text-xs text-gray-400">No orders</div>}</div>
+          <div className="font-bold text-ink mb-1">Orders ({orders.length})</div>
+          <div className="space-y-1 max-h-40 overflow-auto">{orders.map((o) => <div key={o.id} className="flex justify-between text-xs border-b border-line py-1"><span>{o.orderNumber} <span className="text-muted">• {new Date(o.createdAt).toLocaleDateString('en-AU')}</span></span><span><StatusBadge value={o.status} /> <span className="font-bold text-royal-700">${Number(o.total).toFixed(2)}</span></span></div>)}{orders.length === 0 && <div className="text-xs text-muted">No orders</div>}</div>
         </div>
         <div>
-          <div className="font-bold text-gray-700 mb-1">Bookings ({bookings.length})</div>
-          <div className="space-y-1 max-h-32 overflow-auto">{bookings.map((b) => <div key={b.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span>{b.session?.workshop?.title || 'Workshop'} • {b.quantity} seat(s)</span><StatusBadge value={b.status} /></div>)}{bookings.length === 0 && <div className="text-xs text-gray-400">No bookings</div>}</div>
+          <div className="font-bold text-ink mb-1">Bookings ({bookings.length})</div>
+          <div className="space-y-1 max-h-32 overflow-auto">{bookings.map((b) => <div key={b.id} className="flex justify-between text-xs border-b border-line py-1"><span>{b.session?.workshop?.title || 'Workshop'} • {b.quantity} seat(s)</span><StatusBadge value={b.status} /></div>)}{bookings.length === 0 && <div className="text-xs text-muted">No bookings</div>}</div>
         </div>
         <div>
-          <div className="font-bold text-gray-700 mb-1">Custom art orders ({customOrders.length})</div>
-          <div className="space-y-1 max-h-32 overflow-auto">{customOrders.map((co) => <div key={co.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span>{co.orderNumber}</span><span className="text-gray-500">{co.state}</span></div>)}{customOrders.length === 0 && <div className="text-xs text-gray-400">None</div>}</div>
+          <div className="font-bold text-ink mb-1">Custom art orders ({customOrders.length})</div>
+          <div className="space-y-1 max-h-32 overflow-auto">{customOrders.map((co) => <div key={co.id} className="flex justify-between text-xs border-b border-line py-1"><span>{co.orderNumber}</span><span className="text-muted">{co.state}</span></div>)}{customOrders.length === 0 && <div className="text-xs text-muted">None</div>}</div>
         </div>
         {txs.length > 0 && (
           <div>
-            <div className="font-bold text-gray-700 mb-1">Loyalty history</div>
-            <div className="space-y-1 max-h-32 overflow-auto">{txs.map((t) => <div key={t.id} className="flex justify-between text-xs border-b border-gray-100 py-1"><span className="text-gray-500">{t.reason}</span><span className={t.pointsDelta > 0 ? 'text-emerald-600' : 'text-red-600'}>{(t.pointsDelta > 0 ? '+' : '') + t.pointsDelta}</span></div>)}</div>
+            <div className="font-bold text-ink mb-1">Loyalty history</div>
+            <div className="space-y-1 max-h-32 overflow-auto">{txs.map((t) => <div key={t.id} className="flex justify-between text-xs border-b border-line py-1"><span className="text-muted">{t.reason}</span><span className={t.pointsDelta > 0 ? 'text-emerald-600' : 'text-red-600'}>{(t.pointsDelta > 0 ? '+' : '') + t.pointsDelta}</span></div>)}</div>
           </div>
         )}
       </div>
@@ -1597,11 +1612,11 @@ function Shipping({ data, reload, token }) {
   }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-gray-500">{zones.length} shipping zones</div><Btn onClick={() => setZoneEditor({})}>+ New zone</Btn></div>
+      <div className="flex justify-between items-center"><div className="text-xs text-muted">{zones.length} shipping zones</div><Btn onClick={() => setZoneEditor({})}>+ New zone</Btn></div>
       {zones.map((z) => (
-        <div key={z.id} className="border border-gray-200 rounded-xl p-4">
+        <div key={z.id} className="border border-line rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="flex-1 min-w-0"><div className="font-bold text-sm text-gray-800">{z.name}</div><div className="text-xs text-gray-500">{z.postcodes ? (Array.isArray(z.postcodes) ? z.postcodes.join(', ') : z.postcodes) : 'All postcodes'} </div></div>
+            <div className="flex-1 min-w-0"><div className="font-bold text-sm text-ink">{z.name}</div><div className="text-xs text-muted">{z.postcodes ? (Array.isArray(z.postcodes) ? z.postcodes.join(', ') : z.postcodes) : 'All postcodes'} </div></div>
             <StatusBadge value={z.isActive ? 'published' : 'archived'} />
             <Btn small color="ghost" onClick={() => toggleZone(z, !z.isActive)}>{z.isActive ? 'Disable' : 'Enable'}</Btn>
             <Btn small color="ghost" onClick={() => setRateFor(z)}>+ Rate</Btn>
@@ -1609,18 +1624,18 @@ function Shipping({ data, reload, token }) {
           </div>
           <div className="mt-2 space-y-1">
             {(z.rates || []).map((r) => (
-              <div key={r.id} className="flex items-center gap-3 text-xs border-b border-gray-100 py-1">
-                <span className="font-medium text-gray-700 flex-1">{r.name}</span>
-                <span className="text-gray-500">${Number(r.price).toFixed(2)}{r.freeOver ? ` • free over $${Number(r.freeOver).toFixed(2)}` : ''}{r.maxWeightGrams ? ` • ≤${r.maxWeightGrams}g` : ''}</span>
+              <div key={r.id} className="flex items-center gap-3 text-xs border-b border-line py-1">
+                <span className="font-medium text-ink flex-1">{r.name}</span>
+                <span className="text-muted">${Number(r.price).toFixed(2)}{r.freeOver ? ` • free over $${Number(r.freeOver).toFixed(2)}` : ''}{r.maxWeightGrams ? ` • ≤${r.maxWeightGrams}g` : ''}</span>
                 <Btn small color="ghost" onClick={() => setRateFor(z, r)}>Edit</Btn>
                 <Btn small color="red" onClick={() => setConfirmDel({ type: 'rate', id: r.id })}>Del</Btn>
               </div>
             ))}
-            {(z.rates || []).length === 0 && <div className="text-xs text-gray-400">No rates — add one</div>}
+            {(z.rates || []).length === 0 && <div className="text-xs text-muted">No rates — add one</div>}
           </div>
         </div>
       ))}
-      {zones.length === 0 && <div className="text-xs text-gray-400 py-10 text-center">No zones — add one to configure delivery pricing</div>}
+      {zones.length === 0 && <div className="text-xs text-muted py-10 text-center">No zones — add one to configure delivery pricing</div>}
       {zoneEditor && <ZoneModal zone={zoneEditor.id ? zoneEditor : null} onClose={() => setZoneEditor(null)} onSaved={() => { setZoneEditor(null); toast(zoneEditor.id ? 'Zone updated' : 'Zone created'); reload(); }} token={token} />}
       {rateFor && <RateModal zone={rateFor} rate={rateFor._rate} onClose={() => setRateFor(null)} onSaved={() => { setRateFor(null); toast('Rate saved'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete" message={`Delete this ${confirmDel.type}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
@@ -1631,8 +1646,8 @@ function ZoneModal({ zone, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({ name: zone?.name || '', postcodes: zone?.postcodes ? (Array.isArray(zone.postcodes) ? zone.postcodes.join(', ') : zone.postcodes) : '', isActive: zone ? !!zone.isActive : true }));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try {
@@ -1657,8 +1672,8 @@ function RateModal({ zone, rate, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({ name: rate?.name || 'Standard', price: rate ? Number(rate.price) : '', freeOver: rate?.freeOver ? Number(rate.freeOver) : '', maxWeightGrams: rate?.maxWeightGrams || '', isActive: rate ? !!rate.isActive : true }));
   const [busy, setBusy] = useState(false);
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try {
@@ -1698,29 +1713,29 @@ function Users({ data, reload, token }) {
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusyId(''); }
   }
-  return <div><div className="text-xs text-gray-500 mb-3">{users.length} accounts — change a role to update access</div><div className="grid sm:grid-cols-2 gap-2">
-    {users.map((u) => <div key={u.id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-3 py-2 text-sm">
-      <span className="font-medium text-gray-800 flex-1 truncate">{u.name}</span>
-      <span className="text-xs text-gray-500 truncate">{u.email}</span>
+  return <div><div className="text-xs text-muted mb-3">{users.length} accounts — change a role to update access</div><div className="grid sm:grid-cols-2 gap-2">
+    {users.map((u) => <div key={u.id} className="flex items-center gap-3 border border-line rounded-xl px-3 py-2 text-sm">
+      <span className="font-medium text-ink flex-1 truncate">{u.name}</span>
+      <span className="text-xs text-muted truncate">{u.email}</span>
       <select value={u.role} disabled={busyId === u.id} onChange={(e) => setRole(u, e.target.value)}
-        className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500">
+        className="border border-line-strong rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500">
         <option value="customer">customer</option><option value="staff">staff</option><option value="maker">maker</option><option value="admin">admin</option><option value="developer">developer</option>
       </select>
     </div>)}
-    {users.length === 0 && <div className="text-xs text-gray-400 py-8 text-center">No users</div>}
+    {users.length === 0 && <div className="text-xs text-muted py-8 text-center">No users</div>}
   </div></div>;
 }
 
 function Reports({ data }) {
   const board = Array.isArray(data.leaderboard) ? data.leaderboard : [];
-  return <div><div className="text-xs text-gray-500 mb-3">Loyalty leaderboard (top 10)</div>
+  return <div><div className="text-xs text-muted mb-3">Loyalty leaderboard (top 10)</div>
     <div className="space-y-1.5">{board.map((b, i) => (
-      <div key={i} className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${i < 3 ? 'bg-royal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{i + 1}</span>
-        <span className="font-medium text-gray-800 flex-1 truncate">{b.email}</span>
-        <span className="text-xs text-gray-500">{b.tier}</span><span className="font-bold text-royal-700">{b.points} pts</span>
+      <div key={i} className="flex items-center gap-3 border border-line rounded-xl px-4 py-2.5 text-sm">
+        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${i < 3 ? 'bg-royal-600 text-white' : 'bg-surface3 text-muted'}`}>{i + 1}</span>
+        <span className="font-medium text-ink flex-1 truncate">{b.email}</span>
+        <span className="text-xs text-muted">{b.tier}</span><span className="font-bold text-royal-700">{b.points} pts</span>
       </div>))}
-    {board.length === 0 && <div className="text-xs text-gray-400 py-8 text-center">No points yet</div>}
+    {board.length === 0 && <div className="text-xs text-muted py-8 text-center">No points yet</div>}
     </div></div>;
 }
 
@@ -1738,8 +1753,8 @@ function Settings({ reload, token }) {
   const [section, setSection] = useState('business');
   const [busy, setBusy] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-  const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
-  const label = 'block text-xs font-semibold text-gray-600 mb-1';
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
 
   useEffect(() => {
     let live = true;
@@ -1778,9 +1793,9 @@ function Settings({ reload, token }) {
     const cls = err ? `${input} border-red-400` : input;
     const wrap = (children) => (
       <div key={f.key}>
-        <label className={label}>{f.label}{f.unit ? <span className="text-gray-400 font-normal"> ({f.unit})</span> : null}</label>
+        <label className={label}>{f.label}{f.unit ? <span className="text-muted font-normal"> ({f.unit})</span> : null}</label>
         {children}
-        {hint && <div className={`text-[11px] mt-1 ${err ? 'text-red-500' : 'text-gray-400'}`}>{hint}</div>}
+        {hint && <div className={`text-[11px] mt-1 ${err ? 'text-red-500' : 'text-muted'}`}>{hint}</div>}
       </div>
     );
     switch (f.type) {
@@ -1791,7 +1806,7 @@ function Settings({ reload, token }) {
         return wrap(
           <button type="button" role="switch" aria-checked={on} onClick={() => setV(f.key, on ? '0' : '1')}
             className={`inline-flex items-center h-7 w-12 rounded-full p-0.5 transition-colors ${on ? 'bg-royal-600 justify-end' : 'bg-gray-300 justify-start'}`}>
-            <span className="h-6 w-6 rounded-full bg-white shadow border border-gray-200 block" />
+            <span className="h-6 w-6 rounded-full bg-surface2 shadow border border-line block" />
           </button>
         );
       }
@@ -1801,7 +1816,7 @@ function Settings({ reload, token }) {
         const hex = /^#[0-9a-fA-F]{6}$/.test(v) ? v : (/^#[0-9a-fA-F]{6}$/.test(f.default || '') ? f.default : '#B85C5C');
         return wrap(
           <div className="flex items-center gap-2">
-            <input type="color" value={hex} onChange={(e) => setV(f.key, e.target.value)} className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer" />
+            <input type="color" value={hex} onChange={(e) => setV(f.key, e.target.value)} className="w-10 h-9 rounded-lg border border-line-strong cursor-pointer" />
             <input className={cls} value={v} onChange={(e) => setV(f.key, e.target.value)} placeholder={f.default || '#RRGGBB'} />
           </div>
         );
@@ -1817,7 +1832,7 @@ function Settings({ reload, token }) {
               return (
                 <button key={o.value} type="button"
                   onClick={() => { const next = new Set(selected); if (on) next.delete(o.value); else next.add(o.value); setV(f.key, Array.from(next).join(',')); }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${on ? 'bg-royal-600 text-white border-royal-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${on ? 'bg-royal-600 text-white border-royal-600' : 'bg-surface2 text-muted border-line-strong hover:bg-surface3'}`}>
                   {o.label}
                 </button>
               );
@@ -1830,14 +1845,14 @@ function Settings({ reload, token }) {
     }
   }
 
-  if (!meta || !values) return <div className="text-sm text-gray-500 py-10 text-center">Loading settings…</div>;
+  if (!meta || !values) return <div className="text-sm text-muted py-10 text-center">Loading settings…</div>;
 
   return (
     <div className="flex flex-col sm:flex-row gap-4">
       <nav className="sm:w-52 shrink-0 space-y-1">
         {meta.sections.map((s) => (
           <button key={s.id} onClick={() => { setSection(s.id); setFieldErrors({}); }}
-            className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${section === s.id ? 'bg-royal-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${section === s.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted hover:bg-surface3'}`}>
             {s.label}
           </button>
         ))}
@@ -1851,7 +1866,7 @@ function Settings({ reload, token }) {
                 {COLOR_PRESETS.map((p) => (
                   <button key={p.name} type="button"
                     onClick={() => { const { name, ...colors } = p; void name; setValues((s) => ({ ...s, ...colors })); }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 text-xs font-semibold hover:bg-gray-50">
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-line text-xs font-semibold hover:bg-surface3">
                     <span className="w-4 h-4 rounded-full border border-black/10" style={{ background: p.theme_primary }} />
                     {p.name}
                   </button>
@@ -1862,7 +1877,7 @@ function Settings({ reload, token }) {
           <div className="grid sm:grid-cols-2 gap-3">{fields.map(renderField)}</div>
           <div className="mt-4 flex items-center gap-3">
             <Btn onClick={saveSection} disabled={busy || !values}>{busy ? 'Saving…' : `Save ${sectionLabel.toLowerCase()}`}</Btn>
-            <span className="text-xs text-gray-400">{fields.length} settings in this section</span>
+            <span className="text-xs text-muted">{fields.length} settings in this section</span>
           </div>
         </Card>
       </div>
@@ -1885,12 +1900,12 @@ function NotebookAdmin({ data, onSave, token }) {
   return (
     <div className="space-y-4">
       <Card title="NotebookLM — published URL">
-        <p className="text-xs text-gray-500 mb-3">Public /notebook page reads this setting; falls back to the hardcoded notebook when unset.</p>
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://notebooklm.google.com/notebook/…" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm" />
+        <p className="text-xs text-muted mb-3">Public /notebook page reads this setting; falls back to the hardcoded notebook when unset.</p>
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://notebooklm.google.com/notebook/…" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" />
         <div className="mt-3 flex items-center gap-3"><Btn onClick={save} disabled={saving || !url}>{saving ? 'Saving…' : 'Save URL'}</Btn><a href={url} target="_blank" rel="noreferrer" className="text-xs text-royal-700 hover:underline">Open in NotebookLM →</a></div>
       </Card>
       <Card title={`Posts tagged "notebook" (${posts.length})`}>
-        <div className="space-y-1">{posts.map((p) => <div key={p.id} className="text-xs border-b border-gray-100 py-1.5"><span className="font-bold text-gray-700">{p.title}</span> <span className="text-gray-400">— {p.slug}</span></div>)}{posts.length === 0 && <div className="text-xs text-gray-400">No posts with tag notebook</div>}</div>
+        <div className="space-y-1">{posts.map((p) => <div key={p.id} className="text-xs border-b border-line py-1.5"><span className="font-bold text-ink">{p.title}</span> <span className="text-muted">— {p.slug}</span></div>)}{posts.length === 0 && <div className="text-xs text-muted">No posts with tag notebook</div>}</div>
       </Card>
     </div>
   );

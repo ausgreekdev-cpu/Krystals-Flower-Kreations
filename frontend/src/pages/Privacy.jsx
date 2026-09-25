@@ -10,10 +10,10 @@ export default function Privacy(){
   }, []);
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-black text-bloom-700">Privacy Policy</h1>
-      <p className="text-xs text-gray-500 mt-1">Perth WA • ABN on invoice • Hosted at https://krystalsflowerkreations.netlify.app/privacy and https://krystalsflowerkreations.com.au/privacy</p>
-      <div className="mt-6 bg-white border rounded-2xl p-6 prose prose-sm max-w-none whitespace-pre-wrap text-sm text-gray-700">{html}</div>
-      <div className="mt-6 text-xs text-gray-500">Last updated 29 August 2026 — For Play Store Data Safety: collected email/name/address/purchase history, encrypted in transit, not shared, deletion via krystal@krystalsflowerkreations.com.au or app Settings → Delete account.</div>
+      <h1 className="text-2xl font-black text-ink">Privacy Policy</h1>
+      <p className="text-xs text-muted mt-1">Perth WA • ABN on invoice • Hosted at https://krystalsflowerkreations.netlify.app/privacy and https://krystalsflowerkreations.com.au/privacy</p>
+      <div className="mt-6 bg-surface2 border rounded-2xl p-6 prose prose-sm max-w-none whitespace-pre-wrap text-sm text-ink">{html}</div>
+      <div className="mt-6 text-xs text-muted">Last updated 29 August 2026 — For Play Store Data Safety: collected email/name/address/purchase history, encrypted in transit, not shared, deletion via krystal@krystalsflowerkreations.com.au or app Settings → Delete account.</div>
     </div>
   );
 }

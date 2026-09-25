@@ -6,24 +6,24 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
   // For $0, we show CSS fallback and lazy-load model-viewer only if glb exists at /3d/${productSlug}.glb
   const glb = `/3d/${productSlug}.glb`;
   return (
-    <div className="bg-gradient-to-br from-bloom-50 to-white rounded-2xl border p-4">
+    <div className="bg-gradient-to-br from-surface to-surface2 rounded-2xl border p-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-bold text-bloom-700 text-sm">AR Try-On — Free</h3>
+        <h3 className="font-bold text-ink text-sm">AR Try-On — Free</h3>
         <span className="text-[10px] bg-bloom-500 text-white px-2 py-1 rounded-full">No app install</span>
       </div>
       {/* model-viewer free web component — will 404 gracefully until you add /3d/*.glb via Blender */}
-      <div className="mt-3 bg-white rounded-xl border overflow-hidden" style={{ height: 220 }}>
+      <div className="mt-3 bg-surface2 rounded-xl border overflow-hidden" style={{ height: 220 }}>
         {/* Fallback CSS 3-view carousel when GLB missing */}
         <div className="w-full h-full grid place-items-center p-6 relative">
           <div className="absolute inset-0 grid grid-cols-3 gap-2 p-4 opacity-60">
-            <div className="bg-bloom-50 rounded-xl grid place-items-center text-2xl">🌹</div>
-            <div className="bg-bloom-50 rounded-xl grid place-items-center text-2xl">🪷</div>
-            <div className="bg-bloom-50 rounded-xl grid place-items-center text-2xl">✂️</div>
+            <div className="bg-surface rounded-xl grid place-items-center text-2xl">🌹</div>
+            <div className="bg-surface rounded-xl grid place-items-center text-2xl">🪷</div>
+            <div className="bg-surface rounded-xl grid place-items-center text-2xl">✂️</div>
           </div>
-          <div className="relative bg-white/90 backdrop-blur rounded-xl px-4 py-3 border shadow text-center">
-            <div className="font-bold text-bloom-700 text-sm">{title}</div>
-            <div className="text-xs text-gray-600">Add your Blender export at <code className="bg-gray-100 px-1 rounded">{glb}</code></div>
-            <div className="text-[11px] text-gray-500 mt-1">Then add <code>model-viewer</code> tag — CDN free: <a className="underline" href="https://modelviewer.dev" target="_blank">modelviewer.dev</a></div>
+          <div className="relative bg-surface2/90 backdrop-blur rounded-xl px-4 py-3 border shadow text-center">
+            <div className="font-bold text-ink text-sm">{title}</div>
+            <div className="text-xs text-muted">Add your Blender export at <code className="bg-surface3 px-1 rounded">{glb}</code></div>
+            <div className="text-[11px] text-muted mt-1">Then add <code>model-viewer</code> tag — CDN free: <a className="underline" href="https://modelviewer.dev" target="_blank">modelviewer.dev</a></div>
             <a href={glb} target="_blank" className="mt-2 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Check GLB exists →</a>
           </div>
           {/* Uncomment when GLB ready — free, no build step */}
@@ -35,7 +35,7 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
           */}
         </div>
       </div>
-      <p className="text-[11px] text-gray-500 mt-2">Free pipeline: Blender 4.2 (photogrammetry) → Draco GLB &lt;2MB → Reality Converter USDZ → place in <code>frontend/public/3d/</code>. Cached 30d via Workbox.</p>
+      <p className="text-[11px] text-muted mt-2">Free pipeline: Blender 4.2 (photogrammetry) → Draco GLB &lt;2MB → Reality Converter USDZ → place in <code>frontend/public/3d/</code>. Cached 30d via Workbox.</p>
     </div>
   );
 }

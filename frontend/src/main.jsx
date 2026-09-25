@@ -1,6 +1,8 @@
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
+import { applyTheme } from './lib/theme';
+import { initColorMode, applyDefaultColorMode } from './lib/colorMode';
 import App from './App.jsx';
 import Shop from './pages/Shop.jsx';
 import Product from './pages/Product.jsx';
@@ -19,6 +21,10 @@ import Notebook from './pages/Notebook.jsx';
 import Privacy from './pages/Privacy.jsx';
 import NotFound from './pages/NotFound.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+
+// Global theme + colour mode: runs once for every route (deep links included)
+initColorMode();
+applyTheme().then((s) => { if (s?.default_color_mode) applyDefaultColorMode(s.default_color_mode); });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary>

@@ -5,9 +5,9 @@ export default function ConfirmDialog({ title = 'Are you sure?', message, confir
   const [busy, setBusy] = useState(false);
   return (
     <Modal title={title} onClose={onClose}>
-      <p className="text-sm text-gray-600">{message}</p>
+      <p className="text-sm text-muted">{message}</p>
       <div className="mt-5 flex justify-end gap-2">
-        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold border border-gray-300 hover:bg-gray-50">Cancel</button>
+        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold border border-line-strong hover:bg-surface3">Cancel</button>
         <button
           onClick={async () => { setBusy(true); try { await onConfirm(); onClose(); } finally { setBusy(false); } }}
           disabled={busy}

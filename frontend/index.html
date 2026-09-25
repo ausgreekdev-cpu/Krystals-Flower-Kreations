@@ -3,9 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#581C87" />
     <title>Krystal's Flower Kreations — Paper Florist Perth WA</title>
+    <script>
+      /* No-flash colour mode: run before first paint. Stored choice wins,
+         otherwise follow the system. Admin default_color_mode refines this
+         after settings load (lib/colorMode.js) when the visitor hasn't chosen. */
+      (function () {
+        try {
+          var m = localStorage.getItem('kfk_color_mode');
+          var dark = m === 'dark' || (m !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var r = document.documentElement;
+          if (dark) r.classList.add('dark'); else r.classList.remove('dark');
+          r.style.colorScheme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#0F172A' : '#581C87');
+        } catch (e) {}
+      })();
+    </script>
     <meta name="description" content="Custom paper florist & armature art workshop — Cricut + origami blooms. Perth WA. Everlasting bouquets, SVG templates & workshops. Handmade in Perth, GST-inclusive.">
     <meta name="keywords" content="paper flowers, everlasting bouquet, Cricut, origami, Perth florist, armature art, workshop, Krystal">
     <meta name="author" content="Krystal's Flower Kreations — Perth WA">
@@ -30,7 +46,7 @@
     <!-- Structured Data -->
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Florist","name":"Krystal's Flower Kreations","description":"Custom paper florist & armature art workshop — Cricut + origami everlasting bouquets. Handmade in Perth WA.","address":{"@type":"PostalAddress","addressLocality":"Perth","addressRegion":"WA","addressCountry":"AU"},"url":"https://krystalsflowerkreations.netlify.app","priceRange":"$","telephone":"+61 8 XXXX XXXX"}</script>
   </head>
-  <body class="bg-bloom-50 antialiased">
+  <body class="bg-surface antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <noscript><div style="padding:1rem;text-align:center;background:#F8FAFC;color:#1E293B">Enable JavaScript to shop everlasting paper blooms — Perth studio.</div></noscript>
