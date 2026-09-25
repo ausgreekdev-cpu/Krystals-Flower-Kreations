@@ -140,14 +140,6 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/shipping', shippingAdminRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 
-// Collections (thin) — kept for compat, now also via collectionsRoutes at /api/collections
-app.get('/api/collections-legacy', async (req, res, next) => {
-  try {
-    const cols = await prisma.collection.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' }, include: { products: { include: { product: { include: { images: true } } } } } });
-    res.json(cols);
-  } catch (err) { next(err); }
-});
-
 // Stripe webhook (raw body needed — keep before json parser if you re-enable, currently json-parsed; stripe disabled)
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   res.json({ received: true, note: 'Stripe disabled — manual payments active' });

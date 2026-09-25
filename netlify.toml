@@ -27,7 +27,6 @@
     "nodemailer",
     "serverless-http",
     "sharp",
-    "uuid",
     "zod"
   ]
 
