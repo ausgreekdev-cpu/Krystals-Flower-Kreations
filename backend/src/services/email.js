@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import prisma from '../lib/prisma.js';
+import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
 
 const MAX_ATTEMPTS = 5;
 
@@ -23,8 +24,12 @@ export async function sendEmail({ to, subject, text, html }) {
     return { skipped: true, reason: 'SMTP not configured' };
   }
   try {
-    const from = process.env.EMAIL_FROM || `Krystal's Flower Kreations <${process.env.SMTP_USER}>`;
-    const info = await transporter.sendMail({ from, to, subject, text, html: html || text });
+    // From name + reply-to come from settings (env EMAIL_FROM still wins for from).
+    const s = await getSettings().catch(() => ({}));
+    const fromName = s.email_from_name || "Krystal's Flower Kreations";
+    const from = process.env.EMAIL_FROM || `${fromName} <${process.env.SMTP_USER}>`;
+    const replyTo = s.email_reply_to || undefined;
+    const info = await transporter.sendMail({ from, replyTo, to, subject, text, html: html || text });
     console.log(`[email] Sent to ${to} — ${info.messageId}`);
     return { ok: true, messageId: info.messageId };
   } catch (err) {
@@ -88,16 +93,24 @@ export async function drainEmailQueue(limit = 50) {
 
 export async function sendOrderConfirmation(order) {
   const subject = `Order ${order.orderNumber} — Krystal's Flower Kreations`;
-  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystal's Flower Kreations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n\nWe will notify you when it's ready for pickup/dispatch.\n\n— Krystal's Flower Kreations, Perth WA\n${process.env.BUSINESS_ADDRESS || ''}`;
+  const s = await getSettings().catch(() => ({}));
+  // Include the actual payment details for the chosen method (bank/pickup come
+  // from settings — previously the email promised details that never appeared).
+  const paymentBlock = ['bank_transfer', 'pickup'].includes(order.paymentMethod)
+    ? `\n\nPayment:\n${paymentInstructionsFor(order.paymentMethod, s)}\n` : '';
+  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystal's Flower Kreations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}\nWe will notify you when it's ready for pickup/dispatch.\n\n— ${s.business_name || "Krystal's Flower Kreations"}, Perth WA\n${s.business_address || process.env.BUSINESS_ADDRESS || ''}`;
   const row = await enqueueEmail({ to: order.email, subject, text, template: 'order_confirmation', payload: { orderNumber: order.orderNumber } });
   sendFromQueue(row).catch(()=>{});
   return row;
 }
 
-export async function sendWorkshopConfirmation(booking, workshop, session) {
-  const subject = `Workshop booked: ${workshop.title}`;
-  const text = `Hi ${booking.name},\n\nYou're booked for ${workshop.title} on ${new Date(session.startsAt).toLocaleString('en-AU', { timeZone: 'Australia/Perth' })} at ${workshop.location}.\nQuantity: ${booking.quantity} • Status: ${booking.status}\n${booking.ticket ? `QR: ${booking.ticket.qrPayload}\n` : ''}\nSee you at the studio!\n— Krystal's Flower Kreations`;
-  const row = await enqueueEmail({ to: booking.email, subject, text, template: 'workshop_confirmation', payload: { workshop: workshop.title } });
+export async function sendWorkshopConfirmation(booking, workshop, session, { reminder = false } = {}) {
+  const s = await getSettings().catch(() => ({}));
+  const when = new Date(session.startsAt).toLocaleString('en-AU', { timeZone: 'Australia/Perth' });
+  const subject = reminder ? `Reminder: ${workshop.title} on ${when}` : `Workshop booked: ${workshop.title}`;
+  const intro = reminder ? `Just a reminder — you're booked for ${workshop.title}` : `You're booked for ${workshop.title}`;
+  const text = `Hi ${booking.name},\n\n${intro} on ${when} at ${workshop.location}.\nQuantity: ${booking.quantity} • Status: ${booking.status}\n${booking.ticket ? `QR: ${booking.ticket.qrPayload}\n` : ''}\nSee you at the studio!\n— ${s.business_name || "Krystal's Flower Kreations"}`;
+  const row = await enqueueEmail({ to: booking.email, subject, text, template: reminder ? 'workshop_reminder' : 'workshop_confirmation', payload: { workshop: workshop.title } });
   sendFromQueue(row).catch(()=>{});
   return row;
 }

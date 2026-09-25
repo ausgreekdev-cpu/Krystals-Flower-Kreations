@@ -9,6 +9,7 @@ import { calculateShipping, calculateGstInclusive } from '../services/shipping.j
 import { stripe } from '../services/stripe.js';
 import { sendOrderConfirmation } from '../services/email.js';
 import { earnForOrder } from '../services/loyaltyService.js';
+import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
 import { audit } from '../lib/audit.js';
 
 const router = Router();
@@ -190,7 +191,8 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   // Email receipt (non-blocking, logs if SMTP not configured)
   await sendOrderConfirmation(order).catch(()=>{});
 
-  res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: data.paymentMethod === 'bank_transfer' ? 'Bank transfer details will be emailed. Order held pending payment.' : data.paymentMethod === 'pickup' ? 'Pickup from Perth Studio — pay on collection. You will receive a QR ticket.' : data.paymentMethod === 'cash' ? 'Order placed — pay cash on collection/delivery. We\'ll confirm once received.' : 'Order placed — manual payment.' });
+  const publicSettings = await getSettings({ onlyPublic: true });
+  res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) });
 }));
 
 router.get('/my', authenticate, asyncHandler(async (req, res) => {

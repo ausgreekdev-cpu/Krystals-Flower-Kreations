@@ -61,6 +61,8 @@ router.post('/set', authenticate, asyncHandler(async (req,res)=>{
 }));
 
 router.post('/redeem', authenticate, asyncHandler(async (req,res)=>{
+  const cfg = await loyaltyConfig();
+  if (!cfg.enabled) return res.status(403).json({ error:'Loyalty program is currently disabled', code:'loyalty_disabled' });
   const { points, reason } = req.body;
   const pts = Math.max(1, Math.min(1000, parseInt(points,10) || 0));
   const email = req.user.email;

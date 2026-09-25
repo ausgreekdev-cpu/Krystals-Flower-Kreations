@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { sendWorkshopConfirmation } from '../services/email.js';
+import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -51,9 +52,14 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
     kitAddOn: z.boolean().default(false),
   });
   const data = schema.parse(req.body);
+  // Booking lead-time (settings: workshop_min_lead_hours) — read before the tx.
+  const minLeadHours = Number((await getSettings({ onlyPublic: true })).workshop_min_lead_hours) || 0;
   const result = await prisma.$transaction(async (tx) => {
     const session = await tx.workshopSession.findUnique({ where: { id: req.params.sessionId }, include: { workshop: true } });
     if (!session) throw Object.assign(new Error('Session not found'), { status: 404, code: 'not_found' });
+    if (minLeadHours > 0 && new Date(session.startsAt).getTime() < Date.now() + minLeadHours * 3600e3) {
+      throw Object.assign(new Error(`Bookings close ${minLeadHours}h before a session starts`), { status: 409, code: 'booking_too_late' });
+    }
     // Atomic try to reserve seats
     const updated = await tx.workshopSession.updateMany({
       where: { id: session.id, bookedCount: { lte: session.capacity - data.quantity } },
