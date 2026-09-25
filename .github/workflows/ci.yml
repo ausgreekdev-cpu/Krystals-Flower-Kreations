@@ -7,12 +7,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
-      - run: cd backend && npm ci
-      - run: cd frontend && npm ci
+      - run: npm ci --workspace=backend --workspace=frontend --include=dev
       - run: cd backend && npm run lint
       - run: cd frontend && npm run lint
       - run: cd backend && npx prisma generate
-      - run: cd frontend && npm run build
+      - run: npm run build --workspace=frontend
       - run: cd mobile && npm ci
       - run: cd mobile && npx expo-doctor
 
@@ -39,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
-      - run: cd backend && npm ci
+      - run: npm ci --workspace=backend --include=dev
       - run: cd backend && npx prisma db push --skip-generate
       - run: cd backend && npm run seed
       - run: cd backend && npm test

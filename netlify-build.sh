@@ -17,35 +17,30 @@ fi
 echo "=== Clean previous dist ==="
 rm -rf frontend/dist
 
-echo "=== Backend deps (for function bundling) + Prisma ==="
-cd backend
-# ci fails if lock out of sync — fall back to install to auto-sync (fixes Missing: serverless-http, react-native-web etc.)
-# Keep dev deps (prisma CLI) installed so `npx prisma generate` works; esbuild
-# only bundles imported modules into the function so dev deps don't bloat it.
+echo "=== Workspace deps (backend + frontend, single root lock) ==="
+# One install at the workspace root. The root package-lock.json is the only lock
+# for backend/frontend (member dirs must not have their own — a second lock forks
+# a divergent node_modules). Mobile is skipped: Expo never runs on Netlify.
+# --include=dev keeps prisma CLI + vite regardless of NODE_ENV.
 if [ -f package-lock.json ]; then
-  npm ci --prefer-offline --no-audit 2>&1 || npm install --no-audit 2>&1
+  npm ci --workspace=backend --workspace=frontend --include=dev --prefer-offline --no-audit 2>&1 \
+    || npm install --workspace=backend --workspace=frontend --include=dev --no-audit 2>&1
 else
-  npm install --no-audit 2>&1
+  npm install --workspace=backend --workspace=frontend --include=dev --no-audit 2>&1
 fi
-echo ">>> Prisma generate"
-npx prisma generate 2>&1
 
-cd ../frontend
-echo "=== Frontend deps ==="
-if [ -f package-lock.json ]; then
-  npm ci --prefer-offline --no-audit 2>&1 || npm install --no-audit 2>&1
-else
-  npm install --no-audit 2>&1
-fi
+echo ">>> Prisma generate"
+(cd backend && npx prisma generate 2>&1)
+
 # Fail fast with a clear message if devDependencies were skipped (NODE_ENV=production etc.)
 if ! npx --no-install vite --version >/dev/null 2>&1; then
-  echo "ERROR: vite not found after frontend install — devDependencies were skipped." >&2
+  echo "ERROR: vite not found after install — devDependencies were skipped." >&2
   exit 1
 fi
 
 echo "=== Vite build (VITE_API_URL is baked at build) ==="
 # Netlify will set VITE_API_URL to /.netlify/functions/api via redirect; default falls back to relative /api
-npm run build 2>&1
+npm run build --workspace=frontend 2>&1
 
 echo "=== Build complete ==="
-ls -lh dist 2>&1 | head -20
+ls -lh frontend/dist 2>&1 | head -20

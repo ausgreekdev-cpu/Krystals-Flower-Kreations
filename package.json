@@ -8,7 +8,7 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "install:all": "npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
+    "install:all": "npm install",
     "db:up": "docker compose up -d db",
     "db:push": "cd backend && npx prisma db push",
     "db:seed": "npm run seed --workspace=backend",
