@@ -16,7 +16,7 @@ Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mob
 
 ```bash
 # backend (workdir = backend)
-npm test            # integration suite (50 tests), needs DATABASE_URL set
+npm test            # integration suite (61 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
 npm run seed        # idempotent seed (loads backend/.env itself)
 npm run dev         # :3001
 
@@ -65,7 +65,8 @@ npm run build       # Vite build + PWA
 - **Audit**: write admin/money actions via `lib/audit.js` (AuditLog table).
 - **Email**: queue via `services/email.js` (`enqueueEmail` awaited in routes, `drainEmailQueue` in the hourly job). No SMTP yet → rows mark `failed`/`SMTP not configured`.
 - **Installs / locks**: the root `package-lock.json` is the only lock for backend+frontend (mobile keeps its own for standalone Expo). Never create `backend/package-lock.json`/`frontend/package-lock.json` (e.g. `npm install --prefix …` does) — a second lock forks a divergent tree. Install from the repo root (`npm ci --workspace=backend --workspace=frontend --include=dev`); member-dir installs are OK since npm walks up.
-- **Adding a setting**: one entry in `backend/src/lib/settingsSchema.js` (SECTIONS/SETTINGS). Validation, public filter, defaults and the admin form (`GET /api/settings/schema`) all derive from it — never hand-edit the admin form.
+- **Adding a setting**: one entry in `backend/src/lib/settingsSchema.js` (SECTIONS/SETTINGS). Validation, public filter, defaults and the admin form (`GET /api/settings/schema`) all derive from it — never hand-edit the admin form. Endpoints: public `GET /api/settings`, admin `GET /api/settings/all|schema`, `PUT /api/settings` (validated upsert), `POST /api/settings/reset` `{keys}` (drops overrides → defaults), `POST /api/settings/test-email` `{to}` (reports `smtpConfigured`). Storefront reads them through `frontend/src/lib/publicSettings.js` (`usePublicSettings()`); after a save the admin form re-applies the theme (`applyTheme({force:true})`) and invalidates that cache. Settings are **global DB state**: tests that flip them must restore defaults in their `after()` hook so they can't leak into other suites.
+- **Settings enforcement points**: `checkout_payment_methods` + `min_order_amount` + `terms_required` + `enable_order_notes` (orders checkout), `shipping_free_over` (services/shipping.js), `maintenance_mode` (app.js gate — 503 on public GETs, staff JWT bypass, `/api/{health,settings,auth}` always open), `workshop_bookings_enabled`/`workshop_waitlist_enabled` (book route), `loyalty_signup_bonus`/`loyalty_min_redeem_points` (auth register / loyalty redeem), `admin_order_alert_*` + `customer_status_emails_enabled` + `email_signature` + `invoice_footer` (services/email.js).
 - **Dark mode**: `html.dark` flips semantic Tailwind tokens (`bg-surface/surface2/surface3`, `text-ink`, `text-muted`, `border-line/line-strong`, `text-highlight`) defined in `frontend/src/index.css` + `tailwind.config.js`. New UI must use these tokens, not `bg-white`/`text-gray-*` (which don't flip). Colour mode state: `frontend/src/lib/colorMode.js` (`kfk_color_mode` in localStorage; no-flash script in `index.html`).
 
 ## Uploads / storage

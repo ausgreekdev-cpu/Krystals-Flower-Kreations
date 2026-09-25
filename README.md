@@ -27,7 +27,7 @@ Perth, Western Australia.
 - **Workshops** — calendar, capacity, waitlist, kits, QR check-in, reminders (deduped)
 - **POS** — counter + market stall, offline queue, till reconciliation
 - **Inventory & Admin** — multi-location, PO, stocktake, transfers, movements, low-stock alerts, BOM recipes, customers, discounts, loyalty, audit log
-- **Settings & themes** — schema-driven admin settings (11 sections) + light/dark/system colour mode with per-mode theming
+- **Settings & themes** — schema-driven admin settings (12 sections, 88 keys) with search/dirty-tracking/per-field reset/save-verification, plus light/dark/system colour mode with per-mode theming. Settings actually drive the storefront: announcement bar, contact/social links, ABN, shipping copy, shop sort/page size, checkout payment methods + minimum order + terms + order notes, loyalty floors/bonuses, workshop open/waitlist switches, notification toggles + test-email, logo, dark-mode toggle, and a maintenance mode with a staff bypass.
 
 ## Quick Start
 
