@@ -27,6 +27,7 @@ Perth, Western Australia.
 - **Workshops** — calendar, capacity, waitlist, kits, QR check-in, reminders (deduped)
 - **POS** — counter + market stall, offline queue, till reconciliation
 - **Inventory & Admin** — multi-location, PO, stocktake, transfers, movements, low-stock alerts, BOM recipes, customers, discounts, loyalty, audit log
+- **Settings & themes** — schema-driven admin settings (11 sections) + light/dark/system colour mode with per-mode theming
 
 ## Quick Start
 
