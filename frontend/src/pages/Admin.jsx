@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClient';
 import { subscribe, nextColorMode, getColorMode, MODES } from '../lib/colorMode';
+import { applyTheme } from '../lib/theme';
+import { invalidatePublicSettings } from '../lib/publicSettings';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -1750,9 +1752,14 @@ function Settings({ reload, token }) {
   const toast = useToast();
   const [meta, setMeta] = useState(null);
   const [values, setValues] = useState(null);
+  const [saved, setSaved] = useState(null);
   const [section, setSection] = useState('business');
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [testTo, setTestTo] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState(null);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
 
@@ -1762,28 +1769,101 @@ function Settings({ reload, token }) {
       try {
         const [m, all] = await Promise.all([adminApi.settings.schema(token), adminApi.settings.all(token)]);
         if (!live) return;
-        setMeta(m); setValues(all); setSection(m?.sections?.[0]?.id || 'business');
+        setMeta(m); setValues(all); setSaved(all); setSection(m?.sections?.[0]?.id || 'business');
       } catch (e) { toast(e.message, 'error'); }
     })();
     return () => { live = false; };
   }, [token]);
 
   const setV = (k, v) => setValues((s) => ({ ...s, [k]: v }));
-  const fields = meta && values ? meta.settings.filter((f) => f.section === section) : [];
-  const sectionLabel = meta?.sections.find((s) => s.id === section)?.label || section;
+  // Canonical compare so '010' vs '10' on a number field isn't a false edit.
+  const norm = (f, v) => {
+    const raw = v ?? f.default ?? '';
+    if (f.type === 'number' && raw !== '' && Number.isFinite(Number(raw))) return String(Number(raw));
+    return String(raw ?? '');
+  };
+  const isDirty = (f) => Boolean(values && saved && norm(f, values[f.key]) !== norm(f, saved[f.key]));
+  const dirtyFields = meta && values ? meta.settings.filter(isDirty) : [];
+  const q = query.trim().toLowerCase();
+  const fields = meta && values
+    ? (q
+        ? meta.settings.filter((f) =>
+            f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q) ||
+            String(f.description || '').toLowerCase().includes(q) ||
+            f.section.toLowerCase().includes(q) ||
+            String(values[f.key] ?? '').toLowerCase().includes(q))
+        : meta.settings.filter((f) => f.section === section))
+    : [];
+  const sectionLabel = q
+    ? `Search — ${fields.length} match${fields.length === 1 ? '' : 'es'}`
+    : (meta?.sections.find((s) => s.id === section)?.label || section);
+  const dirtyInSection = (id) => Boolean(meta && values && meta.settings.some((f) => f.section === id && isDirty(f)));
 
-  async function saveSection() {
+  // Don't let a refresh/navigation silently drop edits.
+  useEffect(() => {
+    if (!dirtyFields.length) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirtyFields.length]);
+
+  // Refresh the storefront (theme vars + public settings cache) after any save.
+  function refreshStorefront() {
+    applyTheme({ force: true }).catch(() => {});
+    invalidatePublicSettings().catch(() => {});
+    reload();
+  }
+
+  async function persist(payload, scopeLabel) {
     setBusy(true); setFieldErrors({});
-    const payload = {};
-    for (const f of fields) payload[f.key] = values[f.key] ?? f.default ?? '';
     try {
       await adminApi.settings.save(payload, token);
-      toast(`${sectionLabel} saved`);
-      reload();
+      // Round-trip verify — re-read from the DB and confirm each value stuck.
+      const fresh = await adminApi.settings.all(token);
+      const mismatched = Object.keys(payload).filter((k) => {
+        const f = meta.settings.find((x) => x.key === k);
+        return f ? norm(f, fresh[k]) !== norm(f, payload[k]) : String(fresh[k]) !== String(payload[k]);
+      });
+      setValues(fresh); setSaved(fresh);
+      if (mismatched.length) toast(`⚠ Saved, but ${mismatched.length} value(s) did not stick: ${mismatched.join(', ')}`, 'error');
+      else toast(`✓ ${Object.keys(payload).length} ${scopeLabel} saved & verified`, 'success');
+      refreshStorefront();
     } catch (e) {
       if (e.details && typeof e.details === 'object') setFieldErrors(e.details);
       toast(e.message, 'error');
     } finally { setBusy(false); }
+  }
+
+  function saveScope(scopeFields, scopeLabel) {
+    const payload = {};
+    for (const f of scopeFields) if (isDirty(f)) payload[f.key] = values[f.key] ?? f.default ?? '';
+    if (!Object.keys(payload).length) { toast('No changes to save', 'info'); return; }
+    persist(payload, scopeLabel);
+  }
+
+  // True reset: drop the stored rows so schema defaults apply again.
+  async function resetScope(scopeFields, scopeLabel) {
+    if (!window.confirm(`Reset ${scopeFields.length} ${scopeLabel} to their default values?`)) return;
+    setBusy(true); setFieldErrors({});
+    try {
+      await adminApi.settings.reset(scopeFields.map((f) => f.key), token);
+      const fresh = await adminApi.settings.all(token);
+      setValues(fresh); setSaved(fresh);
+      toast(`↺ ${scopeLabel} reset to defaults`, 'success');
+      refreshStorefront();
+    } catch (e) { toast(e.message, 'error'); } finally { setBusy(false); }
+  }
+
+  async function sendTest() {
+    const to = testTo.trim();
+    if (!to) return;
+    setTestBusy(true); setTestResult(null);
+    try {
+      const r = await adminApi.settings.testEmail(to, token);
+      setTestResult(r);
+      toast(r.message, r.ok || r.skipped ? 'success' : 'error');
+    } catch (e) { setTestResult({ ok: false, message: e.message }); toast(e.message, 'error'); }
+    finally { setTestBusy(false); }
   }
 
   function renderField(f) {
@@ -1791,11 +1871,21 @@ function Settings({ reload, token }) {
     const err = fieldErrors[f.key];
     const hint = err || f.description;
     const cls = err ? `${input} border-red-400` : input;
+    const dirty = isDirty(f);
     const wrap = (children) => (
       <div key={f.key}>
-        <label className={label}>{f.label}{f.unit ? <span className="text-muted font-normal"> ({f.unit})</span> : null}</label>
+        <label className={label}>
+          {f.label}{f.unit ? <span className="text-muted font-normal"> ({f.unit})</span> : null}
+          {dirty && <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">modified</span>}
+        </label>
         {children}
-        {hint && <div className={`text-[11px] mt-1 ${err ? 'text-red-500' : 'text-muted'}`}>{hint}</div>}
+        <div className="flex items-start gap-2 mt-1">
+          <div className={`text-[11px] flex-1 ${err ? 'text-red-500' : 'text-muted'}`}>{hint || ''}</div>
+          {dirty && (
+            <button type="button" onClick={() => setV(f.key, f.default ?? '')} title="Revert this field to its default"
+              className="text-[11px] font-semibold text-royal-700 hover:underline shrink-0">↺ default</button>
+          )}
+        </div>
       </div>
     );
     switch (f.type) {
@@ -1850,16 +1940,28 @@ function Settings({ reload, token }) {
   return (
     <div className="flex flex-col sm:flex-row gap-4">
       <nav className="sm:w-52 shrink-0 space-y-1">
-        {meta.sections.map((s) => (
-          <button key={s.id} onClick={() => { setSection(s.id); setFieldErrors({}); }}
-            className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${section === s.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted hover:bg-surface3'}`}>
-            {s.label}
-          </button>
-        ))}
+        <input value={query} onChange={(e) => { setQuery(e.target.value); setFieldErrors({}); }} placeholder="Search settings…"
+          className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500" />
+        <div className="pt-2 space-y-1">
+          {meta.sections.map((s) => (
+            <button key={s.id} onClick={() => { setSection(s.id); setQuery(''); setFieldErrors({}); }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${section === s.id && !q ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted hover:bg-surface3'}`}>
+              {s.label}
+              {dirtyInSection(s.id) && <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-400 align-middle" title="Unsaved changes" />}
+            </button>
+          ))}
+        </div>
+        {dirtyFields.length > 0 && (
+          <div className="pt-3 space-y-2">
+            <div className="text-xs font-semibold text-amber-700">{dirtyFields.length} unsaved change{dirtyFields.length === 1 ? '' : 's'}</div>
+            <Btn onClick={() => saveScope(meta.settings, 'settings')} disabled={busy}>Save all changes</Btn>
+          </div>
+        )}
       </nav>
       <div className="flex-1 min-w-0">
-        <Card title={sectionLabel} description={section === 'appearance' ? 'Colours apply live to the shop (theme + browser tab colour).' : undefined}>
-          {section === 'appearance' && (
+        <Card title={sectionLabel}
+          description={section === 'appearance' && !q ? 'Colours apply live to the shop (theme + browser tab colour).' : (q ? 'Results from every section.' : undefined)}>
+          {section === 'appearance' && !q && (
             <div className="mb-4">
               <span className={label}>Palette presets</span>
               <div className="flex flex-wrap gap-2">
@@ -1875,11 +1977,36 @@ function Settings({ reload, token }) {
             </div>
           )}
           <div className="grid sm:grid-cols-2 gap-3">{fields.map(renderField)}</div>
-          <div className="mt-4 flex items-center gap-3">
-            <Btn onClick={saveSection} disabled={busy || !values}>{busy ? 'Saving…' : `Save ${sectionLabel.toLowerCase()}`}</Btn>
-            <span className="text-xs text-muted">{fields.length} settings in this section</span>
+          {q && fields.length === 0 && <p className="text-sm text-muted py-4">No settings match “{query}”.</p>}
+          <div className="mt-4 flex items-center gap-3 flex-wrap">
+            <Btn onClick={() => saveScope(fields, q ? 'searched settings' : `${sectionLabel.toLowerCase()} settings`)} disabled={busy || !values}>
+              {busy ? 'Saving…' : `Save ${q ? `${fields.length} result${fields.length === 1 ? '' : 's'}` : sectionLabel.toLowerCase()}`}
+            </Btn>
+            {!q && (
+              <button type="button" onClick={() => resetScope(fields, sectionLabel)} disabled={busy}
+                className="text-xs font-semibold text-muted hover:text-ink underline">Reset section to defaults</button>
+            )}
+            <span className="text-xs text-muted">
+              {fields.length} setting{fields.length === 1 ? '' : 's'}
+              {!q && dirtyInSection(section) && <span className="text-amber-600 font-semibold"> • unsaved changes</span>}
+            </span>
           </div>
         </Card>
+        {section === 'notifications' && !q && (
+          <div className="mt-4">
+            <Card title="Send a test email" description="Checks SMTP from here without placing an order — tells you straight away whether SMTP is configured.">
+              <div className="flex gap-2">
+                <input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="you@example.com" className={input} />
+                <Btn onClick={sendTest} disabled={testBusy || !testTo.trim()}>{testBusy ? 'Sending…' : 'Send test'}</Btn>
+              </div>
+              {testResult && (
+                <div className={`text-xs mt-2 rounded-xl px-3 py-2 border ${testResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                  {testResult.message}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

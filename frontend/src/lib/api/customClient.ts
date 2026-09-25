@@ -205,6 +205,8 @@ export const adminApi = {
     all: (token: string) => req<any>('/api/settings/all', { token }),
     schema: (token: string) => req<any>('/api/settings/schema', { token }),
     save: (body: any, token: string) => req<any>('/api/settings', { method: 'PUT', body: JSON.stringify(body), token }),
+    reset: (keys: string[], token: string) => req<any>('/api/settings/reset', { method: 'POST', body: JSON.stringify({ keys }), token }),
+    testEmail: (to: string, token: string) => req<any>('/api/settings/test-email', { method: 'POST', body: JSON.stringify({ to }), token }),
   },
   users: {
     list: (token: string) => req<any[]>('/api/users', { token }),
