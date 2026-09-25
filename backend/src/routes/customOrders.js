@@ -10,7 +10,6 @@ import { pricingConfig } from '../services/bomPricing.js';
 
 const router = Router();
 const customOrderLimit = rateLimit('custom_order_create', 10, 1);
-const requireAuth = authenticate;
 
 const STATE_ORDER = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready'];
 

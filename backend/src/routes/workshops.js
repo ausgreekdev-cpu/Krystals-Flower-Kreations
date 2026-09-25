@@ -4,7 +4,6 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { validate } from '../middleware/validate.js';
 import { sendWorkshopConfirmation } from '../services/email.js';
 
 const router = Router();

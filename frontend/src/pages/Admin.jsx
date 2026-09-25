@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClient';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
@@ -30,7 +30,6 @@ const TABS = [
 const ORDER_FLOW = ['pending_payment', 'paid', 'making', 'ready', 'shipped', 'delivered'];
 
 function AdminInner({ user }) {
-  const toast = useToast();
   const params = new URLSearchParams(window.location.search);
   const [tab, setTab] = useState(params.get('tab') || 'overview');
   const [data, setData] = useState({});
@@ -128,7 +127,7 @@ function AdminInner({ user }) {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(tab); window.history.replaceState(null, '', `?tab=${tab}`); /* eslint-disable-next-line */ }, [tab]);
+  useEffect(() => { load(tab); window.history.replaceState(null, '', `?tab=${tab}`); }, [tab]);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -255,7 +254,6 @@ const Btn = ({ children, onClick, color = 'royal', disabled, small }) => (
 function Overview({ data, onOpen }) {
   const orders = Array.isArray(data.orders) ? data.orders : [];
   const low = Array.isArray(data.low) ? data.low : [];
-  const workshops = Array.isArray(data.workshops) ? data.workshops : [];
   const today = orders.filter((o) => new Date(o.createdAt).toDateString() === new Date().toDateString());
   const revenueToday = today.reduce((a, o) => a + Number(o.total || 0), 0);
   const revenueMonth = orders.filter((o) => new Date(o.createdAt).getMonth() === new Date().getMonth()).reduce((a, o) => a + Number(o.total || 0), 0);
@@ -539,7 +537,7 @@ function LocationModal({ location, onClose, onSaved, token }) {
   </Modal>;
 }
 
-function InventoryLow({ data, reload, token }) {
+function InventoryLow({ token }) {
   const [low, setLow] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { adminApi.inventory.lowStock(token).then((d) => { setLow(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false)); }, [token]);
@@ -729,11 +727,11 @@ function InventoryTransfer({ data, reload, token }) {
   );
 }
 
-function InventoryMovements({ data, reload, token }) {
+function InventoryMovements({ token }) {
   const [page, setPage] = useState(1);
   const [type, setType] = useState('');
   const [movs, setMovs] = useState({ data: [], total: 0, page: 1, pages: 1 });
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const TYPES = ['in', 'out', 'adjustment', 'sale', 'return', 'stocktake', 'po', 'transfer', 'bom_deduct'];
   useEffect(() => {
     setLoading(true);
@@ -1094,7 +1092,7 @@ function RecipeModal({ recipe, materials, products, onClose, onSaved, token }) {
   const [productId, setProductId] = useState(recipe?.productId || '');
   const [labour, setLabour] = useState(recipe?.labourMinutesPerUnit ?? 25);
   const [cricut, setCricut] = useState(recipe?.cricutMinutesPerUnit ?? 8);
-  const [lines, setLines] = useState(() => (recipe?.lines || []).map((l) => ({ rawMaterialId: l.rawMaterialId, qtyPerUnit: Number(l.qtyPerUnit) || 1, wasteFactor: Number(l.wasteFactor) ?? 0.05 })));
+  const [lines, setLines] = useState(() => (recipe?.lines || []).map((l) => ({ rawMaterialId: l.rawMaterialId, qtyPerUnit: Number(l.qtyPerUnit) || 1, wasteFactor: Number.isFinite(Number(l.wasteFactor)) ? Number(l.wasteFactor) : 0.05 })));
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-gray-600 mb-1';
@@ -1175,7 +1173,7 @@ function Collections({ data, reload, token }) {
 function CollectionModal({ collection, products, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({ title: collection?.title || '', slug: collection?.slug || '', description: collection?.description || '', isActive: collection ? !!collection.isActive : true }));
-  const [members, setMembers] = useState(() => (collection?.products || []).map((p) => ({ id: p.product?.id || p.productId, title: p.product?.title || p.productId, sortOrder: p.sortOrder || 0 })));
+  const [members] = useState(() => (collection?.products || []).map((p) => ({ id: p.product?.id || p.productId, title: p.product?.title || p.productId, sortOrder: p.sortOrder || 0 })));
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-gray-600 mb-1';

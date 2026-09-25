@@ -5,7 +5,6 @@ import { startServer, api } from './helpers.js';
 // Batch A regression tests: status machine/restock, IDOR, role escalation, health.
 let srv;
 let adminToken;
-let adminUserId;
 let customerToken;
 let customerUserId;
 const customerEmail = `hardening_${Date.now()}@test.com`;
@@ -15,7 +14,7 @@ before(async () => {
   const admin = await api(srv.base, '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }) });
   adminToken = admin.body.token;
   const me = await api(srv.base, '/api/auth/me', { headers: { Authorization: `Bearer ${adminToken}` } });
-  adminUserId = me.body.user.id;
+  assert.equal(me.status, 200);
   const reg = await api(srv.base, '/api/auth/register', { method: 'POST', body: JSON.stringify({ name: 'Hardening Tester', email: customerEmail, password: 'secret123' }) });
   customerToken = reg.body.token;
   const cme = await api(srv.base, '/api/auth/me', { headers: { Authorization: `Bearer ${customerToken}` } });

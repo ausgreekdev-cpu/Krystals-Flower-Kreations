@@ -15,7 +15,7 @@ const TEMPLATES = [
 ];
 
 export default function Configurator(){
-  const { spec, setSpec, unitPrice } = useConfiguratorStore();
+  const { spec, setSpec } = useConfiguratorStore();
   const est = estimateLocalPrice(spec);
   const [form,setForm]=useState({ email:'', name:'', postcode:'6000' });
   const [msg,setMsg]=useState(''); const [err,setErr]=useState('');

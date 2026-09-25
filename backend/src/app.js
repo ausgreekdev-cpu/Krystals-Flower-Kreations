@@ -42,7 +42,6 @@ import { globalRateLimit } from './middleware/rate-limit.js';
 import { notFound, errorHandler } from './middleware/error-handler.js';
 import { asyncHandler } from './middleware/async-handler.js';
 import prisma from './lib/prisma.js';
-import { authenticate, roleAtLeast } from './lib/auth.js';
 import { validateEnv } from './lib/config.js';
 
 validateEnv();

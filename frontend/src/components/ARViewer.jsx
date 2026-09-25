@@ -5,7 +5,6 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
   // Free CDN placeholder GLBs (public domain) — swap to your Blender export at /3d/<slug>.glb when ready
   // For $0, we show CSS fallback and lazy-load model-viewer only if glb exists at /3d/${productSlug}.glb
   const glb = `/3d/${productSlug}.glb`;
-  const usdz = `/3d/${productSlug}.usdz`;
   return (
     <div className="bg-gradient-to-br from-bloom-50 to-white rounded-2xl border p-4">
       <div className="flex justify-between items-center">

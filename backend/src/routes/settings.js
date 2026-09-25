@@ -36,7 +36,7 @@ router.put('/', requireAuth, requireRole('admin','developer'), asyncHandler(asyn
   const body = req.body || {};
   const keys = Object.keys(body).filter(k => typeof k === 'string' && k.length <= 100);
   if (!keys.length) return res.status(400).json({ error: 'No settings provided', code: 'validation_failed' });
-  const tx = await prisma.$transaction(
+  await prisma.$transaction(
     keys.map(k => prisma.setting.upsert({
       where: { key: k },
       create: { key: k, value: String(body[k]) },
