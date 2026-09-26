@@ -28,7 +28,7 @@ Download and keep a bouquet forever.
 
 —
 
-Support: krystal@krystalsflowerkreations.com.au • Perth WA • https://krystalsflowerkreations.com.au
-Privacy: https://krystalsflowerkreations.com.au/privacy
+Support: krystal@krystalsflowerkreations.com.au • Perth WA • https://krystalsflowercreations.com.au
+Privacy: https://krystalsflowercreations.com.au/privacy
 
 Keywords: paper flowers, everlasting bouquet, Cricut, origami, Perth florist, armature art, workshop

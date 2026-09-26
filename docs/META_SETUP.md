@@ -5,7 +5,7 @@ This project treats our Postgres as source of truth and pushes to Meta Catalog �
 ## Steps
 
 1. **Meta Business Manager** — create at business.facebook.com, add your Facebook Page + Instagram Business/Creator (convert IG to Business, connect to Page).
-2. **Domain verify** — in Business Settings → Brand Safety → Domains, add `krystalsflowerkreations.com.au` (DNS TXT or meta tag on frontend `index.html`).
+2. **Domain verify** — in Business Settings → Brand Safety → Domains, add `krystalsflowercreations.com.au` (DNS TXT or meta tag on frontend `index.html`).
 3. **Create Catalog** — Commerce Manager → Catalogs → Create, type `Ecommerce`. Note `META_CATALOG_ID`.
 4. **Create Meta App** — developers.facebook.com → Create App (Business), add `Marketing API` + `Instagram Graph API`. Copy `META_APP_ID` + `META_APP_SECRET`.
 5. **Access token** — Graph Explorer → select App, grant `catalog_management`, `business_management`, `instagram_basic`, `pages_show_list`, `pages_read_engagement`. Generate user token, extend to long-lived (60d), exchange for Page token. Set `META_ACCESS_TOKEN`.

@@ -2,7 +2,7 @@
 
 **Last updated:** 29 August 2026 • **Perth WA** • Contact: krystal@krystalsflowerkreations.com.au
 
-> Host this at `https://krystalsflowerkreations.com.au/privacy` (required for Play Store). Replace `[ABN XX XXX XXX XXX]` and legal entity before publishing.
+> Host this at `https://krystalsflowercreations.com.au/privacy` (required for Play Store). Replace `[ABN XX XXX XXX XXX]` and legal entity before publishing.
 
 ## 1. Who we are
 Krystal’s Flower Kreations (Perth WA, ABN [XX XXX XXX XXX]) — custom paper florist + armature art workshop (Cricut + origami). App: `com.krystalsflowerkreations.shop`.

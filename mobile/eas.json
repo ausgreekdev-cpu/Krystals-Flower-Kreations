@@ -24,7 +24,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.krystalsflowerkreations.com.au",
+        "EXPO_PUBLIC_API_URL": "https://krystalsflowercreations.com.au",
         "EXPO_PUBLIC_SUPABASE_URL": "https://tyyqnlfzhgxvnqmicgfr.supabase.co"
       },
       "channel": "production"

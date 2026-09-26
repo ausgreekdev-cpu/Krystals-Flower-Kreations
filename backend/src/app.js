@@ -68,6 +68,8 @@ app.use(helmet({
 
 // CORS — explicit origin list, no credentials needed (Bearer header)
 const defaultOrigins = [
+  'https://krystalsflowercreations.com.au',
+  'https://www.krystalsflowercreations.com.au',
   'http://localhost:5173',
   'http://localhost:3001',
   'https://krystalsflowerkreations.netlify.app',

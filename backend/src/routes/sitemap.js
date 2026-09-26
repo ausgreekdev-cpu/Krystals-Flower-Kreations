@@ -6,7 +6,7 @@ const router = Router();
 
 // Dynamic sitemap from products (for SEO, complements static frontend/public/sitemap.xml)
 router.get('/sitemap.xml', asyncHandler(async (req, res) => {
-  const origin = process.env.FRONTEND_URL?.split(',')[0] || 'https://krystalsflowerkreations.netlify.app';
+  const origin = process.env.FRONTEND_URL?.split(',')[0] || 'https://krystalsflowercreations.com.au';
   const products = await prisma.product.findMany({ where: { isActive: true }, select: { slug: true, updatedAt: true }, take: 500, orderBy: { updatedAt: 'desc' } });
   const urls = [
     { loc: `${origin}/`, changefreq: 'weekly', priority: '1.0' },

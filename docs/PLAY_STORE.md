@@ -20,12 +20,12 @@
 2. **Store listing (Grow → Store presence → Main store listing)**
    - Short desc (≤80): `Perth paper florist — everlasting Cricut + origami bouquets, custom configurator & workshops.`
    - Full desc (use `docs/STORE_LISTING.md`), Icon 512 (use `assets/icon.png`), Feature graphic 1024×500 (`feature-graphic.png`), Screenshots 2-8 (phone 16:9, 7" tablet): Shop, Configurator, Cart, Kanban, Workshop ticket QR.
-   - Contact: `krystal@krystalsflowerkreations.com.au`, website `https://krystalsflowerkreations.com.au`, phone `+61 8 XXXX XXXX`, address Perth WA (required for shopping + payments).
+   - Contact: `krystal@krystalsflowerkreations.com.au`, website `https://krystalsflowercreations.com.au`, phone `+61 8 XXXX XXXX`, address Perth WA (required for shopping + payments).
    - Categorisation: `Shopping`, tags `flowers, paper craft, Cricut`.
    - Store settings: no ads, no membership.
 
 3. **Privacy, Declarations & Safety**
-   - `docs/PRIVACY_POLICY.md` URL required — host at `https://krystalsflowerkreations.com.au/privacy` (template provided, fill ABN).
+   - `docs/PRIVACY_POLICY.md` URL required — host at `https://krystalsflowercreations.com.au/privacy` (template provided, fill ABN).
    - Data safety form: collect `email, name, address, purchase history` — encrypted in transit, not shared, account deletion via `krystal@…` (see `PRIVACY_POLICY`).
    - Target audience 13+, no children, no government, no health.
    - Content rating questionnaire → `Everyone`.
@@ -54,6 +54,6 @@ cd android && ./gradlew :app:bundleRelease  # or eas build --platform android --
 
 ## Deferred (Not Blocking Store Listing)
 
-- Replace placeholder `EXPO_PUBLIC_API_URL` https placeholder in `eas.json` env with live `api.krystalsflowerkreations.com.au` or Supabase URL.
+- Replace placeholder `EXPO_PUBLIC_API_URL` https placeholder in `eas.json` env with live `https://krystalsflowercreations.com.au` or Supabase URL.
 - Real product screenshots (replace dev picsum) and trimmed `READ_EXTERNAL_STORAGE` notes.
 - Upload keystore backup: `eas credentials` → download + vault.

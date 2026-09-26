@@ -13,7 +13,7 @@ eas project:init          # links to expo.dev projectId → writes to app.json e
 - `mobile/pc-api-key.json` — Google Play service account JSON (Play Console → Setup → API access → Create service account → Grant to “Admin (all permissions)”)
 - `mobile/.env` / EAS secrets:
   ```bash
-  eas secret:create --scope project --name EXPO_PUBLIC_API_URL --value https://api.krystalsflowerkreations.com.au
+  eas secret:create --scope project --name EXPO_PUBLIC_API_URL --value https://krystalsflowercreations.com.au
   eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value https://xyz.supabase.co
   eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value eyJ...
   ```

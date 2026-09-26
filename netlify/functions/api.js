@@ -22,11 +22,18 @@ export async function handler(event, context) {
     } catch (err) {
       console.error('[netlify api] boot failed:', err);
       console.error(err?.stack || String(err));
+      // Env-validation messages name the offending variable but never its value —
+      // safe (and far more actionable) than a bare boot_failed. Anything else
+      // stays opaque here; the full stack is always in the function log.
+      const msg = String(err?.message || '');
+      const safeReason = msg.startsWith('Environment misconfigured') || msg.includes('JWT_SECRET')
+        ? msg
+        : 'module_import_failed';
       return {
         statusCode: 500,
         headers: { 'Content-Type': 'application/json' },
         // Details are in the function log; never expose stack traces to clients
-        body: JSON.stringify({ error: 'Service temporarily unavailable', code: 'boot_failed' }),
+        body: JSON.stringify({ error: 'Service temporarily unavailable', code: 'boot_failed', reason: safeReason }),
       };
     }
   }
