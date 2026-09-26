@@ -15,25 +15,34 @@ export async function handler(event, context) {
   }
   if (!appHandler) {
     try {
-      let app;
+      let app = null;
+      // Two candidate paths (repo-root vs base=mobile views). Keep BOTH as
+      // literal specifiers so esbuild bundles them; but remember every error so
+      // the reported failure is the REAL one, not the fallback path's 404.
+      const errs = [];
       try { app = (await import('../../backend/src/app.js')).default; }
-      catch { app = (await import('../../../backend/src/app.js')).default; }
+      catch (e1) {
+        errs.push(e1);
+        try { app = (await import('../../../backend/src/app.js')).default; }
+        catch (e2) { errs.push(e2); }
+      }
+      if (!app) {
+        // Prefer an evaluation error (env validation, missing package, …) over a
+        // bare "couldn't find app.js" from the wrong base directory.
+        const evalErr = errs.find((e) => !String(e?.message || '').includes('backend/src/app.js'));
+        throw evalErr || errs[0];
+      }
       appHandler = serverless(app);
     } catch (err) {
       console.error('[netlify api] boot failed:', err);
       console.error(err?.stack || String(err));
-      // Env-validation messages name the offending variable but never its value —
-      // safe (and far more actionable) than a bare boot_failed. Anything else
-      // stays opaque here; the full stack is always in the function log.
-      const msg = String(err?.message || '');
-      const safeReason = msg.startsWith('Environment misconfigured') || msg.includes('JWT_SECRET')
-        ? msg
-        : 'module_import_failed';
+      // Error MESSAGE only (no stack): names the offending file/package/variable,
+      // never a secret. Full stack stays in the Netlify function log.
+      const reason = String(err?.message || err || 'unknown error').slice(0, 400);
       return {
         statusCode: 500,
         headers: { 'Content-Type': 'application/json' },
-        // Details are in the function log; never expose stack traces to clients
-        body: JSON.stringify({ error: 'Service temporarily unavailable', code: 'boot_failed', reason: safeReason }),
+        body: JSON.stringify({ error: 'Service temporarily unavailable', code: 'boot_failed', reason }),
       };
     }
   }
