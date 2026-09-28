@@ -40,5 +40,8 @@ jobs:
         with: { node-version: '20' }
       - run: npm ci --workspace=backend --include=dev
       - run: cd backend && npx prisma db push --skip-generate
+      # db push --skip-generate leaves @prisma/client as the un-generated stub →
+      # seed/tests crash with "did not initialize yet". Generate explicitly.
+      - run: cd backend && npx prisma generate
       - run: cd backend && npm run seed
       - run: cd backend && npm test
