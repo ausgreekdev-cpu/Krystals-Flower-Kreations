@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import NotebookPanel from '../components/NotebookPanel';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 export default function Workshops(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -29,14 +31,15 @@ export default function Workshops(){
   }
   if(loading) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="animate-pulse bg-surface2 border rounded-2xl p-6 h-32">Loading workshops…</div></div>;
   if(err) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">Failed to load workshops: {err} <button onClick={()=>window.location.reload()} className="ml-2 underline">Retry</button></div></div>;
-  if(!loading && items.length===0) return <div className="max-w-4xl mx-auto px-4 py-8 text-center"><h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1><p className="text-muted mt-2">No workshops yet — check back or design via Configurator.</p><a href="/configurator" className="mt-4 inline-block bg-bloom-500 text-white px-6 py-3 rounded-xl">Design Custom Bouquet</a></div>;
+  if(!loading && items.length===0) return <div className="max-w-4xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Workshops'}]} /><h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1><p className="text-muted mt-2">No workshops yet — check back or design via Configurator.</p><Link to="/configurator" className="mt-4 inline-block bg-bloom-500 text-white px-6 py-3 rounded-xl">Design Custom Bouquet</Link></div>;
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <Breadcrumbs items={[{label:'Workshops'}]} />
       <h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1>
       <p className="text-muted mt-2">Cricut Blooms 101, Origami Bouquet & Armature Art. Max 12, kits included.</p>
       <div className="mt-4 bg-surface border border-bloom-100 rounded-xl px-4 py-3 flex justify-between items-center">
         <span className="text-sm text-ink">Before you book, explore Notebook guide — supplies & folding previews</span>
-        <a href="/notebook?workshop=cricut-blooms-101" className="text-xs bg-surface2 border rounded-full px-3 py-1 hover:bg-surface3">Notebook →</a>
+        <Link to="/notebook?workshop=cricut-blooms-101" className="text-xs bg-surface2 border rounded-full px-3 py-1 hover:bg-surface3">Notebook →</Link>
       </div>
       <div className="mt-6 bg-surface2 border rounded-2xl p-4">
         <h3 className="font-bold text-sm">Book a session</h3>

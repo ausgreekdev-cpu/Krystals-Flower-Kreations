@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { authApi, setSession } from '../lib/api/customClient';
 
 const STAFF_ROLES = ['staff', 'maker', 'admin', 'developer'];
@@ -29,7 +30,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-surface3 flex items-center justify-center p-4">
+    <div className="min-h-[70vh] bg-surface3 flex items-center justify-center p-4">
       <form onSubmit={submit} className="w-full max-w-sm bg-surface2 border border-line rounded-2xl shadow-sm p-6 space-y-4">
         <div className="flex items-center gap-2">
           <span className="w-9 h-9 rounded-xl bg-royal-600 flex items-center justify-center text-white font-black">K</span>
@@ -53,7 +54,7 @@ export default function Login() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
         {import.meta.env.DEV && <p className="text-[11px] text-muted text-center">Dev seed: admin@krystal.local / admin123</p>}
-        <a href="/" className="block text-center text-xs text-muted hover:underline">← Back to shop</a>
+        <Link to="/" className="block text-center text-xs text-muted hover:underline">← Back to shop</Link>
       </form>
     </div>
   );

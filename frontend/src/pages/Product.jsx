@@ -1,7 +1,8 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { cartApi } from '../lib/api/customClient';
 import { usePublicSettings } from '../lib/publicSettings';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 
 export default function Product(){
   const s = usePublicSettings();
@@ -23,14 +24,16 @@ export default function Product(){
     }catch(e){ setErr(e.message || 'Failed to add'); }
   }
   if(!p) return <div className="p-8 text-center"><div className="animate-pulse bg-surface h-64 rounded-2xl"/><p className="mt-4 text-muted">Loading bloom…</p></div>;
-  if(p.error) return <div className="p-8 text-center"><div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">Failed to load product: {err || 'Not found'}</div></div>;
+  if(p.error) return <div className="p-8 text-center"><div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">Failed to load product: {err || 'Not found'} <div className="mt-3"><Link to="/shop" className="underline font-bold">← Back to Shop</Link></div></div></div>;
   const variantsArr = Array.isArray(p.variants) ? p.variants : [];
   const imagesArr = Array.isArray(p.images) ? p.images : [];
   const activePrice = Number(variantId? variantsArr.find(v=>v.id===variantId)?.price : p.price);
   const stock = variantsArr.find(v=>v.id===variantId)?.inventoryQuantity ?? (p.stockMode==='tracked' ? 0 : 999);
   const lowStock = p.stockMode==='tracked' && stock!==999 && stock < 5;
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 grid md:grid-cols-2 gap-8">
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:p.title}]} />
+      <div className="grid md:grid-cols-2 gap-8">
       <div className="space-y-3">
         <img loading="eager" decoding="async" src={imagesArr[0]?.url || `/placeholder-bloom.jpg`} alt={p.title} width="800" height="800" className="rounded-2xl w-full shadow-sm" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
         {imagesArr.length>1 && <div className="flex gap-2 overflow-auto">{imagesArr.slice(1,5).map(im=><img key={im.id} src={im.url} alt="" loading="lazy" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
@@ -57,6 +60,7 @@ export default function Product(){
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">Click & collect 6000</span>
         </div>
         <div className="mt-4 text-xs text-muted border-t pt-3">{`Earn ${s.loyalty_earn_rate || 1} Bloom pt per $1 • Blossom at ${s.loyalty_blossom_threshold || 100} pts • Free Perth delivery over $${Number(s.shipping_free_over) || 150}`}</div>
+      </div>
       </div>
     </div>
   );

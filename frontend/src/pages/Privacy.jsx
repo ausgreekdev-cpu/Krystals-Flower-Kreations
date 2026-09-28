@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePublicSettings } from '../lib/publicSettings';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 
 export default function Privacy(){
   const s = usePublicSettings();
@@ -13,6 +14,7 @@ export default function Privacy(){
   }, []);
   return (
     <div className="max-w-3xl mx-auto p-6">
+      <Breadcrumbs items={[{label:'Privacy'}]} />
       <h1 className="text-2xl font-black text-ink">Privacy Policy</h1>
       <p className="text-xs text-muted mt-1">Perth WA • ABN on invoice • Hosted at https://krystalsflowercreations.com.au/privacy</p>
       <div className="mt-6 bg-surface2 border rounded-2xl p-6 prose prose-sm max-w-none whitespace-pre-wrap text-sm text-ink">{html}</div>

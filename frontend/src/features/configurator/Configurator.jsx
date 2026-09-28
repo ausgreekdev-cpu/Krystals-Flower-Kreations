@@ -4,6 +4,7 @@ import { ordersApi } from '../../lib/api/customClient';
 import { usePublicSettings } from '../../lib/publicSettings';
 import ARViewer from '../../components/ARViewer';
 import NotebookPanel from '../../components/NotebookPanel';
+import Breadcrumbs from '../../components/layout/Breadcrumbs';
 
 const TEXTURES = ['textured','smooth','pearl','linen'];
 const WEIGHTS = ['65lb','80lb','110lb'];
@@ -40,6 +41,7 @@ export default function Configurator(){
   }
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
+      <Breadcrumbs items={[{label:'Configurator'}]} />
       <h1 className="text-2xl font-black text-ink">Custom Bouquet Configurator</h1>
       <p className="text-sm text-muted">Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.</p>
       <section className="bg-surface2 p-4 rounded-2xl border">

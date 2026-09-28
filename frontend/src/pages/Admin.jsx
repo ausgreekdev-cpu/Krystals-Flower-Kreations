@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClient';
 import { subscribe, nextColorMode, getColorMode, MODES } from '../lib/colorMode';
 import { applyTheme } from '../lib/theme';
@@ -32,9 +33,20 @@ const TABS = [
 
 const ORDER_FLOW = ['pending_payment', 'paid', 'making', 'ready', 'shipped', 'delivered'];
 
+// Sidebar/strip grouping — tab ids only, deep-links (?tab=) unchanged.
+const NAV_GROUPS = [
+  { label: null, tabs: ['overview'] },
+  { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
+  { label: 'Catalog', tabs: ['products', 'collections', 'recipes', 'inventory'] },
+  { label: 'Content', tabs: ['blog', 'reviews', 'meta', 'notebook'] },
+  { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping'] },
+  { label: 'System', tabs: ['users', 'settings'] },
+];
+
 function AdminInner({ user }) {
   const params = new URLSearchParams(window.location.search);
   const [tab, setTab] = useState(params.get('tab') || 'overview');
+  const [navQ, setNavQ] = useState('');
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
@@ -136,25 +148,43 @@ function AdminInner({ user }) {
 
   useEffect(() => { load(tab); window.history.replaceState(null, '', `?tab=${tab}`); }, [tab]);
 
+  const tabMatches = (t) => !navQ.trim() || t.label.toLowerCase().includes(navQ.trim().toLowerCase());
+  const groupTabs = (g) => g.tabs.map((id) => TABS.find((t) => t.id === id)).filter(Boolean).filter(tabMatches);
+
   return (
     <div className="min-h-screen bg-surface3">
       <div className="flex">
         <aside className="w-56 shrink-0 bg-black min-h-screen p-4 hidden lg:block">
-          <div className="flex items-center gap-2 px-2 py-3">
+          <Link to="/" className="flex items-center gap-2 px-2 py-3 hover:opacity-80" title="Back to storefront">
             <span className="w-9 h-9 rounded-xl bg-royal-600 flex items-center justify-center text-white font-black">K</span>
             <div>
               <div className="text-white font-black text-sm leading-tight">Studio Manager</div>
               <div className="text-white/50 text-[10px]">Admin Console</div>
             </div>
-          </div>
-          <nav className="mt-4 space-y-1">
-            {TABS.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-left transition-colors ${tab === t.id ? 'bg-royal-600 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
-                <span>{t.icon}</span>{t.label}
-              </button>
-            ))}
+          </Link>
+          <input value={navQ} onChange={(e) => setNavQ(e.target.value)} placeholder="Jump to…"
+            className="mt-3 w-full bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-royal-500" />
+          <nav className="mt-3 space-y-3">
+            {NAV_GROUPS.map((g) => {
+              const tabs = groupTabs(g);
+              if (!tabs.length) return null;
+              return (
+                <div key={g.label || 'top'}>
+                  {g.label && <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-white/40">{g.label}</div>}
+                  <div className="space-y-1">
+                    {tabs.map((t) => (
+                      <button key={t.id} onClick={() => { setTab(t.id); setNavQ(''); }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-left transition-colors ${tab === t.id ? 'bg-royal-600 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
+                        <span>{t.icon}</span>{t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {!NAV_GROUPS.some((g) => groupTabs(g).length > 0) && <div className="px-3 text-xs text-white/40">No match</div>}
           </nav>
+          <Link to="/" className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-white/70 hover:bg-white/10 hover:text-white border border-white/10">🏠 View storefront</Link>
           <div className="mt-6 border-t border-white/10 pt-4 px-2">
             <div className="text-white text-xs font-semibold truncate">{user?.name || user?.email}</div>
             <div className="text-white/50 text-[10px] truncate">{user?.email} • {user?.role}</div>
@@ -168,7 +198,10 @@ function AdminInner({ user }) {
 
         <div className="flex-1 min-w-0">
           <header className="bg-surface2 border-b border-line px-6 py-4 flex items-center justify-between lg:hidden">
-            <h1 className="font-black text-royal-700">Studio Manager</h1>
+            <div className="flex items-center gap-2">
+              <Link to="/" className="text-xs border border-line-strong rounded-full px-3 py-1.5 text-muted">🏠 Home</Link>
+              <h1 className="font-black text-royal-700">Studio Manager</h1>
+            </div>
             <div className="flex items-center gap-2">
               <button onClick={toggleColorMode} title={`Click for ${nextModeLabel}`}
                 className="text-xs border border-line-strong rounded-full px-3 py-1.5 text-muted">
@@ -183,16 +216,28 @@ function AdminInner({ user }) {
                 <h1 className="text-2xl font-black text-ink">{TABS.find((t) => t.id === tab)?.label}</h1>
                 <p className="text-xs text-muted mt-0.5">Krystal's Flower Kreations — Perth WA studio</p>
               </div>
-              <a href="/api/health" target="_blank" rel="noreferrer" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">Health</a>
+              <div className="flex items-center gap-2">
+                <Link to="/" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">🏠 Storefront</Link>
+                <a href="/api/health" target="_blank" rel="noreferrer" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">Health</a>
+              </div>
             </div>
             {err && <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{err}</div>}
 
-            {/* mobile tab strip */}
+            {/* mobile tab strip — grouped, filtered */}
             <div className="flex gap-1.5 overflow-x-auto mb-4 lg:hidden pb-1">
-              {TABS.map((t) => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${tab === t.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted'}`}>{t.icon} {t.label}</button>
-              ))}
+              {NAV_GROUPS.map((g) => {
+                const tabs = groupTabs(g);
+                if (!tabs.length) return null;
+                return (
+                  <div key={g.label || 'top'} className="flex gap-1.5 shrink-0 items-center">
+                    {g.label && <span className="text-[9px] font-bold uppercase text-muted px-1">{g.label}</span>}
+                    {tabs.map((t) => (
+                      <button key={t.id} onClick={() => setTab(t.id)}
+                        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${tab === t.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted'}`}>{t.icon} {t.label}</button>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="bg-surface2 border border-line rounded-2xl p-4 lg:p-6 shadow-sm min-h-[60vh]">
@@ -251,6 +296,7 @@ export default function AdminStudio() {
         <h1 className="font-black text-ink">Staff access only</h1>
         <p className="text-sm text-muted">This account doesn't have access to the studio console.</p>
         <button onClick={() => { clearSession(); window.location.assign('/login?next=/admin'); }} className="bg-royal-600 hover:bg-royal-700 text-white font-bold rounded-xl px-4 py-2 text-sm">Sign in as staff</button>
+        <Link to="/" className="block text-xs text-muted hover:underline">← Back to storefront</Link>
       </div>
     </div>
   );

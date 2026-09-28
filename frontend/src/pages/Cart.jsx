@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cartApi } from '../lib/api/customClient';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 
 export default function Cart(){
   const nav=useNavigate();
@@ -33,11 +34,12 @@ export default function Cart(){
   if(loading) return <div className="p-8 text-center"><div className="animate-pulse bg-surface2 border rounded-2xl p-6">Loading cart…</div></div>;
   const items = Array.isArray(cart?.items) ? cart.items : [];
   const subtotal = items.reduce((a,it)=> a + Number(it.priceSnapshot||it.unitPrice||0)*it.quantity, 0);
-  if(items.length===0) return <div className="max-w-3xl mx-auto px-4 py-8 text-center"><h1 className="text-2xl font-black text-ink">Your cart is empty</h1><p className="text-muted mt-2">Browse paper bouquets or design a custom bloom.</p><div className="mt-4 flex gap-3 justify-center"><Link to="/shop" className="bg-bloom-500 text-white px-6 py-2 rounded-full">Shop</Link><Link to="/configurator" className="border px-6 py-2 rounded-full">Configurator</Link></div></div>;
+  if(items.length===0) return <div className="max-w-3xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Cart'}]} /><h1 className="text-2xl font-black text-ink">Your cart is empty</h1><p className="text-muted mt-2">Browse paper bouquets or design a custom bloom.</p><div className="mt-4 flex gap-3 justify-center"><Link to="/shop" className="bg-bloom-500 text-white px-6 py-2 rounded-full">Shop</Link><Link to="/configurator" className="border px-6 py-2 rounded-full">Configurator</Link></div></div>;
   const gst = subtotal * 0.10 / 1.10;
   const youEarn = Math.floor(subtotal);
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <Breadcrumbs items={[{label:'Cart'}]} />
       <div className="flex justify-between items-center"><h1 className="text-2xl font-black text-ink">Cart — {items.length} item(s)</h1><button onClick={clearCart} className="text-xs border rounded-full px-3 py-1 hover:bg-red-50 hover:text-red-600">Clear</button></div>
       {err && <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{err} {err.includes('stock') && <span>— try lowering qty</span>}</div>}
       <div className="mt-6 space-y-3">

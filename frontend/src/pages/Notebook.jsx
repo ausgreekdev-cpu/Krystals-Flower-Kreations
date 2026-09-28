@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 
 const NOTEBOOK_ID = '459b06d5-2520-442a-ae3c-048b54c78902';
 const NOTEBOOK_URL = `https://notebooklm.google.com/notebook/${NOTEBOOK_ID}`;
@@ -22,6 +24,7 @@ export default function Notebook(){
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <Breadcrumbs items={[{label:'Notebook'}]} />
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-ink">Perth Studio Notebook — Research Hub</h1>
@@ -33,7 +36,7 @@ export default function Notebook(){
         </div>
       </div>
 
-      {q && <div className="mt-4 bg-surface border border-bloom-100 rounded-xl px-4 py-2 text-sm">Filtered by: <span className="font-bold">{q}</span> <a href="/notebook" className="ml-2 underline">Clear</a></div>}
+      {q && <div className="mt-4 bg-surface border border-bloom-100 rounded-xl px-4 py-2 text-sm">Filtered by: <span className="font-bold">{q}</span> <Link to="/notebook" className="ml-2 underline">Clear</Link></div>}
 
       <div className="mt-6 bg-surface2 border rounded-2xl overflow-hidden shadow-sm">
         <div className="bg-bloom-700 text-white px-4 py-2 flex justify-between items-center text-xs">
@@ -67,12 +70,12 @@ export default function Notebook(){
         <div className="bg-surface2 border rounded-2xl p-4">
           <h3 className="font-bold text-ink text-sm">Perth tips</h3>
           <p className="text-xs text-muted mt-2">Notebook holds our studio-tested Cricut Maker settings: 65lb Canson Blush — pressure 210, 80lb Sage — pressure 230, blade 45°, humidity 40-60%.</p>
-          <a href="/configurator" className="mt-3 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Try Configurator →</a>
+          <Link to="/configurator" className="mt-3 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Try Configurator →</Link>
         </div>
         <div className="bg-surface2 border rounded-2xl p-4">
           <h3 className="font-bold text-ink text-sm">For workshops</h3>
           <p className="text-xs text-muted mt-2">Before you book, explore guide: Cricut Blooms 101 kit list, origami lily folds.</p>
-          <a href="/workshops" className="mt-3 inline-block text-xs border rounded-full px-3 py-1.5 hover:bg-surface3">View Workshops →</a>
+          <Link to="/workshops" className="mt-3 inline-block text-xs border rounded-full px-3 py-1.5 hover:bg-surface3">View Workshops →</Link>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ordersApi } from '../lib/api/customClient';
 import { usePublicSettings } from '../lib/publicSettings';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 
 const PAY_LABELS = {
   pickup: 'Pickup Perth Studio — pay on collection',
@@ -65,6 +66,7 @@ export default function Checkout(){
   }
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <Breadcrumbs items={[{label:'Cart', to:'/cart'}, {label:'Checkout'}]} />
       <h1 className="text-2xl font-black text-ink">Checkout — Perth WA</h1>
       <p className="text-sm text-muted mt-2">{s.shipping_note || 'GST inclusive • Perth metro (12) / WA regional (18) / national (22) • free over $150 • Manual payments (Stripe paused) • Click & collect Perth'}</p>
       {minOrder > 0 && <p className="text-xs text-muted mt-1">Minimum order ${minOrder.toFixed(2)}</p>}

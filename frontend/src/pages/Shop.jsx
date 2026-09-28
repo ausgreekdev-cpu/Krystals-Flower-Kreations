@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../lib/publicSettings';
+import Breadcrumbs from '../components/layout/Breadcrumbs';
 
 export default function Shop(){
   const [q,setQ]=useState(new URLSearchParams(window.location.search).get('q') || ''); const [products,setProducts]=useState([]); const [filter,setFilter]=useState('all'); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
@@ -32,6 +33,7 @@ export default function Shop(){
   const subtitle = `Perth studio • Made-to-order ${s.handling_days_text || '3-7 days'} • Free Perth delivery over $${freeOver}`;
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <Breadcrumbs items={[{label:'Shop'}]} />
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div><h1 className="text-2xl md:text-3xl font-black text-ink">Shop — paper blooms & armature art</h1><p className="text-sm text-muted mt-1">{subtitle}</p></div>
         <div className="flex gap-2 flex-wrap">
