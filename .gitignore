@@ -19,3 +19,7 @@ android/
 ios/
 release/
 Market research/
+
+# Netlify build smoke artifacts (created/removed by netlify-build.sh)
+.netlify-smoke/
+.tmp-api-sim/

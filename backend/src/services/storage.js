@@ -11,8 +11,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOCAL_ROOT = path.resolve(__dirname, '../../uploads');
+// import.meta.url exists in native ESM, but Netlify's esbuild bundle converts
+// to CJS where import.meta is emptied ({}) — fileURLToPath(undefined) would
+// throw at boot. Fall back to CWD/uploads (dev runs with cwd = backend).
+const LOCAL_ROOT = (() => {
+  try { return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../uploads'); }
+  catch { return path.resolve(process.cwd(), 'uploads'); }
+})();
 
 const SAFE_KEY = /^[a-zA-Z0-9/_.-]+$/;
 

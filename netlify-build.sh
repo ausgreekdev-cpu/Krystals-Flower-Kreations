@@ -43,6 +43,31 @@ import('./src/app.js')
   .catch((e) => { console.error('BOOT SMOKE FAILED: ' + e.message); process.exit(1); });
 ")
 
+# Bundle smoke: esbuild-convert the function to CJS exactly like Netlify's bundler
+# does, then invoke it. Catches failures the raw-source check above cannot see —
+# e.g. import.meta emptied in CJS output (fileURLToPath(undefined) at boot) or
+# module-scope throws that only appear after bundling. Fails the DEPLOY loudly.
+echo ">>> API bundle smoke check (CJS, mirrors Netlify bundling)"
+rm -rf .netlify-smoke
+npx --no-install esbuild netlify/functions/api.js \
+  --bundle --platform=node --target=node18 --format=cjs --packages=external \
+  --outfile=.netlify-smoke/api.cjs
+(cd backend && NODE_ENV=production node -e "
+const handler = require('../.netlify-smoke/api.cjs').handler;
+handler({ httpMethod: 'GET', path: '/api/health', headers: {}, multiValueHeaders: {}, isBase64Encoded: false, requestContext: {}, rawBody: '' }, {})
+  .then((r) => {
+    const body = String(r.body || '');
+    if (r.statusCode === 500 && body.includes('boot_failed')) {
+      console.error('BOOT SMOKE FAILED: ' + body);
+      process.exit(1);
+    }
+    console.log('bundle boot smoke OK (status ' + r.statusCode + ')');
+    process.exit(0);
+  })
+  .catch((e) => { console.error('BOOT SMOKE FAILED: ' + e.message); process.exit(1); });
+")
+rm -rf .netlify-smoke
+
 # Fail fast with a clear message if devDependencies were skipped (NODE_ENV=production etc.)
 if ! npx --no-install vite --version >/dev/null 2>&1; then
   echo "ERROR: vite not found after install — devDependencies were skipped." >&2

@@ -90,9 +90,13 @@ app.use(express.json({ limit: '1mb', verify: (req, _res, buf) => {
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Static uploads (product images) — $0 local filesystem, served via /uploads.
-// Resolve relative to this module so uploads work regardless of CWD.
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadDir = path.resolve(__dirname, '../uploads');
+// Resolve relative to this module so uploads work regardless of CWD — but
+// import.meta.url is undefined in Netlify's CJS bundle (import.meta emptied),
+// so fall back to CWD rather than crashing boot (dir is non-writable on Lambda anyway).
+const uploadDir = (() => {
+  try { return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads'); }
+  catch { return path.resolve(process.cwd(), 'uploads'); }
+})();
 // Serverless filesystems (Netlify/Lambda) are read-only — never crash boot over this.
 try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'uploads dir not writable', dir: uploadDir, code: e.code })); }
 app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
