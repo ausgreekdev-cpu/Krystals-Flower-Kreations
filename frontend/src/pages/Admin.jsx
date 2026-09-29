@@ -1472,15 +1472,17 @@ function Blog({ data, reload, token }) {
 }
 function PostModal({ post, onClose, onSaved, token }) {
   const toast = useToast();
-  const [form, setForm] = useState({ title: post?.title || '', slug: post?.slug || '', excerpt: post?.excerpt || '', content: post?.content || '', status: post?.status || 'draft', tags: post?.tags || [] });
+  const [form, setForm] = useState({ title: post?.title || '', slug: post?.slug || '', excerpt: post?.excerpt || '', content: post?.content || '', status: post?.status || 'draft', tags: post?.tags || '', metaTitle: post?.metaTitle || '', metaDescription: post?.metaDescription || '' });
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
     try {
-      const tags = typeof form.tags === 'string' ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : form.tags;
-      const body = { ...form, tags };
+      // API expects tags as a comma-separated string (z.string) — normalise whatever the field holds
+      const tags = (Array.isArray(form.tags) ? form.tags.join(', ') : String(form.tags || ''))
+        .split(',').map((t) => t.trim()).filter(Boolean).join(', ');
+      const body = { ...form, tags, metaTitle: form.metaTitle.trim() || null, metaDescription: form.metaDescription.trim() || null };
       if (post) await adminApi.posts.update(post.id, body, token);
       else await adminApi.posts.create(body, token);
       onSaved();
@@ -1494,8 +1496,12 @@ function PostModal({ post, onClose, onSaved, token }) {
         <div><label className={label}>Slug</label><input className={input} value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
       </div>
       <div><label className={label}>Excerpt</label><input className={input} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} /></div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div><label className={label}>Meta title (SEO ≤70)</label><input className={input} maxLength={70} value={form.metaTitle} onChange={(e) => setForm({ ...form, metaTitle: e.target.value })} placeholder="Shown in Google results" /></div>
+        <div><label className={label}>Meta description (SEO ≤200)</label><input className={input} maxLength={200} value={form.metaDescription} onChange={(e) => setForm({ ...form, metaDescription: e.target.value })} placeholder="Short summary for search results" /></div>
+      </div>
       <div><label className={label}>Tags (comma-separated)</label><input className={input} value={Array.isArray(form.tags) ? form.tags.join(', ') : form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
-      <div><label className={label}>Content</label><textarea rows={8} className={input} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
+      <div><label className={label}>Content (markdown: ## heading, **bold**, - lists)</label><textarea rows={8} className={input} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.title}>{busy ? 'Saving…' : post ? 'Save changes' : 'Create post'}</Btn></div>
   </Modal>;

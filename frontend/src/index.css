@@ -56,3 +56,20 @@
 }
 
 * { font-family: var(--font-sans); }
+
+/* Blog post body — rendered by src/lib/markdown.js (no typography plugin) */
+.markdown-body { @apply text-ink leading-relaxed text-[15px]; }
+.markdown-body p { @apply mt-4; }
+.markdown-body h2 { @apply text-xl font-black text-ink mt-8 mb-2; }
+.markdown-body h3 { @apply text-lg font-bold text-ink mt-6 mb-2; }
+.markdown-body h4 { @apply text-base font-bold text-ink mt-5 mb-1; }
+.markdown-body h5, .markdown-body h6 { @apply text-sm font-bold text-ink mt-4 mb-1; }
+.markdown-body ul { @apply list-disc pl-5 mt-4 space-y-1; }
+.markdown-body ol { @apply list-decimal pl-5 mt-4 space-y-1; }
+.markdown-body li { @apply text-ink; }
+.markdown-body a { @apply text-highlight underline hover:opacity-80; }
+.markdown-body strong { @apply font-bold text-ink; }
+.markdown-body em { @apply italic; }
+.markdown-body code { @apply bg-surface3 px-1.5 py-0.5 rounded text-[13px]; }
+.markdown-body hr { @apply border-line my-8; }
+.markdown-body img { @apply rounded-2xl my-4 max-w-full; }

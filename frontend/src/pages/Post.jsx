@@ -1,8 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { renderMarkdown } from '../lib/markdown';
 
 const ORG = "Krystal's Flower Kreations";
+const DEFAULT_TITLE = "Krystal's Flower Kreations — Paper Florist Perth WA";
 
 export default function Post(){
   const {slug}=useParams(); const [p,setP]=useState(null); const [err,setErr]=useState('');
@@ -10,6 +12,15 @@ export default function Post(){
     setErr('');
     fetch(`/api/posts/${slug}`).then(r=>{ if(!r.ok) throw new Error(r.status===404?'Post not found':'Failed to load post'); return r.json(); }).then(setP).catch(e=>setErr(e.message||'Failed to load post'));
   }, [slug]);
+  // Per-post SEO head (Googlebot renders JS; SPA can't emit crawler-visible og:image)
+  useEffect(()=>{
+    if(!p || !p.title) return;
+    document.title = (p.metaTitle || `${p.title} | ${ORG}`).slice(0, 70);
+    const desc = (p.metaDescription || p.excerpt || '').slice(0, 170);
+    const meta = document.querySelector('meta[name="description"]');
+    if (meta && desc) meta.setAttribute('content', desc);
+    return () => { document.title = DEFAULT_TITLE; };
+  }, [p]);
   if(err) return <div className="max-w-3xl mx-auto px-4 py-8 text-center text-red-600">{err} — <Link to="/blog" className="underline font-bold">Back to Journal</Link></div>;
   if(!p) return <div className="max-w-3xl mx-auto px-4 py-8 text-center">Loading...</div>;
   const origin = window.location.origin;
@@ -17,7 +28,7 @@ export default function Post(){
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: p.title,
-    description: p.excerpt || undefined,
+    description: p.metaDescription || p.excerpt || undefined,
     image: p.coverImageUrl ? (p.coverImageUrl.startsWith('http') ? p.coverImageUrl : `${origin}${p.coverImageUrl}`) : undefined,
     datePublished: p.publishedAt ? new Date(p.publishedAt).toISOString().slice(0,10) : undefined,
     dateModified: p.updatedAt ? new Date(p.updatedAt).toISOString().slice(0,10) : undefined,
@@ -41,7 +52,23 @@ export default function Post(){
         <a href={`mailto:?subject=${shareText}&body=${shareUrl}`} className={shareCls}>Email</a>
         <button onClick={()=>navigator.clipboard.writeText(window.location.href)} className={shareCls}>Copy link</button>
       </div>
-      <div className="prose mt-6 whitespace-pre-wrap">{p.content}</div>
+      <div className="prose markdown-body mt-6" dangerouslySetInnerHTML={{__html: renderMarkdown(p.content || '')}} />
+      <section className="mt-8 border-t pt-6" aria-label="Related products">
+        <h2 className="font-black text-ink text-lg">Related products</h2>
+        {Array.isArray(p.products) && p.products.length > 0 ? (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {p.products.map(rp => rp.product && (
+              <Link key={rp.product.id} to={`/product/${rp.product.slug}`} className="bg-surface2 border rounded-2xl p-3 hover:shadow hover:border-bloom-100 transition">
+                <img loading="lazy" src={rp.product.images?.[0]?.url || '/placeholder-bloom.jpg'} alt={rp.product.title} className="w-full h-28 object-cover rounded-xl" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
+                <div className="font-bold text-sm text-ink mt-2 line-clamp-2">{rp.product.title}</div>
+                <div className="text-highlight font-bold text-sm">${Number(rp.product.price).toFixed(2)}</div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted mt-2">Fresh blooms, SVG templates & workshop tickets — <Link to="/shop" className="underline">browse the shop →</Link></p>
+        )}
+      </section>
     </div>
   );
 }

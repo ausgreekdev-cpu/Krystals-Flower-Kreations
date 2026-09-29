@@ -48,6 +48,8 @@ const schema = z.object({
   coverImageUrl: z.string().url().max(500).optional().nullable(),
   status: z.enum(['draft','review','published','archived']).default('draft'),
   tags: z.string().max(200).optional().nullable(),
+  metaTitle: z.string().max(70).optional().nullable(),
+  metaDescription: z.string().max(200).optional().nullable(),
   productIds: z.array(z.string().min(8).max(100)).max(20).optional(),
 }).strict();
 const patchSchema = schema.partial().strict();
@@ -71,8 +73,17 @@ router.post('/', requireAuth, requireRole('admin','developer','maker'), validate
 }));
 
 router.patch('/:id', requireAuth, requireRole('admin','developer','maker'), validate(patchSchema), asyncHandler(async (req, res) => {
-  const data = req.validated;
-  const post = await prisma.post.update({ where: { id: req.params.id }, data: { ...data, title: data.title?.slice(0,200), excerpt: data.excerpt?.slice(0,500), publishedAt: data.status === 'published' ? new Date() : undefined } });
+  const { productIds, ...rest } = req.validated;
+  const post = await prisma.post.update({
+    where: { id: req.params.id },
+    data: {
+      ...rest,
+      title: rest.title?.slice(0,200),
+      excerpt: rest.excerpt?.slice(0,500),
+      publishedAt: rest.status === 'published' ? new Date() : undefined,
+      ...(productIds ? { products: { deleteMany: {}, create: productIds.map(pid => ({ productId: pid })) } } : {}),
+    }
+  });
   res.json(post);
 }));
 

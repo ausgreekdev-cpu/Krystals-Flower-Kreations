@@ -12,7 +12,7 @@ export default function Blog(){
       <p className="text-muted">Tutorials, Cricut tips, origami folds & studio behind-the-scenes.</p>
       {err && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">Failed to load posts: {err}</div>}
       <div className="mt-6 grid gap-4">
-        {(Array.isArray(posts)?posts:[]).map(p=> <Link key={p.id} to={`/blog/${p.slug}`} className="bg-surface2 p-6 rounded-2xl border hover:shadow"><h3 className="font-bold text-ink">{p.title}</h3><p className="text-sm text-muted mt-2">{p.excerpt}</p><div className="text-xs text-highlight mt-2">{p.tags}</div></Link>)}
+        {(Array.isArray(posts)?posts:[]).map(p=> <Link key={p.id} to={`/blog/${p.slug}`} className="bg-surface2 p-6 rounded-2xl border hover:shadow"><h3 className="font-bold text-ink">{p.title}</h3><p className="text-sm text-muted mt-2">{p.excerpt}</p><div className="flex flex-wrap gap-1.5 mt-2">{(p.tags||'').split(',').map(t=>t.trim()).filter(Boolean).map(t=> <span key={t} className="text-[11px] bg-surface3 text-muted rounded-full px-2 py-0.5">{t}</span>)}</div></Link>)}
         {Array.isArray(posts) && posts.length===0 && !err && <div className="text-xs text-muted text-center py-8">No posts yet</div>}
       </div>
     </div>

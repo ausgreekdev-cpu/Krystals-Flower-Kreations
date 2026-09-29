@@ -171,13 +171,20 @@ async function main() {
   await prisma.discount.update({ where: { code: 'BLOOM10' }, data: { minSpend: 50, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-08-01') } }).catch(()=>{});
   await prisma.discount.update({ where: { code: 'PERTHFREE' }, data: { minSpend: 100, startsAt: new Date('2026-08-01'), endsAt: new Date('2027-12-31') } }).catch(()=>{});
 
-  // Blog posts
-  const posts = [
-    { title: '5 Paper Stocks That Make Roses Look Real', slug: 'paper-stocks-for-roses', excerpt: 'Canson, Colorplan & the one we use for Perth humidity — cut settings included.', content: '# 5 Paper Stocks\n\nPerth humidity is no joke. Here is what we use in the studio...', status: 'published', tags: 'cricut,tutorial,paper', publishedAt: new Date() },
-    { title: 'Origami Lily — Step-by-Step', slug: 'origami-lily-step-by-step', excerpt: 'Fold a lily in 12 steps — video + crease diagram.', content: '# Origami Lily\n\nYou only need a 15cm square...', status: 'published', tags: 'origami,tutorial', publishedAt: new Date() },
-    { title: 'Behind the Armature: Why Wire Matters', slug: 'behind-armature-wire', excerpt: 'From idea to bloom — how armatures give sculptures movement.', content: '# Armature Art\n\nWe start with 1.6mm galvanised wire...', status: 'published', tags: 'armature,process', publishedAt: new Date() },
-  ];
-  for (const p of posts) await prisma.post.upsert({ where: { slug: p.slug }, update: {}, create: p });
+  // Blog posts — single source of truth: backend/content/blog/*.md
+  const { readPosts } = await import('../scripts/lib/readPosts.mjs');
+  const ORIGIN = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  for (const p of readPosts()) {
+    const saved = await prisma.post.upsert({
+      where: { slug: p.slug },
+      update: { title: p.title, excerpt: p.excerpt, content: p.body, tags: p.tags, metaTitle: p.metaTitle, metaDescription: p.metaDescription, coverImageUrl: p.cover.startsWith('http') ? p.cover : `${ORIGIN}${p.cover}` },
+      create: { title: p.title, slug: p.slug, excerpt: p.excerpt, content: p.body, tags: p.tags, metaTitle: p.metaTitle, metaDescription: p.metaDescription, coverImageUrl: p.cover.startsWith('http') ? p.cover : `${ORIGIN}${p.cover}`, status: p.status, publishedAt: p.publishedAt || new Date(), authorId: (await prisma.user.findFirst({ where: { email: 'krystal@flowerkreations.com.au' } })).id },
+    });
+    // Related products from productSlugs (idempotent replace)
+    const resolved = (await Promise.all(p.productSlugs.map((s) => prisma.product.findUnique({ where: { slug: s } })))).filter(Boolean);
+    await prisma.postProduct.deleteMany({ where: { postId: saved.id } });
+    if (resolved.length) await prisma.postProduct.createMany({ data: resolved.map((prod) => ({ postId: saved.id, productId: prod.id })) });
+  }
 
   // Demo custom art order for Kanban demo
   const demoExists = await prisma.customArtOrder.findFirst({ where: { orderNumber: { contains: 'KFK-CA-' } } });
