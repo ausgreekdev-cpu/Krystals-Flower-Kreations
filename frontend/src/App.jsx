@@ -7,8 +7,19 @@ const FALLBACK_SHIPPING_NOTE = 'Metro $12, WA regional $18, national $22 — fre
 export default function App(){
   const s = usePublicSettings();
   const isStaff = Boolean(currentStaffRole());
+  const orgLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: s.business_name || "Krystal's Flower Kreations",
+    url: window.location.origin,
+    logo: s.logo_url ? (s.logo_url.startsWith('http') ? s.logo_url : `${window.location.origin}${s.logo_url}`) : undefined,
+    sameAs: [s.instagram_url, s.facebook_url, s.tiktok_url, s.etsy_url].filter(Boolean) || undefined,
+    contactPoint: s.contact_phone ? { '@type': 'ContactPoint', telephone: s.contact_phone, contactType: 'customer service', areaServed: 'AU' } : undefined,
+  };
+  if (!orgLd.sameAs?.length) orgLd.sameAs = undefined;
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(orgLd)}} />
       <section className="bg-gradient-to-br from-bloom-500 to-bloom-700 text-white">
         <div className="max-w-7xl mx-auto px-4 py-14 md:py-20 grid lg:grid-cols-2 gap-10 items-center">
           <div>

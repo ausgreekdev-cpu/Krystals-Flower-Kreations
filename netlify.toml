@@ -45,6 +45,12 @@
   to = "/.netlify/functions/health"
   status = 200
 
+# robots.txt points here — serve the dynamic sitemap (products + published posts)
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/api/sitemap.xml"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
