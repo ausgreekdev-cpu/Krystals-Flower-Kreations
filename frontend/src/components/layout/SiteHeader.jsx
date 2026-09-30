@@ -24,6 +24,7 @@ function navClass({ isActive }) {
 
 export default function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchRowOpen, setSearchRowOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [q, setQ] = useState('');
   const [colorMode, setColorModeState] = useState(() => getColorMode() || 'system');
@@ -47,12 +48,13 @@ export default function SiteHeader() {
     return () => { off(); window.removeEventListener('cart:updated', refresh); window.removeEventListener('storage', refresh); };
   }, []);
 
-  // Close the mobile menu whenever the route changes.
-  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+  // Close the mobile menu / search row whenever the route changes.
+  useEffect(() => { setMobileOpen(false); setSearchRowOpen(false); }, [location.pathname]);
 
   const toggleColorMode = () => { const next = nextColorMode(); setColorModeState(next); };
   function onSearch(e) {
     e.preventDefault();
+    setSearchRowOpen(false);
     if (q.trim()) nav(`/shop?q=${encodeURIComponent(q.trim())}`);
     else nav('/shop');
   }
@@ -92,44 +94,60 @@ export default function SiteHeader() {
         </div>
       </div>
       <header className="bg-surface2/95 backdrop-blur border-b sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <Link to="/" className="font-black text-ink text-xl tracking-tight flex items-center gap-2 shrink-0" aria-label={`${businessName} — home`}>
+        {/* [logo] [search centred] [nav/actions] — explicit columns keep actions right when the centre is hidden */}
+        <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 md:gap-4">
+          <Link to="/" className="col-start-1 font-black text-ink text-xl tracking-tight flex items-center gap-2 shrink-0" aria-label={`${businessName} — home`}>
             <LogoMark src={s.logo_url} />
             <span className="hidden sm:inline">{businessName}</span><span className="sm:hidden">{businessName.split(' ')[0]}</span>
           </Link>
-          {/* Desktop search */}
-          <form onSubmit={onSearch} className="hidden lg:flex flex-1 max-w-md mx-6 min-w-0">
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" className="w-full border rounded-l-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
-            <button type="submit" className="bg-bloom-500 text-white px-4 rounded-r-xl text-sm font-bold hover:bg-bloom-700">Search</button>
-          </form>
-          {/* Desktop nav — everything reachable at xl, nothing hidden */}
-          <nav className="hidden xl:flex gap-4 text-sm font-medium ml-auto items-center">
-            {customerItems}
-            {staffRole && <NavLink to="/pos" className={navClass}>POS</NavLink>}
-            {staffRole && <NavLink to="/kanban" className={navClass}>Kanban</NavLink>}
-            {staffRole && <NavLink to="/admin" className={navClass}>Admin</NavLink>}
-            <NavLink to="/cart" className={({ isActive }) => `relative hover:text-highlight py-2 flex items-center gap-1 ${isActive ? 'text-highlight font-bold' : ''}`}>
-              Cart {cartCount > 0 && <span className="bg-bloom-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">{cartCount}</span>}
-            </NavLink>
-            {!signedIn && <NavLink to="/login" className={navClass}>Sign in</NavLink>}
-            {signedIn && (
-              <span className="flex items-center gap-2">
-                <span className="text-xs text-muted max-w-[10rem] truncate" title={user?.email || ''}>{user?.name || user?.email || 'Signed in'}</span>
-                <button onClick={signOut} className="text-xs underline text-muted hover:text-highlight py-2">Sign out</button>
-              </span>
-            )}
-            {showModeToggle && (
-              <button onClick={toggleColorMode} title={`Colour mode: ${MODE_LABELS[colorMode]} — click for ${MODE_LABELS[MODES_NEXT[colorMode]]}`}
-                aria-label={`Colour mode: ${MODE_LABELS[colorMode]}. Click to change.`} className="py-2 px-1.5 rounded-lg hover:bg-surface3" >
-                {MODE_ICONS[colorMode]}
-              </button>
-            )}
-          </nav>
-          {/* Mobile hamburger — visible below xl so no width is left without a menu */}
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="xl:hidden ml-auto p-2 rounded-lg border hover:bg-surface3" aria-label="Menu" aria-expanded={mobileOpen}>
-            <span className="block w-5 h-0.5 bg-bloom-700 mb-1"></span><span className="block w-5 h-0.5 bg-bloom-700 mb-1"></span><span className="block w-5 h-0.5 bg-bloom-700"></span>
-          </button>
+          {/* Centred desktop search — visible from md up (was lg, leaving 768–1023px without one) */}
+          <div className="col-start-2 hidden md:flex justify-center min-w-0">
+            <form onSubmit={onSearch} className="flex w-full max-w-sm lg:max-w-md min-w-0">
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" aria-label="Search products" className="w-full min-w-0 border rounded-l-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+              <button type="submit" className="bg-bloom-500 text-white px-4 rounded-r-xl text-sm font-bold hover:bg-bloom-700 shrink-0">Search</button>
+            </form>
+          </div>
+          {/* Right: nav at xl, hamburger below xl, search icon below md */}
+          <div className="col-start-3 flex items-center justify-end gap-2 min-w-0">
+            <button onClick={() => setSearchRowOpen(!searchRowOpen)} className="md:hidden p-2 rounded-lg border hover:bg-surface3" aria-label="Search" aria-expanded={searchRowOpen}>
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="M14 14l4 4" strokeLinecap="round" /></svg>
+            </button>
+            <button onClick={() => setMobileOpen(!mobileOpen)} className="xl:hidden p-2 rounded-lg border hover:bg-surface3" aria-label="Menu" aria-expanded={mobileOpen}>
+              <span className="block w-5 h-0.5 bg-bloom-700 mb-1"></span><span className="block w-5 h-0.5 bg-bloom-700 mb-1"></span><span className="block w-5 h-0.5 bg-bloom-700"></span>
+            </button>
+            <nav className="hidden xl:flex gap-4 text-sm font-medium items-center">
+              {customerItems}
+              {staffRole && <NavLink to="/pos" className={navClass}>POS</NavLink>}
+              {staffRole && <NavLink to="/kanban" className={navClass}>Kanban</NavLink>}
+              {staffRole && <NavLink to="/admin" className={navClass}>Admin</NavLink>}
+              <NavLink to="/cart" className={({ isActive }) => `relative hover:text-highlight py-2 flex items-center gap-1 ${isActive ? 'text-highlight font-bold' : ''}`}>
+                Cart {cartCount > 0 && <span className="bg-bloom-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">{cartCount}</span>}
+              </NavLink>
+              {!signedIn && <NavLink to="/login" className={navClass}>Sign in</NavLink>}
+              {signedIn && (
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted max-w-[10rem] truncate" title={user?.email || ''}>{user?.name || user?.email || 'Signed in'}</span>
+                  <button onClick={signOut} className="text-xs underline text-muted hover:text-highlight py-2">Sign out</button>
+                </span>
+              )}
+              {showModeToggle && (
+                <button onClick={toggleColorMode} title={`Colour mode: ${MODE_LABELS[colorMode]} — click for ${MODE_LABELS[MODES_NEXT[colorMode]]}`}
+                  aria-label={`Colour mode: ${MODE_LABELS[colorMode]}. Click to change.`} className="py-2 px-1.5 rounded-lg hover:bg-surface3" >
+                  {MODE_ICONS[colorMode]}
+                </button>
+              )}
+            </nav>
+          </div>
         </div>
+        {/* Mobile / tablet search row — one tap from the header icon, no hamburger needed */}
+        {searchRowOpen && (
+          <div className="md:hidden border-t bg-surface2 px-4 py-3">
+            <form onSubmit={onSearch} className="flex">
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" aria-label="Search products" className="flex-1 min-w-0 border rounded-l-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+              <button type="submit" className="bg-bloom-500 text-white px-3 rounded-r-xl text-sm font-bold">Go</button>
+            </form>
+          </div>
+        )}
         {/* Mobile / tablet dropdown */}
         {mobileOpen && (
           <div className="xl:hidden border-t bg-surface2 px-4 py-3 space-y-2">

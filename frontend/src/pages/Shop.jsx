@@ -34,15 +34,19 @@ export default function Shop(){
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <Breadcrumbs items={[{label:'Shop'}]} />
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div><h1 className="text-2xl md:text-3xl font-black text-ink">Shop — paper blooms & armature art</h1><p className="text-sm text-muted mt-1">{subtitle}</p></div>
-        <div className="flex gap-2 flex-wrap">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-black text-ink">Shop — paper blooms & armature art</h1>
+        <p className="text-sm text-muted mt-1">{subtitle}</p>
+      </div>
+      {/* Toolbar: search + filter chips directly under the heading (was a detached full-width row) */}
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex gap-3 flex-1 min-w-0 sm:max-w-md">
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" aria-label="Search products" className="flex-1 min-w-0 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+          <button onClick={()=>setQ('')} className="hidden sm:block border rounded-xl px-4 text-sm hover:bg-surface3">Clear</button>
+        </div>
+        <div className="flex gap-2 flex-wrap sm:ml-auto">
           {['all','made_to_order','digital','physical'].map(f=> <button key={f} onClick={()=>setFilter(f)} className={`px-3 py-1.5 rounded-full text-xs border ${filter===f?'bg-bloom-500 text-white border-bloom-500':'bg-surface2 hover:bg-surface3'}`}>{f==='all'?'All': f==='made_to_order'?'Made to order': f==='digital'?'SVG': f}</button>)}
         </div>
-      </div>
-      <div className="mt-6 flex gap-3">
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" className="flex-1 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
-        <button onClick={()=>setQ('')} className="hidden sm:block border rounded-xl px-4 text-sm hover:bg-surface3">Clear</button>
       </div>
       {loading ? (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
