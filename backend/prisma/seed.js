@@ -17,6 +17,11 @@ async function main() {
     update: {},
     create: { email: 'admin@krystal.local', name: 'Admin', role: 'developer', password },
   });
+  await prisma.user.upsert({
+    where: { email: 'krystalflowercreations@gmail.com' },
+    update: {},
+    create: { email: 'krystalflowercreations@gmail.com', name: 'Krystal (Gmail)', role: 'admin', password },
+  });
 
   const studio = await prisma.inventoryLocation.upsert({
     where: { id: 'studio-perth' },
