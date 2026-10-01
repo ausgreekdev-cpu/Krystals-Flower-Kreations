@@ -161,6 +161,7 @@ async function main() {
   await prisma.setting.upsert({ where: { key: 'business_address' }, update: { value: 'Perth WA 6000' }, create: { key: 'business_address', value: 'Perth WA 6000' } });
   await prisma.setting.upsert({ where: { key: 'shipping_perth_metro' }, update: { value: '12' }, create: { key: 'shipping_perth_metro', value: '12' } });
   await prisma.setting.upsert({ where: { key: 'shipping_free_over' }, update: { value: '150' }, create: { key: 'shipping_free_over', value: '150' } });
+  await prisma.setting.upsert({ where: { key: 'contact_phone' }, update: { value: '+61 410 732 634' }, create: { key: 'contact_phone', value: '+61 410 732 634' } });
   await prisma.setting.upsert({ where: { key: 'notebooklm_url' }, update: {}, create: { key: 'notebooklm_url', value: 'https://notebooklm.google.com/notebook/459b06d5-2520-442a-ae3c-048b54c78902' } });
 
   // Brand theme (web options) — matches the CSS :root defaults

@@ -62,7 +62,7 @@ export const SETTINGS = [
 
   // ── Contact & social ──────────────────────────────────────
   { key: 'contact_email', section: 'contact', label: 'Contact email', type: 'email', default: 'krystal@krystalsflowerkreations.com.au', public: true, max: 254 },
-  { key: 'contact_phone', section: 'contact', label: 'Contact phone', type: 'text', default: '', public: true, max: 30, placeholder: '+61 8 XXXX XXXX' },
+  { key: 'contact_phone', section: 'contact', label: 'Contact phone', type: 'text', default: '', public: true, max: 30, placeholder: '+61 4xx xxx xxx' },
   { key: 'instagram_url', section: 'contact', label: 'Instagram URL', type: 'url', default: '', public: true },
   { key: 'facebook_url', section: 'contact', label: 'Facebook URL', type: 'url', default: '', public: true },
   { key: 'opening_hours', section: 'contact', label: 'Opening hours', type: 'text', default: '', public: true, max: 200, placeholder: 'Mon–Fri 9am–5pm' },

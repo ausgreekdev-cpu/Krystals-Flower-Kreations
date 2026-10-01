@@ -63,7 +63,7 @@ export default function SiteHeader() {
     window.location.assign('/');
   }
 
-  const phone = s.contact_phone || import.meta.env.VITE_PHONE || '+61 8 XXXX XXXX';
+  const phone = s.contact_phone || import.meta.env.VITE_PHONE || '+61 410 732 634';
   const email = s.contact_email || FALLBACK_EMAIL;
   const businessName = s.business_name || FALLBACK_BUSINESS;
   const showAnnouncement = Boolean(s.announcement_text) && s.announcement_enabled !== '0';
