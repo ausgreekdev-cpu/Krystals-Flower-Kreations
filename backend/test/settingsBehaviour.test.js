@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer, api } from './helpers.js';
+import { startServer, api, cleanupTestBookings } from './helpers.js';
 import prisma from '../src/lib/prisma.js';
 
 // End-to-end behaviour of the settings features: checkout terms/notes,
@@ -37,6 +37,7 @@ async function checkout(extra = {}) {
 }
 
 before(async () => {
+  await cleanupTestBookings(); // heal leftover bookings from interrupted runs
   srv = await startServer();
   const admin = await api(srv.base, '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }) });
   adminToken = admin.body.token;
@@ -57,6 +58,7 @@ after(async () => {
       ],
     }),
   }).catch(() => {});
+  await cleanupTestBookings(); // workshops booked by tests must not accumulate
   await srv.close();
 });
 

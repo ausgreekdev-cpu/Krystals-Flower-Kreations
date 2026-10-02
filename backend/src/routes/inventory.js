@@ -29,17 +29,22 @@ router.get('/scan/:code', scanLimit, asyncHandler(async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid barcode', code: 'validation_failed' });
   const code = parsed.data;
   const productInclude = { images: { orderBy: { sortOrder: 'asc' }, take: 1 } };
+  // findFirst (not findUnique): soft-deleted products must not resolve — a
+  // deleted item's stale label scans as "not found", same as any unknown code.
+  const liveProduct = (where) => prisma.product.findFirst({ where: { ...where, deletedAt: null }, include: productInclude });
 
-  let product = await prisma.product.findUnique({ where: { barcode: code }, include: productInclude });
+  let product = await liveProduct({ barcode: code });
   let variant = null;
   if (!product) {
     variant = await prisma.productVariant.findUnique({ where: { barcode: code } });
-    if (variant) product = await prisma.product.findUnique({ where: { id: variant.productId }, include: productInclude });
+    if (variant) product = await liveProduct({ id: variant.productId });
+    if (!product) variant = null; // parent soft-deleted → drop the match, keep scanning the chain
   }
-  if (!product) product = await prisma.product.findUnique({ where: { sku: code }, include: productInclude });
+  if (!product) product = await liveProduct({ sku: code });
   if (!product && !variant) {
     variant = await prisma.productVariant.findUnique({ where: { sku: code } });
-    if (variant) product = await prisma.product.findUnique({ where: { id: variant.productId }, include: productInclude });
+    if (variant) product = await liveProduct({ id: variant.productId });
+    if (!product) variant = null;
   }
 
   if (!product) {

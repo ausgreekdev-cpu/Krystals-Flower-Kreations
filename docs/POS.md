@@ -6,7 +6,16 @@ Backend: `POST /api/pos/session/open`, `/sale`, `/session/:id/close`. Offline qu
 
 - Tablet: iPad or Android (market) + Bluetooth receipt printer (e.g., Epson TM-M30, Star Micronics)
 - Card reader: **Stripe Reader M2** (Stripe Terminal SDK) or Square Reader (if Square for markets)
-- Cash drawer optional; barcode scanner via tablet camera (`expo-barcode-scanner` in mobile)
+- Cash drawer optional; barcode scanner: USB/Bluetooth HID wand (web) or tablet camera (mobile app)
+
+## Barcode scanning (web POS + Admin inventory)
+
+- **USB/Bluetooth HID scanner** — types like a keyboard; detected as a scan burst (inter-key gap ≤50 ms, terminated by Enter/Tab) and fires from **anywhere on the page, no focus needed**. Identical codes are ignored for 2 s (shared dedupe window).
+- **📷 camera** — native `BarcodeDetector` (Chrome/Edge, feature-detected — no extra deps) with manual code-entry fallback; denied permission falls back to typing.
+- Lookup `GET /api/inventory/scan/:code`: product barcode → variant barcode → product SKU → variant SKU → raw-material barcode/SKU. Soft-deleted products return `404 not_found` (stale labels behave like unknown codes).
+- Unknown codes: POS shows "add it in Admin → Catalog → Products"; the Admin scanner can create the product inline with the scanned barcode prefilled.
+- Seed test labels: `200000000001`–`200000000007` (editable per product in the editor's Barcode field).
+- The mobile Expo app keeps its own camera scanner — separate codepath.
 
 ## Flows
 

@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer, api } from './helpers.js';
+import { startServer, api, cleanupTestBookings } from './helpers.js';
 
 // Regression tests for client-controlled money/points/payment-state bugs.
 let srv;
@@ -8,6 +8,7 @@ let customerToken;
 const customerEmail = `sec_${Date.now()}@test.com`;
 
 before(async () => {
+  await cleanupTestBookings(); // heal leftover bookings from interrupted runs
   srv = await startServer();
   const { status, body } = await api(srv.base, '/api/auth/register', {
     method: 'POST',
@@ -16,7 +17,7 @@ before(async () => {
   assert.equal(status, 201, JSON.stringify(body));
   customerToken = body.token;
 });
-after(async () => { await srv.close(); });
+after(async () => { await cleanupTestBookings(); await srv.close(); });
 
 test('login is case-insensitive on email', async () => {
   const { status, body } = await api(srv.base, '/api/auth/login', {

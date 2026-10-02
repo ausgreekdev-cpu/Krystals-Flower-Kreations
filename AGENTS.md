@@ -16,7 +16,7 @@ Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mob
 
 ```bash
 # backend (workdir = backend)
-npm test            # integration suite (61 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
+npm test            # integration suite (72 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
 npm run seed        # idempotent seed (loads backend/.env itself)
 npm run dev         # :3001
 
@@ -50,11 +50,13 @@ npm run build       # Vite build + PWA
 ## Auth / roles
 
 - Login endpoint `POST /api/auth/login`; admin UI at `/admin` (guarded, redirects to `/login`).
-- Seeded users (password `admin123`): `admin@krystal.local` (developer), `krystal@flowerkreations.com.au` (admin).
+- Seeded users (password `admin123`): `admin@krystal.local` (developer), `krystal@flowerkreations.com.au` (admin), `krystalflowercreations@gmail.com` (admin).
 - Role ranks: customer 1 < staff/maker 2 < admin 3 < developer 4. Only developers can grant/modify the developer role.
 
 ## Gotchas
 
+- **Prisma CLI ignores inline `DATABASE_URL`** — the CLI loads `backend/.env` and that value WINS over the shell env (a bogus inline URL still connects to localhost). To push to prod: temporarily point `backend/.env`'s `DATABASE_URL`/`DIRECT_URL` at the supabase values from `.env.supabase`, run `npx prisma db push`, then **restore `.env` immediately**. (`npx prisma db pull --print` output can lie for the same reason — verify prod state with `information_schema`/`pg_indexes` via a PrismaClient script, which does honor an explicit `datasources.url`.)
+- **Booking-creating tests** (`hardening`, `security`, `settingsBehaviour`) must call `cleanupTestBookings()` from `test/helpers.js` in both `before()` and `after()` — otherwise `bookedCount` accumulates until every session is full and capacity assertions fail on repeat runs.
 - **Restart the API after route edits** — `node --watch` or a stale server causes false 404s. Kill by pid (`kill <pid>`, not `pkill -f`, which can kill the shell wrapper).
 - Avoid shell variable `UID` (readonly in bash).
 - **Zod**: `z.enum().strict()` is invalid; `.refine()` result has no `.partial()` (validate the base schema then refine).

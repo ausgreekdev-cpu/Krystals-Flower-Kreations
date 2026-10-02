@@ -87,6 +87,28 @@ test('unknown code returns 404 found:false', async () => {
   assert.equal(res.body.code, 'not_found');
 });
 
+test('soft-deleted product is not scannable (barcode + sku)', async () => {
+  const barcode = `BCDEL${uniq}`;
+  const sku = `SKUDel${uniq}`;
+  const p = await createProduct({ barcode, sku });
+  assert.equal(p.status, 201, JSON.stringify(p.body));
+
+  // live → both paths resolve
+  assert.equal((await api(srv.base, `/api/inventory/scan/${barcode}`, { headers: auth() })).status, 200);
+  assert.equal((await api(srv.base, `/api/inventory/scan/${sku}`, { headers: auth() })).status, 200);
+
+  await prisma.product.update({ where: { id: p.body.id }, data: { deletedAt: new Date() } });
+
+  // soft-deleted → stale label behaves like an unknown code
+  const afterBc = await api(srv.base, `/api/inventory/scan/${barcode}`, { headers: auth() });
+  assert.equal(afterBc.status, 404, JSON.stringify(afterBc.body));
+  assert.equal(afterBc.body.found, false);
+  const afterSku = await api(srv.base, `/api/inventory/scan/${sku}`, { headers: auth() });
+  assert.equal(afterSku.status, 404, JSON.stringify(afterSku.body));
+
+  await prisma.product.delete({ where: { id: p.body.id } }); // free barcode/sku
+});
+
 test('duplicate barcode rejected on create and patch (409 barcode_taken)', async () => {
   const barcode = `BCDUP${uniq}`;
   const a = await createProduct({ barcode });

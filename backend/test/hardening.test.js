@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer, api } from './helpers.js';
+import { startServer, api, cleanupTestBookings } from './helpers.js';
 
 // Batch A regression tests: status machine/restock, IDOR, role escalation, health.
 let srv;
@@ -10,6 +10,7 @@ let customerUserId;
 const customerEmail = `hardening_${Date.now()}@test.com`;
 
 before(async () => {
+  await cleanupTestBookings(); // heal leftover bookings from interrupted runs
   srv = await startServer();
   const admin = await api(srv.base, '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }) });
   adminToken = admin.body.token;
@@ -20,7 +21,7 @@ before(async () => {
   const cme = await api(srv.base, '/api/auth/me', { headers: { Authorization: `Bearer ${customerToken}` } });
   customerUserId = cme.body.user.id;
 });
-after(async () => { await srv.close(); });
+after(async () => { await cleanupTestBookings(); await srv.close(); });
 
 test('health returns db:true', async () => {
   const { status, body } = await api(srv.base, '/api/health');
