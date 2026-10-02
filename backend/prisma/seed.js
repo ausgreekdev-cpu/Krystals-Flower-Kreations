@@ -55,8 +55,21 @@ async function main() {
     { title: 'Workshop Ticket — Origami Bouquet Masterclass', slug: 'workshop-origami-bouquet-masterclass', description: '4hr intermediate — folded roses + lilies + assembly. Kit posted if you join online.', price: 165, sku: 'KFK-WS-ORIGAMI-MAST', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
     { title: 'Everlasting Native Bundle — Table Centre', slug: 'native-bundle-table-centre', description: 'Low centrepiece — paper natives + dried eucalyptus on armature base. 30cm wide.', price: 125, sku: 'KFK-NATIVE-CENTRE-30', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 7, isFeatured: true, weightGrams: 600 },
   ];
+  // Test barcodes (UPC-A style) so the USB scanner works out of the box —
+  // real-world labels are editable in Admin → Catalog → Products.
+  const TEST_BARCODES = {
+    'eucalyptus-paper-rose-bouquet-blush': '200000000001',
+    'banksia-armature-large': '200000000002',
+    'cricut-svg-wattle-sprig': '200000000003',
+    'origami-crane-mobile-pastel': '200000000004',
+    'paper-peony-ivory-single': '200000000005',
+    'workshop-cricut-blooms-101': '200000000006',
+    'workshop-origami-bouquet-masterclass': '200000000007',
+    'native-bundle-table-centre': '200000000008',
+  };
   for (const p of products) {
-    const prod = await prisma.product.upsert({ where: { slug: p.slug }, update: {}, create: p });
+    const barcode = TEST_BARCODES[p.slug] || null;
+    const prod = await prisma.product.upsert({ where: { slug: p.slug }, update: barcode ? { barcode } : {}, create: { ...p, barcode } });
     // Local placeholder image (no external picsum — $0, offline, no 404)
     const hasImage = await prisma.productImage.findFirst({ where: { productId: prod.id } });
     if (!hasImage) {

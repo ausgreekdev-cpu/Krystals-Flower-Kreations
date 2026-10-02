@@ -8,6 +8,10 @@ import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
+import ScanModal from '../components/scan/ScanModal';
+import { useWedgeScanner } from '../components/scan/useWedgeScanner';
+import { lookupScan } from '../components/scan/scanApi';
+import { chimeSuccess, beepError, registerScan } from '../components/scan/feedback';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: '📊' },
@@ -445,11 +449,40 @@ function InventoryStock({ data, reload, token }) {
   const [thresholdVals, setThresholdVals] = useState({});
   const [materialEditor, setMaterialEditor] = useState(null);
   const [locationEditor, setLocationEditor] = useState(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanHit, setScanHit] = useState(null);
   const levels = Array.isArray(data.levels) ? data.levels : [];
   const materials = Array.isArray(data.materials) ? data.materials : [];
   const recon = Array.isArray(data.recon) ? data.recon : [];
   const locations = Array.isArray(data.locations) ? data.locations : [];
   const drifted = recon.filter((r) => !r.ok);
+
+  // USB/barcode scanner — active whenever this stock view is mounted.
+  async function handleScanCode(code) {
+    if (!registerScan(code)) return; // 2s duplicate window (shared with ScanModal)
+    try {
+      const r = await lookupScan(code, token);
+      setScanHit(r);
+      if (r.found) chimeSuccess();
+      else { beepError(); toast(`Not found: ${code} — use 📷 to create it`, 'error'); }
+    } catch (e) { beepError(); toast(e.message, 'error'); }
+  }
+  useWedgeScanner(handleScanCode, true);
+
+  async function adjustScanLine(line, delta) {
+    try {
+      await adminApi.inventory.adjust({ productId: scanHit.item.id, variantId: scanHit.variant?.id || null, locationId: line.locationId, quantity: delta, reason: 'Scan adjust' }, token);
+      setScanHit((h) => h ? { ...h, stock: h.stock.map((s) => s.locationId === line.locationId ? { ...s, onHand: s.onHand + delta } : s), totalOnHand: (h.totalOnHand || 0) + delta } : h);
+      toast('Stock updated');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function adjustScanMat(delta) {
+    try {
+      await adminApi.materials.adjust(scanHit.item.id, delta, 'Scan adjust', token);
+      setScanHit((h) => h ? { ...h, item: { ...h.item, onHand: Number(h.item.onHand) + delta } } : h);
+      toast('Material updated');
+    } catch (e) { toast(e.message, 'error'); }
+  }
   async function adjustLevel(l, delta) {
     setAdjusting(l.id);
     try { await adminApi.inventory.adjust({ productId: l.productId, variantId: l.variantId || null, locationId: l.locationId, quantity: delta, reason: 'Admin adjust' }, token); toast('Stock updated'); reload(); }
@@ -488,7 +521,44 @@ function InventoryStock({ data, reload, token }) {
   return (
     <div className="space-y-5">
       {drifted.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {drifted.length} items drift: actual vs recorded — run a Stocktake or check Reconciliation</div>}
-      <Card title={`Product stock — ${levels.length} levels`}>
+      {scanHit && (
+        <Card title={scanHit.found ? `Scan: ${scanHit.item?.title || scanHit.item?.name || ''}` : `Scan not found: ${scanHit.scanned || ''}`}
+          actions={<Btn small color="ghost" onClick={() => setScanHit(null)}>Clear</Btn>}>
+          {scanHit.found ? (
+            <div className="space-y-2 text-xs">
+              <div className="text-muted">
+                {scanHit.item?.sku ? `SKU ${scanHit.item.sku}` : ''}
+                {scanHit.item?.sku && scanHit.item?.barcode ? ' • ' : ''}
+                {scanHit.item?.barcode ? `Barcode ${scanHit.item.barcode}` : ''}
+                {scanHit.item?.price != null ? ` • $${Number(scanHit.item.price).toFixed(2)}` : ''}
+                {typeof scanHit.totalOnHand === 'number' ? ` • ${scanHit.totalOnHand} on hand` : ''}
+              </div>
+              {scanHit.kind === 'raw_material' ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 font-medium">{scanHit.item?.name} — <span className="font-bold">{scanHit.item?.onHand}</span> {scanHit.item?.unit}</span>
+                  <button onClick={() => adjustScanMat(1)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
+                  <button onClick={() => adjustScanMat(-1)} className="w-7 h-7 rounded-lg bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {(scanHit.stock || []).map((s) => (
+                    <div key={s.locationId} className="flex items-center gap-2 border-b border-line py-1">
+                      <span className="flex-1">{s.location} {s.low && <span className="text-amber-600">(low)</span>}</span>
+                      <span className="font-bold">{s.onHand}</span>
+                      <button onClick={() => adjustScanLine(s, 1)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
+                      <button onClick={() => adjustScanLine(s, -1)} className="w-7 h-7 rounded-lg bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
+                    </div>
+                  ))}
+                  {(scanHit.stock || []).length === 0 && <div className="text-muted">No stock levels yet — a sale or stocktake creates them</div>}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-muted">Unknown code — press 📷 Scan to create a product carrying this barcode.</div>
+          )}
+        </Card>
+      )}
+      <Card title={`Product stock — ${levels.length} levels`} actions={<Btn small onClick={() => setScanOpen(true)}>📷 Scan</Btn>}>
         <div className="space-y-1.5">
           {levels.slice(0, 30).map((l) => (
             <div key={l.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
@@ -535,13 +605,15 @@ function InventoryStock({ data, reload, token }) {
       </Card>
       {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
       {locationEditor && <LocationModal location={locationEditor.id ? locationEditor : null} onClose={() => setLocationEditor(null)} onSaved={() => { setLocationEditor(null); toast('Location saved'); reload(); }} token={token} />}
+      <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} allowCreate closeOnFound
+        onResolved={(r) => { setScanHit(r); reload(); }} />
     </div>
   );
 }
 function MaterialModal({ material, locations, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
-    name: material?.name || '', sku: material?.sku || '', unit: material?.unit || 'sheet',
+    name: material?.name || '', sku: material?.sku || '', barcode: material?.barcode || '', unit: material?.unit || 'sheet',
     onHand: material ? Number(material.onHand) : 0, lowThreshold: material ? Number(material.lowThreshold) : 5,
     costPerUnit: material ? Number(material.costPerUnit) : 0, supplier: material?.supplier || '', locationId: material?.locationId || '',
   }));
@@ -551,7 +623,7 @@ function MaterialModal({ material, locations, onClose, onSaved, token }) {
   async function save() {
     setBusy(true);
     try {
-      const body = { ...form, onHand: Number(form.onHand), lowThreshold: Number(form.lowThreshold), costPerUnit: Number(form.costPerUnit), locationId: form.locationId || null };
+      const body = { ...form, barcode: form.barcode?.trim() || null, onHand: Number(form.onHand), lowThreshold: Number(form.lowThreshold), costPerUnit: Number(form.costPerUnit), locationId: form.locationId || null };
       if (material) await adminApi.materials.update(material.id, body, token);
       else await adminApi.materials.create(body, token);
       onSaved();
@@ -563,6 +635,7 @@ function MaterialModal({ material, locations, onClose, onSaved, token }) {
       <div className="grid grid-cols-2 gap-3">
         <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
         <div><label className={label}>SKU</label><input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></div>
+        <div className="col-span-2"><label className={label}>Barcode (for scanner stocktakes)</label><input className={input} value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="e.g. 200000000001" /></div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className={label}>Unit</label><select className={input} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}><option value="sheet">sheet</option><option value="meter">meter</option><option value="stick">stick</option><option value="roll">roll</option><option value="piece">piece</option><option value="ml">ml</option><option value="gram">gram</option></select></div>
@@ -634,11 +707,35 @@ function InventoryStocktake({ data, reload, token }) {
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState([]);
+  const [scanOpen, setScanOpen] = useState(false);
   useEffect(() => { adminApi.inventory.stocktakes(token).then((d) => setHistory(Array.isArray(d) ? d : [])).catch(() => {}); }, [token]);
   const items = [
     ...levels.filter((l) => !locationId || l.locationId === locationId).map((l) => ({ key: `p-${l.id}`, productId: l.productId, variantId: l.variantId || null, rawMaterialId: null, name: `${l.product?.title || l.productId}${l.variant ? ` — ${l.variant.title}` : ''}`, expected: l.onHand })),
     ...materials.map((m) => ({ key: `m-${m.id}`, productId: null, variantId: null, rawMaterialId: m.id, name: `${m.name} (material)`, expected: Math.round(Number(m.onHand)) })),
   ];
+
+  // Scanner counts the matched line: expected/typed +1 for every scan.
+  function applyScan(r) {
+    if (!r.found || !r.item) { beepError(); toast('Item not found', 'error'); return; }
+    let it;
+    if (r.kind === 'raw_material') {
+      it = items.find((x) => x.rawMaterialId === r.item.id);
+    } else {
+      const vid = r.variant?.id || null;
+      it = items.find((x) => x.productId === r.item.id && x.variantId === vid) || items.find((x) => x.productId === r.item.id && x.variantId == null);
+    }
+    if (!it) { beepError(); toast('Not part of this stocktake (wrong location?)', 'error'); return; }
+    setCounts((c) => ({ ...c, [it.key]: Number(c[it.key] ?? it.expected) + 1 }));
+    chimeSuccess();
+    toast(`Counted +1 — ${it.name}`);
+  }
+  async function handleScanCode(code) {
+    if (!registerScan(code)) return; // 2s duplicate window (shared with ScanModal)
+    try { applyScan(await lookupScan(code, token)); }
+    catch (e) { beepError(); toast(e.message, 'error'); }
+  }
+  useWedgeScanner(handleScanCode, true);
+
   async function submit() {
     if (!locationId) return toast('Select a location', 'error');
     const itemsPayload = items.map((it) => ({ productId: it.productId, variantId: it.variantId, rawMaterialId: it.rawMaterialId, countedQty: counts[it.key] ?? it.expected }));
@@ -649,7 +746,7 @@ function InventoryStocktake({ data, reload, token }) {
   }
   return (
     <div className="space-y-4">
-      <Card title="Count stock">
+      <Card title="Count stock" actions={<Btn small onClick={() => setScanOpen(true)}>📷 Scan</Btn>}>
         <div className="flex items-end gap-3 mb-3">
           <div><label className="block text-xs font-semibold text-muted mb-1">Location</label>
             <select className="border border-line-strong rounded-xl px-3 py-2 text-sm" value={locationId} onChange={(e) => setLocationId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
@@ -671,6 +768,7 @@ function InventoryStocktake({ data, reload, token }) {
       <Card title={`Stocktake history — ${history.length}`}>
         <div className="space-y-1">{history.map((h) => <div key={h.id} className="flex justify-between text-xs border-b border-line py-1.5"><span>{h.location?.name} • {h.status}</span><span className="text-muted">{new Date(h.createdAt).toLocaleString()} • {h._count?.lines} lines</span></div>)}</div>
       </Card>
+      <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} closeOnFound onResolved={applyScan} />
     </div>
   );
 }
@@ -942,6 +1040,7 @@ function ProductModal({ product, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
     title: product?.title || '', slug: product?.slug || '', sku: product?.sku || '',
+    barcode: product?.barcode || '',
     price: product ? Number(product.price) : '', description: product?.description || '',
     stockMode: product?.stockMode || 'made_to_order', type: product?.type || 'physical',
     isFeatured: !!product?.isFeatured, isActive: product ? !!product.isActive : true,
@@ -956,7 +1055,7 @@ function ProductModal({ product, onClose, onSaved, token }) {
   async function save() {
     setBusy(true);
     try {
-      const body = { ...form, price: Number(form.price), madeToOrderDays: form.madeToOrderDays ? Number(form.madeToOrderDays) : undefined };
+      const body = { ...form, barcode: form.barcode?.trim() || null, price: Number(form.price), madeToOrderDays: form.madeToOrderDays ? Number(form.madeToOrderDays) : undefined };
       if (product) await adminApi.products.update(product.id, body, token);
       else await adminApi.products.create(body, token);
       onSaved();
@@ -989,6 +1088,7 @@ function ProductModal({ product, onClose, onSaved, token }) {
         <div className="sm:col-span-2"><label className={label}>Title</label><input className={input} value={form.title} onChange={(e) => set('title', e.target.value)} /></div>
         <div><label className={label}>Slug</label><input className={input} value={form.slug} onChange={(e) => set('slug', e.target.value)} placeholder="auto-from-title" /></div>
         <div><label className={label}>SKU</label><input className={input} value={form.sku} onChange={(e) => set('sku', e.target.value)} /></div>
+        <div><label className={label}>Barcode</label><input className={input} value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="scan label (unique)" /></div>
         <div><label className={label}>Price ($)</label><input type="number" step="0.01" className={input} value={form.price} onChange={(e) => set('price', e.target.value)} /></div>
         <div><label className={label}>Stock mode</label>
           <select className={input} value={form.stockMode} onChange={(e) => set('stockMode', e.target.value)}>

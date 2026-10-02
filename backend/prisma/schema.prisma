@@ -166,8 +166,8 @@ model Product {
   price         Decimal     @db.Decimal(10, 2) // GST-inclusive per AU
   compareAtPrice Decimal?   @db.Decimal(10, 2)
   cost          Decimal?    @db.Decimal(10, 2)
-  sku           String?     @unique
-  barcode       String?
+  sku           String?   @unique
+  barcode       String?   @unique // UPC-A / EAN-13 / Code128 — O(1) scan lookup
   weightGrams   Int?
   lengthMm      Int?
   widthMm       Int?
@@ -216,7 +216,7 @@ model ProductVariant {
   productId String
   title    String // e.g., "Blush / Medium / 250gsm"
   sku      String? @unique
-  barcode  String?
+  barcode  String? @unique
   option1  String? // colour
   option2  String? // size
   option3  String? // paper stock
@@ -822,6 +822,7 @@ enum RawUnit {
 model RawMaterial {
   id           String   @id @default(cuid())
   sku          String   @unique
+  barcode      String?  @unique // optional scan label for stocktakes
   name         String
   unit         RawUnit  @default(sheet)
   onHand       Float    @default(0)

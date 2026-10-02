@@ -16,6 +16,65 @@ router.get('/levels', asyncHandler(async (req, res) => {
   res.json(levels);
 }));
 
+// ── Barcode/SKU scan lookup (USB scanner, camera or manual input) ──────────
+// Exact-match chain: product.barcode → variant.barcode → product.sku →
+// variant.sku → raw material barcode/sku. Barcode + sku columns are @unique,
+// so every findUnique hit is an O(1) indexed lookup.
+const scanLimit = rateLimit('scan_lookup', 120, 1);
+const scanCodeSchema = z.string().min(1).max(50).regex(/^[A-Za-z0-9\-.+/ $%]+$/, 'Unsupported barcode characters');
+
+router.get('/scan/:code', scanLimit, asyncHandler(async (req, res) => {
+  // Express already URI-decodes params — do not decode again (codes may contain '%')
+  const parsed = scanCodeSchema.safeParse(String(req.params.code || ''));
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid barcode', code: 'validation_failed' });
+  const code = parsed.data;
+  const productInclude = { images: { orderBy: { sortOrder: 'asc' }, take: 1 } };
+
+  let product = await prisma.product.findUnique({ where: { barcode: code }, include: productInclude });
+  let variant = null;
+  if (!product) {
+    variant = await prisma.productVariant.findUnique({ where: { barcode: code } });
+    if (variant) product = await prisma.product.findUnique({ where: { id: variant.productId }, include: productInclude });
+  }
+  if (!product) product = await prisma.product.findUnique({ where: { sku: code }, include: productInclude });
+  if (!product && !variant) {
+    variant = await prisma.productVariant.findUnique({ where: { sku: code } });
+    if (variant) product = await prisma.product.findUnique({ where: { id: variant.productId }, include: productInclude });
+  }
+
+  if (!product) {
+    const material = await prisma.rawMaterial.findUnique({ where: { barcode: code } })
+      || await prisma.rawMaterial.findUnique({ where: { sku: code } });
+    if (material) {
+      return res.json({
+        found: true,
+        kind: 'raw_material',
+        item: { id: material.id, name: material.name, sku: material.sku, barcode: material.barcode, unit: material.unit, onHand: Number(material.onHand), supplier: material.supplier },
+        stock: [],
+        totalOnHand: Number(material.onHand),
+      });
+    }
+    return res.status(404).json({ found: false, scanned: code, error: 'Item not found', code: 'not_found' });
+  }
+
+  const levels = await prisma.inventoryLevel.findMany({
+    where: { productId: product.id, ...(variant ? { variantId: variant.id } : {}) },
+    include: { location: { select: { id: true, name: true } } },
+  });
+  res.json({
+    found: true,
+    kind: variant ? 'variant' : 'product',
+    item: {
+      id: product.id, title: product.title, slug: product.slug, sku: product.sku, barcode: product.barcode,
+      price: Number(product.price), type: product.type, stockMode: product.stockMode, isActive: product.isActive && !product.deletedAt,
+      image: product.images?.[0]?.url || null,
+    },
+    variant: variant ? { id: variant.id, title: variant.title, sku: variant.sku, barcode: variant.barcode, option1: variant.option1, option2: variant.option2, option3: variant.option3 } : null,
+    stock: levels.map((l) => ({ locationId: l.locationId, location: l.location?.name || 'Unknown', onHand: l.onHand, low: l.lowStockThreshold != null ? l.onHand <= l.lowStockThreshold : false })),
+    totalOnHand: levels.reduce((a, l) => a + l.onHand, 0),
+  });
+}));
+
 const adjustSchema = z.object({
   productId: z.string().min(8).max(100),
   variantId: z.string().min(8).max(100).optional().nullable(),

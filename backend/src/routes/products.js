@@ -23,6 +23,7 @@ const productSchema = z.object({
   compareAtPrice: z.number().finite().nonnegative().max(1000000).optional().nullable(),
   cost: z.number().finite().nonnegative().max(1000000).optional().nullable(),
   sku: z.string().max(50).optional().nullable(),
+  barcode: z.string().trim().max(50).optional().nullable(), // UPC-A / EAN-13 / Code128 label
   weightGrams: z.number().int().finite().min(0).max(100000).optional().nullable(),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
@@ -54,7 +55,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (type) where.type = type;
   if (q) {
     const qq = q.slice(0,200);
-    where.OR = [{ title: { contains: qq, mode: 'insensitive' } }, { description: { contains: qq, mode: 'insensitive' } }, { sku: { contains: qq, mode: 'insensitive' } }];
+    where.OR = [{ title: { contains: qq, mode: 'insensitive' } }, { description: { contains: qq, mode: 'insensitive' } }, { sku: { contains: qq, mode: 'insensitive' } }, { barcode: { contains: qq, mode: 'insensitive' } }];
   }
   if (collection) where.collections = { some: { collection: { slug: String(collection).slice(0,100) } } };
   const products = await prisma.product.findMany({
@@ -79,16 +80,28 @@ router.get('/:slug', asyncHandler(async (req, res) => {
 // Admin: CRUD — strict, finite, audit
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(productSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
-  const product = await prisma.product.create({ data: { ...data, price: data.price, compareAtPrice: data.compareAtPrice ?? undefined, cost: data.cost ?? undefined } });
-  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_create', entityType: 'product', entityId: product.id, details: { title: product.title, price: String(product.price) } });
-  res.status(201).json(product);
+  try {
+    const product = await prisma.product.create({ data: { ...data, price: data.price, compareAtPrice: data.compareAtPrice ?? undefined, cost: data.cost ?? undefined } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_create', entityType: 'product', entityId: product.id, details: { title: product.title, price: String(product.price) } });
+    res.status(201).json(product);
+  } catch (e) {
+    // Unique barcode/sku collision (DB-level — indexed lookup integrity)
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode or SKU already in use', code: 'barcode_taken', details: e.meta?.target });
+    throw e;
+  }
 }));
 
 router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(productPatchSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
   if (Object.keys(data).length===0) return res.status(400).json({ error: 'No fields to update', code: 'validation_failed' });
   const before = await prisma.product.findUnique({ where: { id: req.params.id }, select: { price: true, title: true } });
-  const product = await prisma.product.update({ where: { id: req.params.id }, data });
+  let product;
+  try {
+    product = await prisma.product.update({ where: { id: req.params.id }, data });
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode or SKU already in use', code: 'barcode_taken', details: e.meta?.target });
+    throw e;
+  }
   if (before && data.price !== undefined && String(before.price) !== String(data.price)) {
     audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_price_update', entityType: 'product', entityId: product.id, details: { from: String(before.price), to: String(data.price) } });
   } else if (before) {

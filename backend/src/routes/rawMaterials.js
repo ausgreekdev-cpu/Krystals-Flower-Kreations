@@ -21,6 +21,7 @@ router.get('/low-stock', requireAuth, requireRole('admin','developer','maker','s
 
 const materialSchema = z.object({
   sku: z.string().min(2).max(50),
+  barcode: z.string().trim().max(50).optional().nullable(), // scan label for stocktakes
   name: z.string().min(2).max(200),
   unit: z.enum(['sheet','meter','stick','roll','piece','ml','gram']).default('sheet'),
   onHand: z.number().finite().nonnegative().max(1000000).default(0),
@@ -32,15 +33,25 @@ const materialSchema = z.object({
 
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
-  const mat = await prisma.rawMaterial.upsert({ where: { sku: data.sku }, update: { ...data }, create: { ...data } });
-  res.status(201).json(mat);
+  try {
+    const mat = await prisma.rawMaterial.upsert({ where: { sku: data.sku }, update: { ...data }, create: { ...data } });
+    res.status(201).json(mat);
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode already in use', code: 'barcode_taken' });
+    throw e;
+  }
 }));
 
 router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict()), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
-  const mat = await prisma.rawMaterial.update({ where: { id }, data: req.validated });
-  res.json(mat);
+  try {
+    const mat = await prisma.rawMaterial.update({ where: { id }, data: req.validated });
+    res.json(mat);
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode already in use', code: 'barcode_taken' });
+    throw e;
+  }
 }));
 
 router.post('/:id/adjust', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {

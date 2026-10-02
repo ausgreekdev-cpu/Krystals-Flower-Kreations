@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import { queueRequest, flushQueue, getQueue, isOnline, onOnline } from '../lib/offlineQueue';
+import ScanModal from '../components/scan/ScanModal';
+import { useWedgeScanner } from '../components/scan/useWedgeScanner';
+import { lookupScan } from '../components/scan/scanApi';
+import { chimeSuccess, beepError, registerScan } from '../components/scan/feedback';
 
 export default function POS(){
   const [session,setSession]=useState(null);
@@ -9,6 +13,7 @@ export default function POS(){
   const [queue,setQueue]=useState([]);
   const [toast,setToast]=useState(''); const [toastErr,setToastErr]=useState(false);
   const [receipt,setReceipt]=useState(null);
+  const [scanOpen,setScanOpen]=useState(false);
   const token = localStorage.getItem('token') || '';
   function showToast(msg, isErr=false){ setToast(msg); setToastErr(isErr); setTimeout(()=>setToast(''), 4000); }
 
@@ -26,6 +31,28 @@ export default function POS(){
   function addToCart(p){
     setCart(c=>{ const ex=c.find(i=>i.productId===p.id); if(ex) return c.map(i=> i.productId===p.id? {...i, quantity:i.quantity+1}:i); return [...c, { productId:p.id, title:p.title, price:Number(p.price), quantity:1 }]; });
   }
+
+  // USB/Bluetooth scanner — works anywhere on the page, no focus needed.
+  async function handleScanCode(code){
+    if (!registerScan(code)) return; // 2s duplicate window (shared with ScanModal)
+    setQ(''); // clear chars the scanner may have typed into a focused input
+    try{
+      const r = await lookupScan(code, token);
+      if (r.found && r.item && r.kind !== 'raw_material'){
+        addToCart(r.item);
+        chimeSuccess();
+        setScanOpen(false);
+        showToast(`Added — ${r.item.title || r.item.name}`);
+      } else if (r.kind === 'raw_material'){
+        beepError(); showToast('Raw material — not sellable at POS', true);
+      } else {
+        beepError(); showToast(`Not found: ${code} — add it in Admin → Catalog → Products`, true);
+      }
+    }catch(e){
+      beepError(); showToast(e.message || 'Scan lookup failed', true);
+    }
+  }
+  useWedgeScanner(handleScanCode, true);
   async function sale(paymentMethod='cash'){
     if(cart.length===0) return;
     const body = { sessionId: session?.id, items: cart.map(c=> ({ productId:c.productId, quantity:c.quantity })), paymentMethod };
@@ -79,9 +106,12 @@ export default function POS(){
       )}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-surface2 border rounded-2xl p-4">
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Scan barcode or search — rose, banksia" className="w-full border rounded-xl px-3 py-2 text-sm" />
+          <div className="flex gap-2">
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Scan barcode or search — rose, banksia" className="flex-1 min-w-0 border rounded-xl px-3 py-2 text-sm" />
+            <button onClick={()=>setScanOpen(true)} title="Camera scanner" aria-label="Open scanner" className="shrink-0 border rounded-xl px-3 hover:bg-surface3 font-bold">📷</button>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2 max-h-[400px] overflow-auto">
-            {(Array.isArray(products)?products:[]).filter(p=> !q || p.title.toLowerCase().includes(q.toLowerCase()) || p.sku?.toLowerCase().includes(q.toLowerCase())).slice(0,12).map(p=> (
+            {(Array.isArray(products)?products:[]).filter(p=> !q || p.title.toLowerCase().includes(q.toLowerCase()) || p.sku?.toLowerCase().includes(q.toLowerCase()) || p.barcode?.toLowerCase().includes(q.toLowerCase())).slice(0,12).map(p=> (
               <button key={p.id} onClick={()=>addToCart(p)} className="border rounded-xl p-3 text-left hover:bg-surface3">
                 <div className="font-bold text-sm text-ink line-clamp-1">{p.title}</div>
                 <div className="text-xs text-muted">{p.sku || 'No SKU'}</div>
@@ -105,7 +135,14 @@ export default function POS(){
           <button onClick={()=>{ flushQueue(token).then(refreshQueue); }} className="w-full mt-2 text-xs border rounded-full py-2 hover:bg-surface3">Flush queued ({queue.length}) now</button>
         </div>
       </div>
-      <div className="text-xs text-muted">Offline queue IndexedDB `krystal-offline` — sales queued when no signal (market), auto-flush on `online` event. Camera scan via `expo-camera` on mobile, `BarcodeDetector` on web (fallback input).</div>
+      <div className="text-xs text-muted">Offline queue IndexedDB `krystal-offline` — sales queued when no signal (market), auto-flush on `online` event. Barcode: USB/BT scanner fires anywhere (2s duplicate ignore); 📷 opens camera scan (Chrome/Edge) with manual fallback.</div>
+      <ScanModal
+        open={scanOpen}
+        onClose={()=>setScanOpen(false)}
+        token={token}
+        closeOnFound
+        onResolved={(r)=>{ if (r.item && r.kind !== 'raw_material'){ addToCart(r.item); showToast(`Added — ${r.item.title || r.item.name}`); } else if (r.kind === 'raw_material'){ showToast('Raw material — not sellable at POS', true); } }}
+      />
     </div>
   );
 }
