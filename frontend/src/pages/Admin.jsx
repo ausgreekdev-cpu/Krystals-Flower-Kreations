@@ -9,6 +9,7 @@ import Modal from '../components/admin/Modal';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
 import ScanModal from '../components/scan/ScanModal';
+import ScannerIndicator from '../components/scan/ScannerIndicator';
 import { useWedgeScanner } from '../components/scan/useWedgeScanner';
 import { lookupScan } from '../components/scan/scanApi';
 import { chimeSuccess, beepError, registerScan } from '../components/scan/feedback';
@@ -436,8 +437,9 @@ function Inventory({ data, reload, token }) {
       {sub === 'stocktake' && <InventoryStocktake data={data} reload={reload} token={token} />}
       {sub === 'purchase' && <InventoryPurchase data={data} reload={reload} token={token} />}
       {sub === 'transfer' && <InventoryTransfer data={data} reload={reload} token={token} />}
-      {sub === 'movements' && <InventoryMovements data={data} reload={reload} token={token} />}
+      {sub === 'movements' && <InventoryMovements token={token} />}
       {sub === 'lots' && <InventoryLots data={data} reload={reload} token={token} />}
+      <ScannerIndicator />
     </div>
   );
 }

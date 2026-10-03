@@ -37,6 +37,9 @@ export function useWedgeScanner(onScan: (code: string) => void, active = true) {
           // Capture-phase listener: stop the event before inputs/react see it.
           e.preventDefault();
           e.stopPropagation();
+          // Hardware proof-of-life for ScannerIndicator (fires even if the
+          // page handler rejects the code before registerScan runs).
+          window.dispatchEvent(new CustomEvent('kfk:wedge', { detail: { code } }));
           cb.current(code);
         }
         return;

@@ -49,7 +49,7 @@ export default function ScanModal({ open, onClose, token, onResolved, allowCreat
 
   async function handleCode(raw: string) {
     const code = String(raw || '').trim();
-    // Shared 2s duplicate window — same registration the wedge/POS paths use.
+    // Shared 1.5s duplicate window — same registration the wedge/POS paths use.
     if (!registerScan(code)) return;
     setMode('looking');
     setErr('');
@@ -257,7 +257,7 @@ export default function ScanModal({ open, onClose, token, onResolved, allowCreat
           </form>
         )}
 
-        <div className="text-[11px] text-muted">USB scanner: pull the trigger anywhere on the page — no focus needed. Identical scans are ignored for 2s.</div>
+        <div className="text-[11px] text-muted">USB scanner: pull the trigger anywhere on the page — no focus needed. Identical scans are ignored for 1.5s.</div>
       </div>
     </div>
   );

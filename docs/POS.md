@@ -10,7 +10,7 @@ Backend: `POST /api/pos/session/open`, `/sale`, `/session/:id/close`. Offline qu
 
 ## Barcode scanning (web POS + Admin inventory)
 
-- **USB/Bluetooth HID scanner** — types like a keyboard; detected as a scan burst (inter-key gap ≤50 ms, terminated by Enter/Tab) and fires from **anywhere on the page, no focus needed**. Identical codes are ignored for 2 s (shared dedupe window).
+- **USB/Bluetooth HID scanner** — types like a keyboard; detected as a scan burst (inter-key gap ≤50 ms, terminated by Enter/Tab) and fires from **anywhere on the page, no focus needed**. Identical codes are ignored for 1.5 s (shared dedupe window). See `docs/SCANNING.md` for the full focus/buffering guide.
 - **📷 camera** — native `BarcodeDetector` (Chrome/Edge, feature-detected — no extra deps) with manual code-entry fallback; denied permission falls back to typing.
 - Lookup `GET /api/inventory/scan/:code`: product barcode → variant barcode → product SKU → variant SKU → raw-material barcode/SKU. Soft-deleted products return `404 not_found` (stale labels behave like unknown codes).
 - Unknown codes: POS shows "add it in Admin → Catalog → Products"; the Admin scanner can create the product inline with the scanned barcode prefilled.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { queueRequest, flushQueue, getQueue, isOnline, onOnline } from '../lib/offlineQueue';
 import ScanModal from '../components/scan/ScanModal';
+import ScannerIndicator from '../components/scan/ScannerIndicator';
 import { useWedgeScanner } from '../components/scan/useWedgeScanner';
 import { lookupScan } from '../components/scan/scanApi';
 import { chimeSuccess, beepError, registerScan } from '../components/scan/feedback';
@@ -143,6 +144,7 @@ export default function POS(){
         closeOnFound
         onResolved={(r)=>{ if (r.item && r.kind !== 'raw_material'){ addToCart(r.item); showToast(`Added — ${r.item.title || r.item.name}`); } else if (r.kind === 'raw_material'){ showToast('Raw material — not sellable at POS', true); } }}
       />
+      <ScannerIndicator />
     </div>
   );
 }
