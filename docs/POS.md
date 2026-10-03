@@ -19,14 +19,15 @@ Backend: `POST /api/pos/session/open`, `/sale`, `/session/:id/close`. Offline qu
 
 ## Flows
 
-1. **Open till** — staff logs in, enters opening cash, location (Perth Studio / Fremantle Markets).
-2. **Sale** — scan barcode / search product, add to cart, select payment (`cash | card | afterpay | eftpos`), print/email receipt (GST + ABN).
-3. **Inventory** — sale decrements `inventory_levels` (default location → studio-perth) + creates `stock_movements type=sale`.
-4. **Close till** — enter closing cash → system computes expected (= opening + cash sales) + variance. Reconciliation in `pos_sessions`.
+1. **Open till** — staff logs in, opens the till (float = admin-configured `pos_till_float_default` unless overridden).
+2. **Sale** — scan barcode / search product, add to cart (multi-variant products open an option picker; variant lines sell at variant price and decrement variant stock), adjust quantities with ±, select payment (`cash | eftpos | bank_transfer`). Cash shows a **cash-received field with quick-fill chips ($20/$50/$100/Exact) and change due** — the Cash button stays disabled until the amount covers the total. Receipt shows on screen (order number, total, method, footer).
+3. **Inventory** — sale decrements variant stock (`inventory_quantity`, tracked, floor-guarded → `422 out_of_stock`, transaction rolls back) + `inventory_levels` (default location → studio-perth) + creates `stock_movements type=sale`.
+4. **Close till** — on the POS page (also in Admin): enter counted cash (prefilled with expected = float + cash sales) → **Z-report card** with takings by method, float, expected, counted, variance (green/red). Server returns payments with the close response. Reconciliation in `pos_sessions`.
 
 ## Market Mode (offline)
 - Mobile POS bundles product catalog locally (SQLite/AsyncStorage) on open.
 - Queue `pos/sale` payloads when offline, show badge, auto-sync on reconnect (same as field photo queue).
+- **Idempotency**: every checkout generates an `Idempotency-Key` (UUID) carried into the offline queue; flushes include it (pre-update queue entries fall back to their stable queue id). The backend dedupes on `order.idempotencyKey @unique`, so double-flushes / double-taps replay the original order instead of creating a second one.
 
 ## Receipts
 PDF via `pdfkit` or ESC/POS. Includes: business name, ABN, GST statement ("Total includes GST of $X"), payment method, returns note for made-to-order.

@@ -461,7 +461,7 @@ function InventoryStock({ data, reload, token }) {
 
   // USB/barcode scanner — active whenever this stock view is mounted.
   async function handleScanCode(code) {
-    if (!registerScan(code)) return; // 2s duplicate window (shared with ScanModal)
+    if (!registerScan(code)) return; // 1.5s duplicate window (shared with ScanModal)
     try {
       const r = await lookupScan(code, token);
       setScanHit(r);
@@ -732,7 +732,7 @@ function InventoryStocktake({ data, reload, token }) {
     toast(`Counted +1 — ${it.name}`);
   }
   async function handleScanCode(code) {
-    if (!registerScan(code)) return; // 2s duplicate window (shared with ScanModal)
+    if (!registerScan(code)) return; // 1.5s duplicate window (shared with ScanModal)
     try { applyScan(await lookupScan(code, token)); }
     catch (e) { beepError(); toast(e.message, 'error'); }
   }

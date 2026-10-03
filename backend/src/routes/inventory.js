@@ -74,7 +74,7 @@ router.get('/scan/:code', scanLimit, asyncHandler(async (req, res) => {
       price: Number(product.price), type: product.type, stockMode: product.stockMode, isActive: product.isActive && !product.deletedAt,
       image: product.images?.[0]?.url || null,
     },
-    variant: variant ? { id: variant.id, title: variant.title, sku: variant.sku, barcode: variant.barcode, option1: variant.option1, option2: variant.option2, option3: variant.option3 } : null,
+    variant: variant ? { id: variant.id, title: variant.title, sku: variant.sku, barcode: variant.barcode, price: Number(variant.price), option1: variant.option1, option2: variant.option2, option3: variant.option3 } : null,
     stock: levels.map((l) => ({ locationId: l.locationId, location: l.location?.name || 'Unknown', onHand: l.onHand, low: l.lowStockThreshold != null ? l.onHand <= l.lowStockThreshold : false })),
     totalOnHand: levels.reduce((a, l) => a + l.onHand, 0),
   });

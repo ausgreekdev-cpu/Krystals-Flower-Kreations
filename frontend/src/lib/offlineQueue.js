@@ -56,6 +56,10 @@ export async function flushQueue(token) {
     try {
       const headers = { 'Content-Type': 'application/json', ...item.headers };
       if (token) headers.Authorization = `Bearer ${token}`;
+      // Backend dedupes replayed sales via Idempotency-Key (order.idempotencyKey @unique).
+      // Entries queued before this key existed fall back to the stable queue id, so a
+      // double-flush can never create two orders.
+      if (!headers['Idempotency-Key'] && item.path.includes('/pos/sale')) headers['Idempotency-Key'] = item.id;
       const res = await fetch(item.path, { method: 'POST', headers, body: JSON.stringify(item.body) });
       if (!res.ok) throw new Error(await res.text());
       await removeFromQueue(item.id);

@@ -41,7 +41,9 @@ router.post('/session/:id/close', validate(closeSchema), asyncHandler(async (req
   const expectedCash = Number(session.openingCash) + cashPayments;
   const variance = Number(closingCash) - expectedCash;
   const updated = await prisma.posSession.update({ where: { id: session.id }, data: { closedAt: new Date(), closingCash, expectedCash, variance, status: 'closed' } });
-  res.json(updated);
+  // Payments drive the POS Z-report — include them in the close response
+  const full = await prisma.posSession.findUnique({ where: { id: updated.id }, include: { payments: { orderBy: { createdAt: 'asc' } } } });
+  res.json(full);
 }));
 
 // POS sale — atomic: order + ledger + stock, supports offline Idempotency-Key
@@ -57,7 +59,7 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
   // Idempotency for offline queue: clientInvoiceId via header
   const idempotencyKey = req.headers['idempotency-key'] ? String(req.headers['idempotency-key']).slice(0,100) : null;
   if (idempotencyKey) {
-    const existing = await prisma.order.findUnique({ where: { idempotencyKey } });
+    const existing = await prisma.order.findUnique({ where: { idempotencyKey }, include: { lines: true } });
     if (existing) return res.json(existing);
   }
   // items: [{ productId, variantId, quantity }]
@@ -70,7 +72,7 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
     if (it.variantId && !variant) throw Object.assign(new Error(`Variant ${it.variantId} not found`), { status: 404, code: 'not_found' });
     const price = variant ? Number(variant.price) : Number(product.price);
     subtotal += price * it.quantity;
-    enriched.push({ ...it, price, title: variant ? `${product.title} — ${variant.title}` : product.title, sku: variant?.sku || product.sku, variant });
+    enriched.push({ ...it, price, title: variant ? `${product.title} — ${variant.title}` : product.title, sku: variant?.sku || product.sku, stockMode: product.stockMode, variant });
   }
   const total = subtotal;
   const gst = total * 0.1 / 1.1;
@@ -114,7 +116,19 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
         const variantId = e.variantId || null;
         const level = await tx.inventoryLevel.findFirst({ where: { productId: e.productId, variantId, locationId: loc.id } });
         if (level) {
-          await tx.inventoryLevel.update({ where: { id: level.id }, data: { onHand: { decrement: e.quantity } } });
+          if (e.stockMode === 'tracked' && !e.variantId) {
+            // Product-level stock must never go negative — floor-guarded decrement.
+            // A throw here aborts the whole $transaction, so the order is rolled back too.
+            const upd = await tx.inventoryLevel.updateMany({
+              where: { id: level.id, onHand: { gte: e.quantity } },
+              data: { onHand: { decrement: e.quantity } },
+            });
+            if (upd.count === 0) {
+              throw Object.assign(new Error(`Insufficient stock for ${e.title}: only ${level.onHand} left`), { status: 422, code: 'out_of_stock' });
+            }
+          } else {
+            await tx.inventoryLevel.update({ where: { id: level.id }, data: { onHand: { decrement: e.quantity } } });
+          }
         } else {
           await tx.inventoryLevel.create({ data: { productId: e.productId, variantId, locationId: loc.id, onHand: -e.quantity } });
         }
@@ -128,7 +142,8 @@ router.post('/sale', posLimit, validate(saleSchema), asyncHandler(async (req, re
   // would abort the whole sale). Run it after, on the global client.
   await earnForOrder(prisma, { email, total, orderId: order.id, reason: 'purchase' }).catch(()=>{});
   const S = await getSettings();
-  res.status(201).json({ ...order, receiptFooter: S.pos_receipt_footer || '' });
+  const full = await prisma.order.findUnique({ where: { id: order.id }, include: { lines: true } });
+  res.status(201).json({ ...full, receiptFooter: S.pos_receipt_footer || '' });
 }));
 
 export default router;

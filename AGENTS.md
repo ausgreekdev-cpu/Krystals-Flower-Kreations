@@ -16,7 +16,7 @@ Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mob
 
 ```bash
 # backend (workdir = backend)
-npm test            # integration suite (72 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
+npm test            # integration suite (77 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
 npm run seed        # idempotent seed (loads backend/.env itself)
 npm run dev         # :3001
 
