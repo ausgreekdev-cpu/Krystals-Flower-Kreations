@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClient';
 import { subscribe, nextColorMode, getColorMode, MODES } from '../lib/colorMode';
@@ -7,6 +7,7 @@ import { invalidatePublicSettings } from '../lib/publicSettings';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import LabelPrintModal from '../components/admin/LabelPrintModal';
+import InventoryDetail from '../components/admin/InventoryDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
 import ScanModal from '../components/scan/ScanModal';
@@ -251,7 +252,7 @@ function AdminInner({ user }) {
                 <>
                   {tab === 'overview' && <Overview data={data} onOpen={setTab} />}
                   {tab === 'orders' && <Orders data={data} reload={() => load('orders')} token={token} />}
-                  {tab === 'inventory' && <Inventory data={data} reload={() => load('inventory')} token={token} />}
+                  {tab === 'inventory' && <Inventory data={data} reload={() => load('inventory')} token={token} role={user?.role} />}
                   {tab === 'products' && <Products data={data} reload={() => load('products')} token={token} />}
                   {tab === 'recipes' && <Recipes data={data} reload={() => load('recipes')} token={token} />}
                   {tab === 'collections' && <Collections data={data} reload={() => load('collections')} token={token} />}
@@ -423,29 +424,100 @@ const INVENTORY_SUBS = [
   { id: 'lots', label: 'Lots' },
 ];
 
-function Inventory({ data, reload, token }) {
-  const [sub, setSub] = useState('stock');
+function Inventory({ data, reload, token, role }) {
+  // URL-addressable drill-in: /admin?tab=inventory&sub=<sub>&inv=<kind>:<id>
+  const initial = new URLSearchParams(window.location.search);
+  const [sub, setSub] = useState(initial.get('sub') || 'stock');
+  const [inv, setInv] = useState(initial.get('inv') || '');
+  const [materialEditor, setMaterialEditor] = useState(null);
+  const [tick, setTick] = useState(0);
+  const pushedInv = useRef(false);
+
+  useEffect(() => {
+    const onPop = () => {
+      const p = new URLSearchParams(window.location.search);
+      setSub(p.get('sub') || 'stock');
+      setInv(p.get('inv') || '');
+      pushedInv.current = false;
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  function writeUrl(nextSub, nextInv, replace) {
+    const p = new URLSearchParams(window.location.search);
+    p.set('tab', 'inventory');
+    if (nextSub) p.set('sub', nextSub); else p.delete('sub');
+    if (nextInv) p.set('inv', nextInv); else p.delete('inv');
+    const url = `${window.location.pathname}?${p.toString()}`;
+    window.history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  }
+  function changeSub(s) {
+    setSub(s);
+    if (inv) { setInv(''); pushedInv.current = false; }
+    writeUrl(s, '', true);
+  }
+  function openDetail(kind, id, row) {
+    if (!id) return;
+    const key = `${kind}:${id}`;
+    if (row) { try { sessionStorage.setItem(`inv:${key}`, JSON.stringify(row)); } catch { /* quota */ } }
+    writeUrl(sub, key, false);
+    pushedInv.current = true;
+    setInv(key);
+  }
+  function closeDetail() {
+    if (pushedInv.current) { pushedInv.current = false; window.history.back(); }
+    else { writeUrl(sub, '', true); setInv(''); }
+  }
+  function seedFor(kind, id) {
+    if (kind === 'material') return (data.materials || []).find((x) => x.id === id) || readSession(kind, id);
+    if (kind === 'level') return (data.levels || []).find((x) => x.id === id) || readSession(kind, id);
+    if (kind === 'location') return (data.locations || []).find((x) => x.id === id) || readSession(kind, id);
+    return readSession(kind, id);
+  }
+  function readSession(kind, id) {
+    try { return JSON.parse(sessionStorage.getItem(`inv:${kind}:${id}`) || 'null'); } catch { return null; }
+  }
+
+  const colon = inv.indexOf(':');
+  const detailKind = colon > 0 ? inv.slice(0, colon) : '';
+  const detailId = colon > 0 ? inv.slice(colon + 1) : '';
+  const locations = Array.isArray(data.locations) ? data.locations : [];
+  const materials = Array.isArray(data.materials) ? data.materials : [];
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-line">
         {INVENTORY_SUBS.map((s) => (
-          <button key={s.id} onClick={() => setSub(s.id)}
+          <button key={s.id} onClick={() => changeSub(s.id)}
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${sub === s.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted hover:bg-royal-50'}`}>{s.label}</button>
         ))}
       </div>
-      {sub === 'stock' && <InventoryStock data={data} reload={reload} token={token} />}
-      {sub === 'low' && <InventoryLow data={data} reload={reload} token={token} />}
-      {sub === 'stocktake' && <InventoryStocktake data={data} reload={reload} token={token} />}
-      {sub === 'purchase' && <InventoryPurchase data={data} reload={reload} token={token} />}
-      {sub === 'transfer' && <InventoryTransfer data={data} reload={reload} token={token} />}
-      {sub === 'movements' && <InventoryMovements token={token} />}
-      {sub === 'lots' && <InventoryLots data={data} reload={reload} token={token} />}
+      {detailKind && detailId ? (
+        <InventoryDetail
+          key={`${detailKind}:${detailId}:${tick}`}
+          kind={detailKind} id={detailId} seed={seedFor(detailKind, detailId)}
+          token={token} data={data} reload={reload} role={role}
+          onBack={closeDetail} onOpen={openDetail} onEditMaterial={setMaterialEditor}
+        />
+      ) : (
+        <>
+          {sub === 'stock' && <InventoryStock data={data} reload={reload} token={token} onOpen={openDetail} />}
+          {sub === 'low' && <InventoryLow token={token} onOpen={openDetail} />}
+          {sub === 'stocktake' && <InventoryStocktake data={data} reload={reload} token={token} onOpen={openDetail} />}
+          {sub === 'purchase' && <InventoryPurchase data={data} reload={reload} token={token} onOpen={openDetail} />}
+          {sub === 'transfer' && <InventoryTransfer data={data} reload={reload} token={token} />}
+          {sub === 'movements' && <InventoryMovements token={token} onOpen={openDetail} />}
+          {sub === 'lots' && <InventoryLots data={data} reload={reload} token={token} onOpen={openDetail} />}
+        </>
+      )}
+      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); setTick((t) => t + 1); reload(); }} token={token} />}
       <ScannerIndicator />
     </div>
   );
 }
 
-function InventoryStock({ data, reload, token }) {
+function InventoryStock({ data, reload, token, onOpen }) {
   const toast = useToast();
   const [adjusting, setAdjusting] = useState(null);
   const [setVals, setSetVals] = useState({});
@@ -566,7 +638,7 @@ function InventoryStock({ data, reload, token }) {
         <div className="space-y-1.5">
           {levels.slice(0, 30).map((l) => (
             <div key={l.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
-              <span className="font-medium text-ink flex-1 min-w-[160px]">{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-muted">@{l.location?.name}</span></span>
+              <span className="font-medium text-ink flex-1 min-w-[160px] cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('level', l.id, l)}>{l.product?.title || l.productId} {l.variant ? `— ${l.variant.title}` : ''} <span className="text-muted">@{l.location?.name}</span></span>
               <span className={`font-bold ${l.onHand <= (l.lowStockThreshold ?? 5) ? 'text-red-600' : 'text-ink'}`}>{l.onHand}</span>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, 1)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
               <button disabled={adjusting === l.id} onClick={() => adjustLevel(l, -1)} className="w-7 h-7 rounded-lg bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
@@ -583,7 +655,7 @@ function InventoryStock({ data, reload, token }) {
         <div className="space-y-1.5">
           {materials.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
-              <span className="font-medium text-ink flex-1 min-w-[160px]">{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span>
+              <span className="font-medium text-ink flex-1 min-w-[160px] cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('material', m.id, m)}>{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span>
                 {(m.brand || m.weightValue != null || m.colour || m.size) && <span className="block text-[11px] text-muted font-normal">{[m.brand, m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : null, m.colour, m.size].filter(Boolean).join(' • ')}</span>}
               </span>
               <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-ink'}`}>{m.onHand}</span>
@@ -599,7 +671,7 @@ function InventoryStock({ data, reload, token }) {
       </Card>
       <Card title={`Locations — ${locations.length}`} actions={<Btn small color="ghost" onClick={() => setLocationEditor({})}>+ Add location</Btn>}>
         <div className="space-y-1">
-          {locations.map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span><span className="text-muted">{l.address || ''}</span></div>)}
+          {locations.map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('location', l.id, l)}>{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span><span className="text-muted">{l.address || ''}</span></div>)}
           {locations.length === 0 && <div className="text-xs text-muted py-4 text-center">No locations</div>}
         </div>
       </Card>
@@ -720,7 +792,7 @@ function LocationModal({ location, onClose, onSaved, token }) {
   </Modal>;
 }
 
-function InventoryLow({ token }) {
+function InventoryLow({ token, onOpen }) {
   const [low, setLow] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { adminApi.inventory.lowStock(token).then((d) => { setLow(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false)); }, [token]);
@@ -732,7 +804,7 @@ function InventoryLow({ token }) {
           {low.map((l, i) => (
             <div key={i} className="flex items-center gap-3 border border-line rounded-xl px-4 py-2.5 text-sm">
               <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${l.type === 'material' ? 'bg-amber-100 text-amber-700' : l.type === 'product' ? 'bg-royal-100 text-royal-700' : 'bg-sky-100 text-sky-700'}`}>{l.type}</span>
-              <span className="font-medium text-ink flex-1 truncate">{l.name} <span className="text-muted">• {l.sku}</span></span>
+              <span className="font-medium text-ink flex-1 truncate cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen(l.type === 'material' ? 'material' : l.type === 'product' ? 'level' : 'variant', l.id, l)}>{l.name} <span className="text-muted">• {l.sku}</span></span>
               <span className="text-xs text-muted">{l.location}</span>
               <span className="font-bold text-red-600">{l.onHand} <span className="text-muted font-normal">/ {l.threshold}</span></span>
             </div>
@@ -744,7 +816,7 @@ function InventoryLow({ token }) {
   );
 }
 
-function InventoryStocktake({ data, reload, token }) {
+function InventoryStocktake({ data, reload, token, onOpen }) {
   const toast = useToast();
   const locations = Array.isArray(data.locations) ? data.locations : [];
   const levels = Array.isArray(data.levels) ? data.levels : [];
@@ -813,14 +885,14 @@ function InventoryStocktake({ data, reload, token }) {
         <div className="mt-3"><Btn onClick={submit} disabled={busy || !locationId}>{busy ? 'Applying…' : 'Complete stocktake'}</Btn></div>
       </Card>
       <Card title={`Stocktake history — ${history.length}`}>
-        <div className="space-y-1">{history.map((h) => <div key={h.id} className="flex justify-between text-xs border-b border-line py-1.5"><span>{h.location?.name} • {h.status}</span><span className="text-muted">{new Date(h.createdAt).toLocaleString()} • {h._count?.lines} lines</span></div>)}</div>
+        <div className="space-y-1">{history.map((h) => <div key={h.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('stocktake', h.id, h)}>{h.location?.name} • {h.status}</span><span className="text-muted">{new Date(h.createdAt).toLocaleString()} • {h._count?.lines} lines</span></div>)}</div>
       </Card>
       <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} closeOnFound onResolved={applyScan} />
     </div>
   );
 }
 
-function InventoryPurchase({ data, reload, token }) {
+function InventoryPurchase({ data, reload, token, onOpen }) {
   const toast = useToast();
   const materials = Array.isArray(data.materials) ? data.materials : [];
   const [creating, setCreating] = useState(false);
@@ -833,7 +905,7 @@ function InventoryPurchase({ data, reload, token }) {
       <div className="flex justify-between items-center"><div className="text-xs text-muted">{pos.length} purchase orders</div><Btn onClick={() => setCreating(true)}>+ New purchase order</Btn></div>
       {pos.map((po) => (
         <div key={po.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
-          <div className="flex-1 min-w-0"><div className="font-bold text-sm text-ink">{po.poNumber} — {po.supplier}</div><div className="text-xs text-muted">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
+          <div className="flex-1 min-w-0 cursor-pointer hover:text-royal-700" title="View details" onClick={() => onOpen('purchase', po.id, po)}><div className="font-bold text-sm text-ink">{po.poNumber} — {po.supplier}</div><div className="text-xs text-muted">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
           <StatusBadge value={po.status} />
           <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>
           <Btn small color="red" onClick={() => setConfirmDel(po)}>Delete</Btn>
@@ -935,7 +1007,7 @@ function InventoryTransfer({ data, reload, token }) {
   );
 }
 
-function InventoryMovements({ token }) {
+function InventoryMovements({ token, onOpen }) {
   const [page, setPage] = useState(1);
   const [type, setType] = useState('');
   const [movs, setMovs] = useState({ data: [], total: 0, page: 1, pages: 1 });
@@ -955,7 +1027,7 @@ function InventoryMovements({ token }) {
       <div className="space-y-1">
         {movs.data.map((mv) => (
           <div key={mv.id} className="flex justify-between text-xs border-b border-line py-1.5">
-            <span className="text-ink truncate mr-2">{mv.product?.title || mv.rawMaterial?.name || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-muted">{mv.type} • {mv.location?.name || ''} {mv.reason ? `• ${mv.reason}` : ''}</span></span>
+            <span className="text-ink truncate mr-2 cursor-pointer hover:text-royal-700" title="View details" onClick={() => onOpen('movement', mv.id, mv)}>{mv.product?.title || mv.rawMaterial?.name || '—'} <span className={mv.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}>{(mv.quantity > 0 ? '+' : '') + mv.quantity}</span> <span className="text-muted">{mv.type} • {mv.location?.name || ''} {mv.reason ? `• ${mv.reason}` : ''}</span></span>
             <span className="text-muted shrink-0">{new Date(mv.createdAt).toLocaleString()}</span>
           </div>
         ))}
@@ -966,7 +1038,7 @@ function InventoryMovements({ token }) {
   );
 }
 
-function InventoryLots({ data, reload, token }) {
+function InventoryLots({ data, reload, token, onOpen }) {
   const toast = useToast();
   const materials = Array.isArray(data.materials) ? data.materials : [];
   const levels = Array.isArray(data.levels) ? data.levels : [];
@@ -985,7 +1057,7 @@ function InventoryLots({ data, reload, token }) {
     <div className="space-y-4">
       {expiring.length > 0 && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">⚠️ {expiring.length} lots expiring within 14 days</div>}
       <Card title={`Lots — ${lots.length}`} actions={<Btn small color="ghost" onClick={() => setCreating(true)}>+ Receive lot</Btn>}>
-        <div className="space-y-1">{lots.slice(0, 30).map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="text-ink">{l.product?.title || l.rawMaterial?.name || l.variant?.title || '—'} {l.lotNumber ? `• ${l.lotNumber}` : ''}</span><span className="text-muted">{l.location?.name} • {l.remainingQty}/{l.quantity} left{l.expiresAt ? ` • exp ${new Date(l.expiresAt).toLocaleDateString('en-AU')}` : ''}</span></div>)}{lots.length === 0 && <div className="text-xs text-muted py-4 text-center">No lots</div>}</div>
+        <div className="space-y-1">{lots.slice(0, 30).map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="text-ink cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('lot', l.id, l)}>{l.product?.title || l.rawMaterial?.name || l.variant?.title || '—'} {l.lotNumber ? `• ${l.lotNumber}` : ''}</span><span className="text-muted">{l.location?.name} • {l.remainingQty}/{l.quantity} left{l.expiresAt ? ` • exp ${new Date(l.expiresAt).toLocaleDateString('en-AU')}` : ''}</span></div>)}{lots.length === 0 && <div className="text-xs text-muted py-4 text-center">No lots</div>}</div>
       </Card>
       {creating && <LotModal options={allOptions} locations={locations} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('Lot received'); reload(); }} token={token} />}
     </div>

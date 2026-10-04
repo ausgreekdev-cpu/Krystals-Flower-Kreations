@@ -4,6 +4,7 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { registerFieldRoutes, validateCustomFields, customFieldsSchema } from '../lib/fieldDefs.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -19,6 +20,9 @@ router.get('/low-stock', requireAuth, requireRole('admin','developer','maker','s
   res.json(low);
 }));
 
+// Admin-defined custom fields for materials — staff-only list (internal data)
+registerFieldRoutes(router, { entityType: 'material', roles: ['admin', 'developer'], publicList: false });
+
 const materialSchema = z.object({
   sku: z.string().min(2).max(50),
   barcode: z.string().trim().max(50).optional().nullable(), // scan label for stocktakes
@@ -33,11 +37,13 @@ const materialSchema = z.object({
   weightUnit: z.enum(['lb', 'gsm']).optional().nullable(),
   colour: z.string().trim().max(60).optional().nullable(),
   size: z.string().trim().max(40).optional().nullable(),
+  customFields: customFieldsSchema,
   locationId: z.string().min(8).max(100).optional().nullable(),
 }).strict();
 
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
+  data.customFields = await validateCustomFields(data.customFields, 'material');
   try {
     const mat = await prisma.rawMaterial.upsert({ where: { sku: data.sku }, update: { ...data }, create: { ...data } });
     res.status(201).json(mat);
@@ -50,8 +56,10 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
 router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict()), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const data = req.validated;
+  if (data.customFields !== undefined) data.customFields = await validateCustomFields(data.customFields, 'material');
   try {
-    const mat = await prisma.rawMaterial.update({ where: { id }, data: req.validated });
+    const mat = await prisma.rawMaterial.update({ where: { id }, data });
     res.json(mat);
   } catch (e) {
     if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode already in use', code: 'barcode_taken' });
@@ -87,6 +95,15 @@ router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandle
   const id = String(req.params.id).slice(0,100);
   await prisma.rawMaterial.delete({ where: { id } });
   res.json({ ok: true });
+}));
+
+// Detail endpoint — last so literal paths above (fields, low-stock) win
+router.get('/:id', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const material = await prisma.rawMaterial.findUnique({ where: { id } });
+  if (!material) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  res.json(material);
 }));
 
 export default router;

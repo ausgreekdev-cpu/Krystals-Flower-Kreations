@@ -108,6 +108,12 @@ export const adminApi = {
     update: (id: string, body: { label?: string; position?: number }, token: string) => req<any>(`/api/products/fields/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/products/fields/${id}`, { method: 'DELETE', token }),
   },
+  materialFields: {
+    list: (token: string) => req<any[]>('/api/materials/fields', { token }),
+    create: (body: { label: string; type: string; key?: string }, token: string) => req<any>('/api/materials/fields', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: { label?: string; position?: number }, token: string) => req<any>(`/api/materials/fields/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/materials/fields/${id}`, { method: 'DELETE', token }),
+  },
   products: {
     list: (token: string) => req<any>(`/api/products?limit=100&all=1`, { token }),
     create: (body: any, token: string) => req<any>('/api/products', { method: 'POST', body: JSON.stringify(body), token }),
@@ -155,6 +161,7 @@ export const adminApi = {
   },
   materials: {
     list: (token: string) => req<any[]>('/api/materials', { token }),
+    get: (id: string, token: string) => req<any>(`/api/materials/${id}`, { token }),
     lowStock: (token: string) => req<any[]>('/api/materials/low-stock', { token }),
     adjust: (id: string, qty: number, reason: string, token: string) => req<any>(`/api/materials/${id}/adjust`, { method: 'POST', body: JSON.stringify({ qty, reason }), token }),
     set: (id: string, onHand: number, reason: string, token: string) => req<any>(`/api/materials/${id}/set`, { method: 'POST', body: JSON.stringify({ onHand, reason }), token }),
