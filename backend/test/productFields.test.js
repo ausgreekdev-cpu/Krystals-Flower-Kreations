@@ -33,9 +33,11 @@ before(async () => {
 
 after(async () => {
   if (productId) await prisma.product.delete({ where: { id: productId } }).catch(() => {});
-  if (createdFieldIds.length) {
-    await prisma.productField.deleteMany({ where: { id: { in: createdFieldIds } } }).catch(() => {});
-  }
+  // Key-based cleanup too — a failed assertion mid-test must not leave rows that
+  // make the next run pass for the wrong reason (unique keys are burned otherwise).
+  await prisma.productField.deleteMany({
+    where: { key: { in: ['material', 'stem_count', 'material_again'] } },
+  }).catch(() => {});
   await srv.close();
 });
 
@@ -52,7 +54,7 @@ test('admin defines custom fields; public list reflects them; dups and guests re
   const dup = await api(srv.base, '/api/products/fields', {
     method: 'POST',
     headers: auth(),
-    body: JSON.stringify({ label: 'Material again', type: 'text' }),
+    body: JSON.stringify({ label: 'Material', type: 'text' }), // auto-slugs to the same key "material"
   });
   assert.equal(dup.status, 409, JSON.stringify(dup.body));
   assert.equal(dup.body.code, 'conflict');
