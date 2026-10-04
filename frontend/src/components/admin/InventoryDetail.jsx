@@ -131,7 +131,7 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
     adminApi.bom.recipes(token).then((rs) => setUsage((Array.isArray(rs) ? rs : []).filter((r) => (r.lines || []).some((l) => l.rawMaterialId === id)))).catch(() => {});
   }
   useEffect(() => { loadAll(); }, [id]);
-  useEffect(() => { if (seed && !m) { setM(seed); setDraft({ ...(seed.customFields || {}) }); } }, [seed]);
+  useEffect(() => { if (seed && !m) { setM(seed); setDraft({ ...(seed.customFields || {}) }); setErr(''); } }, [seed]);
 
   async function adjust(delta) {
     try { const r = await adminApi.materials.adjust(id, delta, 'Detail adjust', token); setM(r); reload(); }
@@ -312,7 +312,8 @@ export default function InventoryDetail({ kind, id, seed, token, data, reload, o
 
   useEffect(() => {
     if (kind === 'material') return;
-    if (seed) { setItem(seed); setLoading(false); return; }
+    // Adopt seed whenever it becomes available (deep-link load: data may arrive after mount)
+    if (seed) { setItem(seed); setLoading(false); setError(''); return; }
     let alive = true;
     const fetchers = {
       stocktake: () => adminApi.inventory.stocktakeDetail(id, token),
@@ -322,7 +323,7 @@ export default function InventoryDetail({ kind, id, seed, token, data, reload, o
     if (!fn) { setLoading(false); setError('Open this item from its list to see details.'); return; }
     fn().then((r) => { if (alive) { setItem(r); setLoading(false); } }).catch((e) => { if (alive) { setError(e.message); setLoading(false); } });
     return () => { alive = false; };
-  }, [kind, id]);
+  }, [kind, id, seed]);
 
   if (kind === 'material') {
     return <MaterialDetail id={id} seed={seed} token={token} data={data} reload={reload} onBack={onBack} onEditMaterial={onEditMaterial} role={role} />;
