@@ -845,6 +845,11 @@ model RawMaterial {
   lowThreshold Float    @default(5)
   costPerUnit  Decimal  @db.Decimal(10,2) @default(0)
   supplier     String?
+  brand        String? // e.g. Canson
+  weightValue  Float? // e.g. 65
+  weightUnit   String? // lb | gsm — validated in route schemas
+  colour       String? // e.g. Blush
+  size         String? // board size, e.g. A4 / 12x12in
   locationId   String?
   location     InventoryLocation? @relation(fields: [locationId], references: [id])
   bomLines     BOMLine[]

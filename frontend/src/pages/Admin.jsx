@@ -581,7 +581,9 @@ function InventoryStock({ data, reload, token }) {
         <div className="space-y-1.5">
           {materials.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
-              <span className="font-medium text-ink flex-1 min-w-[160px]">{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span></span>
+              <span className="font-medium text-ink flex-1 min-w-[160px]">{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span>
+                {(m.brand || m.weightValue != null || m.colour || m.size) && <span className="block text-[11px] text-muted font-normal">{[m.brand, m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : null, m.colour, m.size].filter(Boolean).join(' • ')}</span>}
+              </span>
               <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-ink'}`}>{m.onHand}</span>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, 10)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, -10)} className="w-7 h-7 rounded-lg bg-surface3 text-ink font-bold hover:bg-gray-200">−</button>
@@ -605,19 +607,38 @@ function InventoryStock({ data, reload, token }) {
           {recon.length === 0 && <div className="text-xs text-muted py-4 text-center">No items to reconcile</div>}
         </div>
       </Card>
-      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
+      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
       {locationEditor && <LocationModal location={locationEditor.id ? locationEditor : null} onClose={() => setLocationEditor(null)} onSaved={() => { setLocationEditor(null); toast('Location saved'); reload(); }} token={token} />}
       <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} allowCreate closeOnFound
         onResolved={(r) => { setScanHit(r); reload(); }} />
     </div>
   );
 }
-function MaterialModal({ material, locations, onClose, onSaved, token }) {
+function partToken(s, n) { return String(s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, n); }
+function generateMaterialSku(form, materials) {
+  const taken = new Set((materials || []).map((m) => m.sku));
+  const parts = ['RM'];
+  if (form.brand) parts.push(partToken(form.brand, 4));
+  if (form.weightValue !== '' && form.weightValue != null && Number.isFinite(Number(form.weightValue))) {
+    parts.push(String(Math.round(Number(form.weightValue))) + (form.weightUnit === 'gsm' ? 'G' : ''));
+  }
+  if (form.colour) parts.push(partToken(form.colour, 3));
+  if (form.size) parts.push(partToken(form.size, 6));
+  if (parts.length === 1) parts.push(Date.now().toString(36).toUpperCase().slice(-4));
+  const base = parts.join('-');
+  let candidate = base;
+  let i = 2;
+  while (taken.has(candidate)) candidate = `${base}-${i++}`;
+  return candidate;
+}
+function MaterialModal({ material, locations, materials, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
     name: material?.name || '', sku: material?.sku || '', barcode: material?.barcode || '', unit: material?.unit || 'sheet',
     onHand: material ? Number(material.onHand) : 0, lowThreshold: material ? Number(material.lowThreshold) : 5,
     costPerUnit: material ? Number(material.costPerUnit) : 0, supplier: material?.supplier || '', locationId: material?.locationId || '',
+    brand: material?.brand || '', weightValue: material?.weightValue ?? '', weightUnit: material?.weightUnit || 'lb',
+    colour: material?.colour || '', size: material?.size || '',
   }));
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
@@ -625,7 +646,12 @@ function MaterialModal({ material, locations, onClose, onSaved, token }) {
   async function save() {
     setBusy(true);
     try {
-      const body = { ...form, barcode: form.barcode?.trim() || null, onHand: Number(form.onHand), lowThreshold: Number(form.lowThreshold), costPerUnit: Number(form.costPerUnit), locationId: form.locationId || null };
+      const body = { ...form, barcode: form.barcode?.trim() || null, onHand: Number(form.onHand), lowThreshold: Number(form.lowThreshold), costPerUnit: Number(form.costPerUnit), locationId: form.locationId || null,
+        brand: form.brand?.trim() || null,
+        weightValue: form.weightValue === '' || form.weightValue == null ? null : Number(form.weightValue),
+        weightUnit: form.weightValue === '' || form.weightValue == null ? null : form.weightUnit,
+        colour: form.colour?.trim() || null,
+        size: form.size?.trim() || null };
       if (material) await adminApi.materials.update(material.id, body, token);
       else await adminApi.materials.create(body, token);
       onSaved();
@@ -636,7 +662,12 @@ function MaterialModal({ material, locations, onClose, onSaved, token }) {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div><label className={label}>SKU</label><input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></div>
+        <div><label className={label}>SKU</label>
+          <div className="flex gap-1.5">
+            <input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+            <button type="button" title="Generate part number from brand/weight/colour/size" onClick={() => setForm((f) => ({ ...f, sku: generateMaterialSku(f, materials) }))} className="shrink-0 px-2 rounded-xl border border-line-strong text-xs font-semibold text-royal-700 bg-royal-50 hover:bg-royal-100">Generate</button>
+          </div>
+        </div>
         <div className="col-span-2"><label className={label}>Barcode (for scanner stocktakes)</label><input className={input} value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="e.g. 200000000001" /></div>
       </div>
       <div className="grid grid-cols-3 gap-3">
@@ -647,6 +678,17 @@ function MaterialModal({ material, locations, onClose, onSaved, token }) {
       <div className="grid grid-cols-2 gap-3">
         <div><label className={label}>Cost per unit ($)</label><input type="number" step="0.01" className={input} value={form.costPerUnit} onChange={(e) => setForm({ ...form, costPerUnit: e.target.value })} /></div>
         <div><label className={label}>Supplier</label><input className={input} value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Brand</label><input className={input} value={form.brand} placeholder="e.g. Canson" onChange={(e) => setForm({ ...form, brand: e.target.value })} /></div>
+        <div><label className={label}>Colour</label><input className={input} value={form.colour} placeholder="e.g. Blush" onChange={(e) => setForm({ ...form, colour: e.target.value })} /></div>
+        <div><label className={label}>Weight (gsm/lb)</label>
+          <div className="flex gap-1.5">
+            <input type="number" className={input} value={form.weightValue} placeholder="65" onChange={(e) => setForm({ ...form, weightValue: e.target.value })} />
+            <select className={input + ' w-20 shrink-0'} value={form.weightUnit} onChange={(e) => setForm({ ...form, weightUnit: e.target.value })}><option value="lb">lb</option><option value="gsm">gsm</option></select>
+          </div>
+        </div>
+        <div><label className={label}>Paper/board size</label><input className={input} value={form.size} placeholder="e.g. A4 / 12x12in" onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
       </div>
       {locations.length > 0 && <div><label className={label}>Location</label><select className={input} value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })}><option value="">None</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>}
     </div>

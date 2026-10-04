@@ -47,6 +47,11 @@ const materialSchema = z.object({
   lowThreshold: z.number().nonnegative().default(5),
   costPerUnit: z.number().nonnegative().default(0),
   supplier: z.string().optional().nullable(),
+  brand: z.string().trim().max(80).optional().nullable(),
+  weightValue: z.number().finite().nonnegative().max(10000).optional().nullable(),
+  weightUnit: z.enum(['lb', 'gsm']).optional().nullable(),
+  colour: z.string().trim().max(60).optional().nullable(),
+  size: z.string().trim().max(40).optional().nullable(),
   locationId: z.string().optional().nullable(),
 });
 
