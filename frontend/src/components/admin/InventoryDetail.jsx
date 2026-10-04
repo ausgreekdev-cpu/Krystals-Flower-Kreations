@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
 import { useToast } from './Toast';
 import LabelPrintModal from './LabelPrintModal';
@@ -32,8 +32,8 @@ function fmtValue(v, key) {
 // ── Generic key/value detail for non-material entities ─────────────────────
 function GenericDetail({ kind, item, loading, error, onBack, onOpen, data }) {
   const [linesOpen, setLinesOpen] = useState(false);
-  if (loading) return <div className="text-xs text-muted py-10 text-center">Loading…</div>;
-  if (error || !item) {
+  if (loading && !item) return <div className="text-xs text-muted py-10 text-center">Loading…</div>;
+  if (!item) {
     return (
       <div className="space-y-3">
         <BackBar onBack={onBack} title={KIND_LABELS[kind] || kind} />
@@ -70,6 +70,11 @@ function GenericDetail({ kind, item, loading, error, onBack, onOpen, data }) {
   return (
     <div className="space-y-4">
       <BackBar onBack={onBack} title={`${KIND_LABELS[kind] || kind} — ${title}`} />
+      {error && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          Couldn’t refresh ({error}) — showing saved data.
+        </div>
+      )}
       {jumps.length > 0 && <div className="flex gap-2">{jumps.map((j) => <Btn key={j.label} small color="ghost" onClick={j.fn}>{j.label}</Btn>)}</div>}
       <Card title="Details">
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
@@ -114,7 +119,8 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
   const [m, setM] = useState(seed || null);
   const [err, setErr] = useState('');
   const [defs, setDefs] = useState([]);
-  const [draft, setDraft] = useState({});
+  const [draft, setDraft] = useState(() => ({ ...(seed?.customFields || {}) }));
+  const dirtyRef = useRef(false);
   const [history, setHistory] = useState([]);
   const [usage, setUsage] = useState([]);
   const [manage, setManage] = useState(false);
@@ -124,20 +130,36 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
   const [busy, setBusy] = useState(false);
   const canManageFields = role === 'admin' || role === 'developer';
 
+  function setDraftValue(key, value) {
+    dirtyRef.current = true;
+    setDraft((s) => ({ ...s, [key]: value }));
+  }
+
   function loadAll() {
-    adminApi.materials.get(id, token).then((r) => { setM(r); setDraft({ ...(r.customFields || {}) }); }).catch((e) => setErr(e.message));
+    adminApi.materials.get(id, token).then((r) => {
+      setM(r);
+      if (!dirtyRef.current) setDraft({ ...(r.customFields || {}) });
+      setErr('');
+    }).catch((e) => setErr(e.message));
     adminApi.materialFields.list(token).then(setDefs).catch(() => {});
     adminApi.inventory.movements(token, { productId: id, limit: 15 }).then((d) => setHistory(d?.data || [])).catch(() => {});
     adminApi.bom.recipes(token).then((rs) => setUsage((Array.isArray(rs) ? rs : []).filter((r) => (r.lines || []).some((l) => l.rawMaterialId === id)))).catch(() => {});
   }
   useEffect(() => { loadAll(); }, [id]);
-  useEffect(() => { if (seed && !m) { setM(seed); setDraft({ ...(seed.customFields || {}) }); setErr(''); } }, [seed]);
+  useEffect(() => {
+    if (!seed || m || dirtyRef.current) return;
+    setM(seed); setDraft({ ...(seed.customFields || {}) }); setErr('');
+  }, [seed, m]);
 
   async function adjust(delta) {
+    if (busy) return;
+    setBusy(true);
     try { const r = await adminApi.materials.adjust(id, delta, 'Detail adjust', token); setM(r); reload(); }
     catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
   }
   async function setExact() {
+    if (busy) return;
     const onHand = Number(setVal);
     if (!Number.isFinite(onHand) || onHand < 0) return toast('Enter a valid number', 'error');
     setBusy(true);
@@ -146,6 +168,7 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
     finally { setBusy(false); }
   }
   async function saveCustomFields() {
+    if (busy) return;
     const cf = {};
     for (const d of defs) {
       const v = draft[d.key];
@@ -156,28 +179,40 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
     setBusy(true);
     try {
       const r = await adminApi.materials.update(id, { customFields: cf }, token);
-      setM(r); toast('Custom fields saved');
+      setM(r); setDraft({ ...(r.customFields || {}) }); dirtyRef.current = false;
+      toast('Custom fields saved');
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
   async function addField() {
-    if (!newField.label.trim()) return;
+    if (busy || !newField.label.trim()) return;
+    setBusy(true);
     try {
       await adminApi.materialFields.create({ label: newField.label.trim(), type: newField.type }, token);
       setNewField({ label: '', type: 'text' });
       setDefs(await adminApi.materialFields.list(token));
     } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
   }
   async function renameField(def) {
+    if (busy) return;
     const label = window.prompt('Rename field', def.label);
     if (!label || label.trim() === def.label) return;
+    setBusy(true);
     try { await adminApi.materialFields.update(def.id, { label: label.trim() }, token); setDefs(await adminApi.materialFields.list(token)); }
     catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
   }
   async function removeField(def) {
+    if (busy) return;
     if (!window.confirm(`Delete field "${def.label}"? Stored values stay but stop rendering.`)) return;
-    try { await adminApi.materialFields.remove(def.id, token); setDefs(await adminApi.materialFields.list(token)); }
-    catch (e) { toast(e.message, 'error'); }
+    setBusy(true);
+    try {
+      await adminApi.materialFields.remove(def.id, token);
+      setDefs(await adminApi.materialFields.list(token));
+      setDraft((s) => { const n = { ...s }; delete n[def.key]; return n; });
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
   }
 
   if (err && !m) {
@@ -185,8 +220,7 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
   }
   if (!m) return <div className="text-xs text-muted py-10 text-center">Loading…</div>;
 
-  const locations = Array.isArray(data.locations) ? data.locations : [];
-  const locationName = locations.find((l) => l.id === m.locationId)?.name || '—';
+  const locations = Array.isArray(data.locations) ? data.locations : [];  const locationName = locations.find((l) => l.id === m.locationId)?.name || '—';
   const weight = m.weightValue != null ? `${m.weightValue} ${m.weightUnit || ''}`.trim() : '—';
   const attrs = [
     ['SKU', m.sku || '—'], ['Barcode', m.barcode || '—'], ['Unit', m.unit],
@@ -206,6 +240,12 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
         </>
       } />
 
+      {err && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          Couldn’t refresh from server ({err}) — showing saved data.
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 font-semibold">{m.sku}</span>
         {m.barcode && <span className="px-2 py-1 rounded-lg bg-surface3 text-muted font-mono">{m.barcode}</span>}
@@ -213,8 +253,8 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Btn small onClick={() => adjust(10)}>+10</Btn>
-        <Btn small color="ghost" onClick={() => adjust(-10)}>−10</Btn>
+        <Btn small disabled={busy} onClick={() => adjust(10)}>+10</Btn>
+        <Btn small color="ghost" disabled={busy} onClick={() => adjust(-10)}>−10</Btn>
         <input value={setVal} onChange={(e) => setSetVal(e.target.value)} placeholder="set exact…" className="w-24 border border-line-strong rounded-lg px-2 py-1 text-xs" />
         <Btn small color="ghost" disabled={busy} onClick={setExact}>Set</Btn>
       </div>
@@ -238,8 +278,8 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
               <div key={d.id} className="flex items-center gap-2 text-xs">
                 <span className="font-medium text-ink flex-1">{d.label} <span className="text-muted font-normal">({d.key})</span></span>
                 <span className="px-1.5 py-0.5 rounded bg-surface2 text-muted">{d.type}</span>
-                <button className="text-royal-700 hover:underline" onClick={() => renameField(d)}>Rename</button>
-                <button className="text-red-600 hover:underline" onClick={() => removeField(d)}>Delete</button>
+                <button className="text-royal-700 hover:underline disabled:opacity-50" disabled={busy} onClick={() => renameField(d)}>Rename</button>
+                <button className="text-red-600 hover:underline disabled:opacity-50" disabled={busy} onClick={() => removeField(d)}>Delete</button>
               </div>
             ))}
             <div className="flex gap-2 pt-1">
@@ -247,7 +287,7 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
               <select className="border border-line-strong rounded-lg px-2 py-1 text-xs" value={newField.type} onChange={(e) => setNewField({ ...newField, type: e.target.value })}>
                 <option value="text">text</option><option value="number">number</option><option value="boolean">boolean</option>
               </select>
-              <Btn small onClick={addField}>Add</Btn>
+              <Btn small disabled={busy} onClick={addField}>Add</Btn>
             </div>
           </div>
         )}
@@ -260,11 +300,11 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
                 <div key={d.id}>
                   <label className="block text-xs font-semibold text-muted mb-1">{d.label}</label>
                   {d.type === 'boolean' ? (
-                    <label className="inline-flex items-center gap-2 text-sm text-ink"><input type="checkbox" className="accent-royal-500" checked={draft[d.key] === true} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: e.target.checked }))} /> Yes</label>
+                    <label className="inline-flex items-center gap-2 text-sm text-ink"><input type="checkbox" className="accent-royal-500" checked={draft[d.key] === true} onChange={(e) => setDraftValue(d.key, e.target.checked)} /> Yes</label>
                   ) : d.type === 'number' ? (
-                    <input type="number" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={draft[d.key] ?? ''} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: e.target.value }))} />
+                    <input type="number" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={draft[d.key] ?? ''} onChange={(e) => setDraftValue(d.key, e.target.value)} />
                   ) : (
-                    <input className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={draft[d.key] ?? ''} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: e.target.value }))} />
+                    <input className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={draft[d.key] ?? ''} onChange={(e) => setDraftValue(d.key, e.target.value)} />
                   )}
                 </div>
               ))}
@@ -310,20 +350,30 @@ export default function InventoryDetail({ kind, id, seed, token, data, reload, o
   const [loading, setLoading] = useState(!seed);
   const [error, setError] = useState('');
 
+  // Adopt a seed that arrives after mount (deep link: inventory data resolves later)
+  useEffect(() => {
+    if (kind === 'material' || !seed || item) return;
+    setItem(seed); setLoading(false); setError('');
+  }, [kind, seed, item]);
+
+  // Live fetch for kinds with a detail endpoint — seed only holds the slot
+  // until it lands, so a re-opened session snapshot is always refreshed.
   useEffect(() => {
     if (kind === 'material') return;
-    // Adopt seed whenever it becomes available (deep-link load: data may arrive after mount)
-    if (seed) { setItem(seed); setLoading(false); setError(''); return; }
-    let alive = true;
     const fetchers = {
       stocktake: () => adminApi.inventory.stocktakeDetail(id, token),
       purchase: () => adminApi.purchaseOrders.get(id, token),
     };
     const fn = fetchers[kind];
-    if (!fn) { setLoading(false); setError('Open this item from its list to see details.'); return; }
-    fn().then((r) => { if (alive) { setItem(r); setLoading(false); } }).catch((e) => { if (alive) { setError(e.message); setLoading(false); } });
+    if (!fn) {
+      if (!seed && !item) { setLoading(false); setError('Open this item from its list to see details.'); }
+      return undefined;
+    }
+    let alive = true;
+    fn().then((r) => { if (alive) { setItem(r); setLoading(false); setError(''); } })
+      .catch((e) => { if (alive) { setError(e.message); setLoading(false); } });
     return () => { alive = false; };
-  }, [kind, id, seed]);
+  }, [kind, id]);
 
   if (kind === 'material') {
     return <MaterialDetail id={id} seed={seed} token={token} data={data} reload={reload} onBack={onBack} onEditMaterial={onEditMaterial} role={role} />;

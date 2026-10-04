@@ -4,6 +4,8 @@ import Modal from './Modal';
 
 // Avery L7160 / J8160 / MP7160 compatible sheet: A4, 3×7 labels of 63.5×38.1 mm.
 const LABELS_PER_SHEET = 21;
+// Each cell mounts an SVG + JsBarcode render — unbounded totals can freeze the tab.
+const MAX_LABELS = 500;
 
 function BarcodeLabel({ value, name }) {
   const ref = useRef(null);
@@ -33,9 +35,22 @@ function BarcodeLabel({ value, name }) {
 
 export default function LabelPrintModal({ title, items, onClose }) {
   const printable = useMemo(() => items.filter((i) => i.value), [items]);
-  const [qtys, setQtys] = useState(() => Object.fromEntries(printable.map((i) => [i.id, 1])));
+  // Clamp the whole selection so the total label count never exceeds MAX_LABELS.
+  const clampAll = (raw) => {
+    const out = {};
+    let total = 0;
+    for (const i of printable) {
+      const q = Math.max(0, Math.min(99, Number(raw[i.id]) || 0));
+      const allowed = Math.min(q, Math.max(0, MAX_LABELS - total));
+      out[i.id] = allowed;
+      total += allowed;
+    }
+    return out;
+  };
+  const [qtys, setQtys] = useState(() => clampAll(Object.fromEntries(printable.map((i) => [i.id, 1]))));
   const selectedCount = printable.filter((i) => (qtys[i.id] || 0) > 0).length;
   const labelCount = printable.reduce((n, i) => n + (qtys[i.id] || 0), 0);
+  const atCap = labelCount >= MAX_LABELS;
 
   const cells = useMemo(() => {
     const out = [];
@@ -52,7 +67,7 @@ export default function LabelPrintModal({ title, items, onClose }) {
   }, [cells]);
 
   function setQty(id, q) {
-    setQtys((prev) => ({ ...prev, [id]: Math.max(0, Math.min(99, Number(q) || 0)) }));
+    setQtys((prev) => clampAll({ ...prev, [id]: Math.max(0, Math.min(99, Number(q) || 0)) }));
   }
   const missing = items.length - printable.length;
 
@@ -60,9 +75,10 @@ export default function LabelPrintModal({ title, items, onClose }) {
     <Modal title={title} onClose={onClose} wide>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs no-print">
-          <button className="px-2.5 py-1 rounded-xl border border-line-strong font-semibold hover:bg-surface3" onClick={() => setQtys(Object.fromEntries(printable.map((i) => [i.id, 1])))}>Select all</button>
+          <button className="px-2.5 py-1 rounded-xl border border-line-strong font-semibold hover:bg-surface3" onClick={() => setQtys(clampAll(Object.fromEntries(printable.map((i) => [i.id, 1]))))}>Select all</button>
           <button className="px-2.5 py-1 rounded-xl border border-line-strong font-semibold hover:bg-surface3" onClick={() => setQtys(Object.fromEntries(printable.map((i) => [i.id, 0])))}>Clear</button>
           <span className="text-muted">{selectedCount} of {printable.length} items • {labelCount} labels • {pages.length} sheet{pages.length === 1 ? '' : 's'}</span>
+          {atCap && <span className="text-amber-600 font-semibold">Cap {MAX_LABELS} labels per print — reduce copies to add more.</span>}
           <button
             className="ml-auto px-3 py-1.5 rounded-xl bg-royal-500 text-white font-bold disabled:opacity-40"
             disabled={labelCount === 0}

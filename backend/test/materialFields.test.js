@@ -130,3 +130,58 @@ test('guests cannot define material fields', async () => {
   });
   assert.equal(res.status, 401);
 });
+
+test('customer tokens cannot read material fields (staff-only list)', async () => {
+  const email = `cf-cust-${Date.now().toString(36)}@example.com`;
+  const reg = await api(srv.base, '/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Field Tester', email, password: 'secret123' }),
+  });
+  assert.equal(reg.status, 201, JSON.stringify(reg.body));
+  const custHeaders = { Authorization: `Bearer ${reg.body.token}` };
+
+  const list = await api(srv.base, '/api/materials/fields', { headers: custHeaders });
+  assert.equal(list.status, 403, 'customer token must not read material field defs');
+
+  const productsStillPublic = await api(srv.base, '/api/products/fields');
+  assert.equal(productsStillPublic.status, 200, 'product fields list stays public');
+});
+
+test('field definitions cannot be mutated through the wrong entity route', async () => {
+  const ts = Date.now().toString(36);
+  const prod = await api(srv.base, '/api/products/fields', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ label: `Cross Product ${ts}`, type: 'text' }),
+  });
+  assert.equal(prod.status, 201, JSON.stringify(prod.body));
+
+  const mat = await api(srv.base, '/api/materials/fields', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ label: `Cross Material ${ts}`, type: 'text' }),
+  });
+  assert.equal(mat.status, 201, JSON.stringify(mat.body));
+
+  // product def via material routes → 404
+  const patchWrong = await api(srv.base, `/api/materials/fields/${prod.body.id}`, {
+    method: 'PATCH', headers: auth(), body: JSON.stringify({ label: 'Hijacked' }),
+  });
+  assert.equal(patchWrong.status, 404, 'material PATCH must not touch product def');
+  const delWrong = await api(srv.base, `/api/materials/fields/${prod.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(delWrong.status, 404, 'material DELETE must not touch product def');
+
+  // material def via product routes → 404
+  const delWrong2 = await api(srv.base, `/api/products/fields/${mat.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(delWrong2.status, 404, 'product DELETE must not touch material def');
+
+  // untouched originals
+  const stillThere = await api(srv.base, '/api/products/fields');
+  assert.ok((stillThere.body || []).some((f) => f.id === prod.body.id && f.label === `Cross Product ${ts}`), 'product def intact');
+  const matList = await api(srv.base, '/api/materials/fields', { headers: auth() });
+  assert.ok((matList.body || []).some((f) => f.id === mat.body.id && f.label === `Cross Material ${ts}`), 'material def intact');
+
+  // cleanup
+  await api(srv.base, `/api/products/fields/${prod.body.id}`, { method: 'DELETE', headers: auth() });
+  await api(srv.base, `/api/materials/fields/${mat.body.id}`, { method: 'DELETE', headers: auth() });
+});

@@ -23,7 +23,7 @@ export const fieldPatchSchema = z.object({
 export const customFieldsSchema = z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).optional();
 
 export function fieldKeyFromLabel(label) {
-  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40).replace(/^[^a-z]+/, '');
 }
 
 // Values must match an active definition's type for this entity. Unknown keys → 400.
@@ -47,9 +47,11 @@ export async function validateCustomFields(input, entityType) {
 
 // Mounts GET/POST/PATCH/DELETE /fields on the parent router.
 // publicList: products need an unauthenticated list (storefront renders values);
-// material fields are staff-only.
+// material fields are staff-only (any authenticated customer token must NOT read them).
 export function registerFieldRoutes(router, { entityType, roles, publicList = false }) {
-  const listAuth = publicList ? (req, res, next) => next() : authenticate;
+  const listAuth = publicList
+    ? (req, res, next) => next()
+    : [authenticate, requireRole(...roles)];
 
   router.get('/fields', listAuth, asyncHandler(async (req, res) => {
     const fields = await prisma.productField.findMany({

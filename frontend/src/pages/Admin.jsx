@@ -56,6 +56,9 @@ function AdminInner({ user }) {
   const [navQ, setNavQ] = useState('');
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(false);
+  const tabRef = useRef(tab);
+  const prevTabRef = useRef(tab);
+  const skipUrlWriteRef = useRef(false);
   const [err, setErr] = useState('');
   const token = getToken();
   const [colorMode, setColorModeState] = useState(() => getColorMode() || 'system');
@@ -153,7 +156,32 @@ function AdminInner({ user }) {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(tab); window.history.replaceState(null, '', `?tab=${tab}`); }, [tab]);
+  useEffect(() => {
+    tabRef.current = tab;
+    load(tab);
+    if (skipUrlWriteRef.current) { skipUrlWriteRef.current = false; prevTabRef.current = tab; return; }
+    // Preserve URL params (deep-link ?sub/?inv must survive mount); clear drill
+    // params only when the tab actually changes.
+    const p = new URLSearchParams(window.location.search);
+    if (prevTabRef.current !== tab) { p.delete('sub'); p.delete('inv'); }
+    prevTabRef.current = tab;
+    p.set('tab', tab);
+    window.history.replaceState(null, '', `?${p}`);
+  }, [tab]);
+
+  // Back/forward across tabs must resync the tab state (URL already correct —
+  // skip the effect's URL write so history's sub/inv params stay intact).
+  useEffect(() => {
+    const onPop = () => {
+      const t = new URLSearchParams(window.location.search).get('tab') || 'overview';
+      if (t !== tabRef.current && TABS.some((x) => x.id === t)) {
+        skipUrlWriteRef.current = true;
+        setTab(t);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const tabMatches = (t) => !navQ.trim() || t.label.toLowerCase().includes(navQ.trim().toLowerCase());
   const groupTabs = (g) => g.tabs.map((id) => TABS.find((t) => t.id === id)).filter(Boolean).filter(tabMatches);
@@ -423,11 +451,14 @@ const INVENTORY_SUBS = [
   { id: 'movements', label: 'Movements' },
   { id: 'lots', label: 'Lots' },
 ];
+const DETAIL_KINDS = new Set(['material', 'level', 'location', 'stocktake', 'purchase', 'movement', 'lot', 'variant', 'product']);
+const DETAIL_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
 
 function Inventory({ data, reload, token, role }) {
   // URL-addressable drill-in: /admin?tab=inventory&sub=<sub>&inv=<kind>:<id>
   const initial = new URLSearchParams(window.location.search);
-  const [sub, setSub] = useState(initial.get('sub') || 'stock');
+  const initSub = initial.get('sub') || 'stock';
+  const [sub, setSub] = useState(INVENTORY_SUBS.some((s) => s.id === initSub) ? initSub : 'stock');
   const [inv, setInv] = useState(initial.get('inv') || '');
   const [materialEditor, setMaterialEditor] = useState(null);
   const [tick, setTick] = useState(0);
@@ -482,6 +513,7 @@ function Inventory({ data, reload, token, role }) {
   const colon = inv.indexOf(':');
   const detailKind = colon > 0 ? inv.slice(0, colon) : '';
   const detailId = colon > 0 ? inv.slice(colon + 1) : '';
+  const detailOk = DETAIL_KINDS.has(detailKind) && DETAIL_ID_RE.test(detailId);
   const locations = Array.isArray(data.locations) ? data.locations : [];
   const materials = Array.isArray(data.materials) ? data.materials : [];
 
@@ -493,7 +525,7 @@ function Inventory({ data, reload, token, role }) {
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${sub === s.id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted hover:bg-royal-50'}`}>{s.label}</button>
         ))}
       </div>
-      {detailKind && detailId ? (
+      {detailOk ? (
         <InventoryDetail
           key={`${detailKind}:${detailId}:${tick}`}
           kind={detailKind} id={detailId} seed={seedFor(detailKind, detailId)}

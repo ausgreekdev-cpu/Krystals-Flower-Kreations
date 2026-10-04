@@ -110,9 +110,19 @@
 }
 .label-bars { max-width: 100%; height: auto; }
 @media print {
+  body { overflow: visible !important; }
+  /* App layout must not occupy pages (it would emit blank sheets); the modal
+     is portaled to <body>, so only its chain remains in flow. */
+  #root { display: none !important; }
+  /* Neutralise the modal's fixed/scroll containers so multi-sheet content
+     can paginate — fixed or overflow-clipped ancestors trap pages at the
+     viewport edge. */
+  .fixed { position: static !important; display: block !important; inset: auto !important; z-index: auto !important; background: none !important; padding: 0 !important; }
+  .fixed > div { max-width: none !important; max-height: none !important; overflow: visible !important; background: none !important; box-shadow: none !important; border-radius: 0 !important; }
+  .fixed .overflow-y-auto { overflow: visible !important; max-height: none !important; padding: 0 !important; }
   body * { visibility: hidden !important; }
   #label-sheet, #label-sheet * { visibility: visible !important; }
-  #label-sheet { position: absolute; left: 0; top: 0; width: 210mm; overflow: visible !important; }
+  #label-sheet { position: static !important; left: auto !important; top: auto !important; width: 210mm; overflow: visible !important; }
   .label-page { margin-top: 0 !important; page-break-after: always; break-after: page; }
   .label-page:last-child { page-break-after: auto; break-after: auto; }
   .label-cell { border: none; }
