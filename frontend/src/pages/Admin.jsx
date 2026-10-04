@@ -6,6 +6,7 @@ import { applyTheme } from '../lib/theme';
 import { invalidatePublicSettings } from '../lib/publicSettings';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
+import LabelPrintModal from '../components/admin/LabelPrintModal';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
 import ScanModal from '../components/scan/ScanModal';
@@ -450,6 +451,7 @@ function InventoryStock({ data, reload, token }) {
   const [setVals, setSetVals] = useState({});
   const [thresholdVals, setThresholdVals] = useState({});
   const [materialEditor, setMaterialEditor] = useState(null);
+  const [labels, setLabels] = useState(false);
   const [locationEditor, setLocationEditor] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanHit, setScanHit] = useState(null);
@@ -577,7 +579,7 @@ function InventoryStock({ data, reload, token }) {
           {levels.length === 0 && <div className="text-xs text-muted py-4 text-center">No levels — seed inventory</div>}
         </div>
       </Card>
-      <Card title={`Raw materials — ${materials.length}`} actions={<Btn small color="ghost" onClick={() => setMaterialEditor({})}>+ Add material</Btn>}>
+      <Card title={`Raw materials — ${materials.length}`} actions={<div className="flex gap-2"><Btn small color="ghost" onClick={() => setLabels(true)}>🖨 Labels</Btn><Btn small color="ghost" onClick={() => setMaterialEditor({})}>+ Add material</Btn></div>}>
         <div className="space-y-1.5">
           {materials.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
@@ -608,6 +610,7 @@ function InventoryStock({ data, reload, token }) {
         </div>
       </Card>
       {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
+      {labels && <LabelPrintModal title="Print material labels" items={materials.map((m) => ({ id: m.id, name: m.name, value: m.barcode || m.sku || '' }))} onClose={() => setLabels(false)} />}
       {locationEditor && <LocationModal location={locationEditor.id ? locationEditor : null} onClose={() => setLocationEditor(null)} onSaved={() => { setLocationEditor(null); toast('Location saved'); reload(); }} token={token} />}
       <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} allowCreate closeOnFound
         onResolved={(r) => { setScanHit(r); reload(); }} />
@@ -1025,6 +1028,7 @@ function Products({ data, reload, token }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [uploading, setUploading] = useState('');
+  const [labels, setLabels] = useState(false);
   const products = Array.isArray(data.products) ? data.products : [];
   async function toggle(p, field) {
     try { await adminApi.products.update(p.id, { [field]: !p[field] }, token); toast(`${p.title} ${field} toggled`); reload(); }
@@ -1044,7 +1048,10 @@ function Products({ data, reload, token }) {
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <div className="text-xs text-muted">{products.length} products</div>
-        <Btn onClick={() => setEditing({})}>+ New product</Btn>
+        <div className="flex gap-2">
+          <Btn color="ghost" onClick={() => setLabels(true)}>🖨 Labels</Btn>
+          <Btn onClick={() => setEditing({})}>+ New product</Btn>
+        </div>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         {products.map((p) => (
@@ -1076,6 +1083,7 @@ function Products({ data, reload, token }) {
       {products.length === 0 && <div className="text-xs text-muted py-10 text-center">No products</div>}
       {editing && <ProductModal product={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Product updated' : 'Product created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete product" message={`Delete "${confirmDel.title}"? This cannot be undone.`} confirmLabel="Delete" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+      {labels && <LabelPrintModal title="Print product labels" items={products.map((p) => ({ id: p.id, name: p.title, value: p.barcode || p.sku || '' }))} onClose={() => setLabels(false)} />}
     </div>
   );
 }

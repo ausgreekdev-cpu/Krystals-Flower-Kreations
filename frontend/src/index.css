@@ -73,3 +73,48 @@
 .markdown-body code { @apply bg-surface3 px-1.5 py-0.5 rounded text-[13px]; }
 .markdown-body hr { @apply border-line my-8; }
 .markdown-body img { @apply rounded-2xl my-4 max-w-full; }
+/* ── Printable Code128 labels — Avery L7160 sheet (A4, 3×7 of 63.5×38.1 mm) ── */
+@page { size: A4; margin: 0; }
+.label-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 15.15mm 7.25mm;
+  display: grid;
+  grid-template-columns: repeat(3, 63.5mm);
+  grid-auto-rows: 38.1mm;
+  column-gap: 2.5mm;
+  background: #fff;
+  box-sizing: border-box;
+}
+.label-page + .label-page { margin-top: 8mm; }
+.label-cell {
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 1mm;
+  border: 1px dashed #ccc; /* on-screen alignment guide — removed when printing */
+}
+.label-name {
+  max-width: 100%;
+  font-size: 7px;
+  line-height: 1.2;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.label-bars { max-width: 100%; height: auto; }
+@media print {
+  body * { visibility: hidden !important; }
+  #label-sheet, #label-sheet * { visibility: visible !important; }
+  #label-sheet { position: absolute; left: 0; top: 0; width: 210mm; overflow: visible !important; }
+  .label-page { margin-top: 0 !important; page-break-after: always; break-after: page; }
+  .label-page:last-child { page-break-after: auto; break-after: auto; }
+  .label-cell { border: none; }
+  .no-print { display: none !important; }
+}

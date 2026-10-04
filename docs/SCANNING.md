@@ -185,3 +185,25 @@ permission to exercise the manual-entry fallback.
   CR suffix for best results.
 - One wedge listener per page; mounting two (e.g. modal + page) would double-
   fire. The modal deliberately does **not** mount its own hook.
+
+---
+
+## 10. Printable labels — Code128 (Package B)
+
+Blank stock needs scannable labels; the app generates them client-side.
+
+- **Where:** Admin → Products → **🖨 Labels**, and Admin → Catalog →
+  Inventory → Stock → Raw materials card → **🖨 Labels**.
+- **Modal** (`components/admin/LabelPrintModal.jsx`): pick items, set copies
+  per item (0–99), live sheet preview, **🖨 Print** → `window.print()`.
+- **Label value:** `barcode || sku` — matches the lookup chain in §7, so a
+  printed product/material label scans as that item. Items with neither are
+  skipped (counted in the hint line).
+- **Encoding:** `jsbarcode` (MIT) renders **Code128** to inline SVG; bar width
+  adapts to code length to fit 63.5 mm.
+- **Sheet:** Avery **L7160**-compatible (also J8160 / MP7160 / MR105): A4
+  portrait, 3 × 7 labels of 63.5 × 38.1 mm, margins 15.15 mm top/bottom,
+  7.25 mm left/right, 2.5 mm column gap — geometry in `frontend/src/index.css`
+  (`.label-page`). **Print at 100% scale** (no fit-to-page), portrait.
+- **Print CSS:** `@media print` hides everything except `#label-sheet`;
+  dashed cell borders are screen-only guides and never print.
