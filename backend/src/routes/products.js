@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate, querySchemas } from '../middleware/validate.js';
@@ -32,7 +33,7 @@ const productSchema = z.object({
   cricutCompatible: z.boolean().default(false),
   madeToOrderDays: z.number().int().finite().min(0).max(90).optional().nullable(),
   // Admin-defined custom fields — every key/type is checked against ProductField
-  customFields: z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).optional(),
+  customFields: z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).nullable().optional(),
 }).strict();
 const productPatchSchema = productSchema.partial().strict();
 
@@ -89,6 +90,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(productSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
   data.customFields = await validateCustomFields(data.customFields, 'product');
+  if (data.customFields === null) data.customFields = Prisma.DbNull; // clear = DB NULL, not JSON 'null'
   try {
     const product = await prisma.product.create({ data: { ...data, price: data.price, compareAtPrice: data.compareAtPrice ?? undefined, cost: data.cost ?? undefined } });
     audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_create', entityType: 'product', entityId: product.id, details: { title: product.title, price: String(product.price) } });
@@ -104,6 +106,7 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
   const data = req.validated;
   if (Object.keys(data).length===0) return res.status(400).json({ error: 'No fields to update', code: 'validation_failed' });
   if (data.customFields !== undefined) data.customFields = await validateCustomFields(data.customFields, 'product');
+  if (data.customFields === null) data.customFields = Prisma.DbNull; // clear = DB NULL, not JSON 'null'
   const before = await prisma.product.findUnique({ where: { id: req.params.id }, select: { price: true, title: true } });
   let product;
   try {

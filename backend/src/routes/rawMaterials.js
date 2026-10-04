@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -44,6 +45,7 @@ const materialSchema = z.object({
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
   data.customFields = await validateCustomFields(data.customFields, 'material');
+  if (data.customFields === null) data.customFields = Prisma.DbNull; // clear = DB NULL, not JSON 'null'
   try {
     const mat = await prisma.rawMaterial.upsert({ where: { sku: data.sku }, update: { ...data }, create: { ...data } });
     res.status(201).json(mat);
@@ -58,6 +60,7 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
   const data = req.validated;
   if (data.customFields !== undefined) data.customFields = await validateCustomFields(data.customFields, 'material');
+  if (data.customFields === null) data.customFields = Prisma.DbNull; // clear = DB NULL, not JSON 'null'
   try {
     const mat = await prisma.rawMaterial.update({ where: { id }, data });
     res.json(mat);

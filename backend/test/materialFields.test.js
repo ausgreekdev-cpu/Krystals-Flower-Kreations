@@ -85,6 +85,24 @@ test('material customFields round-trip; unknown keys and wrong types rejected', 
   });
   assert.equal(wrongType.status, 400);
   assert.equal(wrongType.body.code, 'validation_failed');
+
+  // null clears all stored values (native empty state) and round-trips
+  const cleared = await api(srv.base, `/api/materials/${materialId}`, {
+    method: 'PATCH',
+    headers: auth(),
+    body: JSON.stringify({ customFields: null }),
+  });
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.body));
+  assert.equal(cleared.body.customFields, null, 'null clears to null');
+
+  // restore for downstream tests
+  const restored = await api(srv.base, `/api/materials/${materialId}`, {
+    method: 'PATCH',
+    headers: auth(),
+    body: JSON.stringify({ customFields: { finish: 'Matte' } }),
+  });
+  assert.equal(restored.status, 200, JSON.stringify(restored.body));
+  assert.deepEqual(restored.body.customFields, { finish: 'Matte' });
 });
 
 test('field keys are unique across entities (global namespace)', async () => {

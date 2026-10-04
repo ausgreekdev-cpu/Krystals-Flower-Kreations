@@ -20,15 +20,16 @@ export const fieldPatchSchema = z.object({
   position: z.number().int().min(0).max(999).optional(),
 }).strict();
 
-export const customFieldsSchema = z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).optional();
+export const customFieldsSchema = z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).nullable().optional();
 
 export function fieldKeyFromLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40).replace(/^[^a-z]+/, '');
 }
 
 // Values must match an active definition's type for this entity. Unknown keys → 400.
+// null clears all stored values (the column's native empty state); undefined leaves untouched.
 export async function validateCustomFields(input, entityType) {
-  if (input === undefined) return undefined;
+  if (input === undefined || input === null) return input;
   const defs = await prisma.productField.findMany({ where: { deletedAt: null, entityType } });
   const byKey = new Map(defs.map((d) => [d.key, d]));
   const out = {};
