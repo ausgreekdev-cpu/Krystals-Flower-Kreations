@@ -102,6 +102,12 @@ export const adminApi = {
     get: (orderNumber: string, token: string) => req<any>(`/api/orders/${orderNumber}`, { token }),
     updateStatus: (id: string, status: string, note: string, token: string) => req<any>(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, note }), token }),
   },
+  productFields: {
+    list: () => req<any[]>('/api/products/fields'),
+    create: (body: { label: string; type: string; key?: string }, token: string) => req<any>('/api/products/fields', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: { label?: string; position?: number }, token: string) => req<any>(`/api/products/fields/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/products/fields/${id}`, { method: 'DELETE', token }),
+  },
   products: {
     list: (token: string) => req<any>(`/api/products?limit=100&all=1`, { token }),
     create: (body: any, token: string) => req<any>('/api/products', { method: 'POST', body: JSON.stringify(body), token }),

@@ -11,11 +11,16 @@ export default function Product(){
   const s = usePublicSettings();
   const {slug}=useParams(); const nav=useNavigate(); const [p,setP]=useState(null); const [variantId,setVariantId]=useState(null); const [qty,setQty]=useState(1); const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
   const [reviews,setReviews]=useState([]);
+  const [fieldDefs,setFieldDefs]=useState([]);
   const [rvForm,setRvForm]=useState({ name:'', rating:5, title:'', body:'', website:'' });
   const [rvSent,setRvSent]=useState(false); const [rvErr,setRvErr]=useState(''); const [rvBusy,setRvBusy]=useState(false);
   useEffect(()=>{
     fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=>{ setP(d); setReviews(Array.isArray(d.reviews)?d.reviews:[]); }).catch(e=>{ setErr(e.message); setP({ error:true }); });
   }, [slug]);
+  // Field definitions drive labels/types for p.customFields — same list for every product
+  useEffect(()=>{
+    fetch('/api/products/fields').then(r=> r.ok? r.json(): []).then(d=> setFieldDefs(Array.isArray(d)?d:[])).catch(()=> setFieldDefs([]));
+  }, []);
   async function addToCart(){
     if(!p || p.error) return;
     setErr(''); setMsg('');
@@ -53,6 +58,11 @@ export default function Product(){
   const activePrice = Number(variantId? variantsArr.find(v=>v.id===variantId)?.price : p.price);
   const stock = variantsArr.find(v=>v.id===variantId)?.inventoryQuantity ?? (p.stockMode==='tracked' ? 0 : 999);
   const lowStock = p.stockMode==='tracked' && stock!==999 && stock < 5;
+  // Custom fields — only show active definitions with a non-empty value (booleans are presence-only)
+  const cf = (p.customFields && typeof p.customFields === 'object') ? p.customFields : {};
+  const customRows = fieldDefs
+    .map(d => ({ d, v: cf[d.key] }))
+    .filter(({ d, v }) => d.type === 'boolean' ? v === true : (v !== undefined && v !== null && String(v).trim() !== ''));
 
   // Structured data — Product + Offer (+ ratings/reviews when present) and BreadcrumbList
   const origin = window.location.origin;
@@ -121,6 +131,16 @@ export default function Product(){
         <p className="mt-4 text-ink">{p.description}</p>
         {p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Cricut-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
         {p.madeToOrderDays && <div className="mt-2 text-sm text-muted">Made to order — {p.madeToOrderDays} days • Perth studio</div>}
+        {customRows.length>0 && (
+          <div className="mt-3 bg-surface border border-bloom-100 rounded-xl p-3 text-sm space-y-1">
+            {customRows.map(({ d, v }) => (
+              <div key={d.id} className="flex justify-between gap-3">
+                <span className="text-muted">{d.label}</span>
+                <span className="font-semibold text-ink text-right">{d.type === 'boolean' ? '✓' : d.type === 'number' ? Number(v).toLocaleString() : String(v)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {variantsArr.length>0 && <div className="mt-4"><label className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>{stock} left</span>}</label><select value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full border rounded-xl px-3 py-2"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</select></div>}
         <div className="mt-4 flex items-center gap-3"><button onClick={()=>setQty(Math.max(1,qty-1))} className="w-10 h-10 rounded-full border bg-surface2 hover:bg-surface3">−</button><span className="font-bold w-8 text-center">{qty}</span><button onClick={()=>setQty(Math.min(99,qty+1))} className="w-10 h-10 rounded-full bg-bloom-500 text-white hover:bg-bloom-700">+</button><span className={`text-sm ${lowStock?'text-amber-600':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
         <button onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0} className="mt-6 w-full bg-bloom-500 text-white py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bloom-700 transition">Add to Cart — ${ (activePrice*qty).toFixed(2)}</button>

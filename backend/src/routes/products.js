@@ -30,8 +30,29 @@ const productSchema = z.object({
   paperStock: z.string().max(200).optional().nullable(),
   cricutCompatible: z.boolean().default(false),
   madeToOrderDays: z.number().int().finite().min(0).max(90).optional().nullable(),
+  // Admin-defined custom fields — every key/type is checked against ProductField
+  customFields: z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).optional(),
 }).strict();
 const productPatchSchema = productSchema.partial().strict();
+
+// Custom fields: values must match an active definition's type. Unknown keys → 400.
+async function validateCustomFields(input) {
+  if (input === undefined) return undefined;
+  const defs = await prisma.productField.findMany({ where: { deletedAt: null } });
+  const byKey = new Map(defs.map((d) => [d.key, d]));
+  const out = {};
+  for (const [key, value] of Object.entries(input)) {
+    const def = byKey.get(key);
+    if (!def) throw Object.assign(new Error(`Unknown custom field "${key}"`), { status: 400, code: 'validation_failed' });
+    const actual = typeof value;
+    const ok = (def.type === 'text' && actual === 'string')
+      || (def.type === 'number' && actual === 'number')
+      || (def.type === 'boolean' && actual === 'boolean');
+    if (!ok) throw Object.assign(new Error(`Field "${def.label}" expects ${def.type}`), { status: 400, code: 'validation_failed' });
+    out[key] = value;
+  }
+  return out;
+}
 
 // Public: list + search — validated query, finite limit, length-capped search
 router.get('/', asyncHandler(async (req, res) => {
@@ -66,6 +87,64 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ products, nextCursor: products.length === take ? products[products.length - 1].id : null });
 }));
 
+// ── Custom field definitions ─────────────────────────────────────────────
+// Must stay above GET /:slug so "fields" isn't swallowed by the param route.
+const fieldDefSchema = z.object({
+  label: z.string().trim().min(2).max(60),
+  key: z.string().trim().regex(/^[a-z][a-z0-9_-]{1,40}$/).optional(),
+  type: z.enum(['text', 'number', 'boolean']).default('text'),
+  position: z.number().int().min(0).max(999).optional(),
+}).strict();
+const fieldPatchSchema = z.object({
+  label: z.string().trim().min(2).max(60).optional(),
+  position: z.number().int().min(0).max(999).optional(),
+}).strict();
+
+function fieldKeyFromLabel(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+}
+
+// Public: active definitions — storefronts need labels/types to render Product.customFields
+router.get('/fields', asyncHandler(async (req, res) => {
+  const fields = await prisma.productField.findMany({ where: { deletedAt: null }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+  res.json(fields);
+}));
+
+router.post('/fields', requireAuth, requireRole('admin', 'developer'), validate(fieldDefSchema), asyncHandler(async (req, res) => {
+  const { label, type, position } = req.validated;
+  const key = req.validated.key || fieldKeyFromLabel(label);
+  if (!/^[a-z][a-z0-9_-]{1,40}$/.test(key)) return res.status(400).json({ error: 'Field key must start with a letter and use only a-z, 0-9, _ or -', code: 'validation_failed' });
+  const existing = await prisma.productField.findUnique({ where: { key } });
+  if (existing) return res.status(409).json({ error: 'Field key already exists', code: 'conflict' });
+  try {
+    const field = await prisma.productField.create({ data: { key, label, type, position: position ?? 0 } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_field_create', entityType: 'product_field', entityId: field.id, details: { key, type } });
+    res.status(201).json(field);
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Field key already exists', code: 'conflict' });
+    throw e;
+  }
+}));
+
+router.patch('/fields/:id', requireAuth, requireRole('admin', 'developer'), validate(fieldPatchSchema), asyncHandler(async (req, res) => {
+  const data = req.validated;
+  if (Object.keys(data).length === 0) return res.status(400).json({ error: 'No fields to update', code: 'validation_failed' });
+  const existing = await prisma.productField.findUnique({ where: { id: String(req.params.id).slice(0, 100) } });
+  if (!existing || existing.deletedAt) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const field = await prisma.productField.update({ where: { id: existing.id }, data });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_field_update', entityType: 'product_field', entityId: field.id, details: { fields: Object.keys(data) } });
+  res.json(field);
+}));
+
+// Soft delete — stored values stay in Product.customFields but stop rendering
+router.delete('/fields/:id', requireAuth, requireRole('admin', 'developer'), asyncHandler(async (req, res) => {
+  const existing = await prisma.productField.findUnique({ where: { id: String(req.params.id).slice(0, 100) } });
+  if (!existing || existing.deletedAt) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  await prisma.productField.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_field_delete', entityType: 'product_field', entityId: existing.id, details: { key: existing.key } });
+  res.json({ ok: true });
+}));
+
 router.get('/:slug', asyncHandler(async (req, res) => {
   const slug = String(req.params.slug).slice(0,200);
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
@@ -80,6 +159,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
 // Admin: CRUD — strict, finite, audit
 router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), validate(productSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
+  data.customFields = await validateCustomFields(data.customFields);
   try {
     const product = await prisma.product.create({ data: { ...data, price: data.price, compareAtPrice: data.compareAtPrice ?? undefined, cost: data.cost ?? undefined } });
     audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_create', entityType: 'product', entityId: product.id, details: { title: product.title, price: String(product.price) } });
@@ -94,6 +174,7 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
 router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(productPatchSchema), asyncHandler(async (req, res) => {
   const data = req.validated;
   if (Object.keys(data).length===0) return res.status(400).json({ error: 'No fields to update', code: 'validation_failed' });
+  if (data.customFields !== undefined) data.customFields = await validateCustomFields(data.customFields);
   const before = await prisma.product.findUnique({ where: { id: req.params.id }, select: { price: true, title: true } });
   let product;
   try {

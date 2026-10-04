@@ -44,7 +44,6 @@ export default function SiteFooter() {
             <Link to="/loyalty" className="hover:text-highlight block">Bloom Points</Link>
             <Link to="/blog" className="hover:text-highlight block">Journal</Link>
             <Link to="/notebook" className="hover:text-highlight block">Notebook</Link>
-            <Link to="/stocks/KFK" className="hover:text-highlight block">Market watch</Link>
             <Link to="/login" className="hover:text-highlight block">Sign in / Account</Link>
             <Link to="/privacy" className="hover:text-highlight block">Privacy</Link>
             <a href={`mailto:${email}`} className="hover:text-highlight block">{email}</a>

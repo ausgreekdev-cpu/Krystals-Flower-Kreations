@@ -1050,19 +1050,59 @@ function ProductModal({ product, onClose, onSaved, token }) {
   }));
   const [variants, setVariants] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [fieldDefs, setFieldDefs] = useState([]);
+  const [custom, setCustom] = useState(() => ({ ...(product?.customFields || {}) }));
+  const [manageFields, setManageFields] = useState(false);
+  const [newField, setNewField] = useState({ label: '', type: 'text' });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   useEffect(() => {
     if (product?.id) adminApi.variants.list(product.id, token).then(setVariants).catch(() => {});
+    adminApi.productFields.list().then(setFieldDefs).catch(() => {});
   }, [product?.id, token]);
   async function save() {
     setBusy(true);
     try {
-      const body = { ...form, barcode: form.barcode?.trim() || null, price: Number(form.price), madeToOrderDays: form.madeToOrderDays ? Number(form.madeToOrderDays) : undefined };
+      // Custom field values: omit empties, coerce number inputs — booleans are presence-only (true).
+      const cf = {};
+      for (const d of fieldDefs) {
+        const v = custom[d.key];
+        if (d.type === 'boolean') { if (v === true) cf[d.key] = true; }
+        else if (d.type === 'number') { if (v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v))) cf[d.key] = Number(v); }
+        else if (v !== undefined && String(v).trim() !== '') cf[d.key] = String(v).trim();
+      }
+      const body = { ...form, barcode: form.barcode?.trim() || null, price: Number(form.price), madeToOrderDays: form.madeToOrderDays ? Number(form.madeToOrderDays) : undefined,
+        // Updates always send customFields (even {}) so cleared values actually clear.
+        ...(product ? { customFields: cf } : (Object.keys(cf).length ? { customFields: cf } : {})) };
       if (product) await adminApi.products.update(product.id, body, token);
       else await adminApi.products.create(body, token);
       onSaved();
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
+  }
+  async function addField() {
+    const label = newField.label.trim();
+    if (label.length < 2) return toast('Field label needs 2+ characters', 'error');
+    try {
+      const f = await adminApi.productFields.create({ label, type: newField.type }, token);
+      setFieldDefs((ds) => [...ds, f]); setNewField({ label: '', type: 'text' }); toast('Field added');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function renameField(d) {
+    const label = window.prompt('Field label', d.label);
+    if (!label || label.trim() === d.label) return;
+    try {
+      const f = await adminApi.productFields.update(d.id, { label: label.trim() }, token);
+      setFieldDefs((ds) => ds.map((x) => (x.id === d.id ? f : x))); toast('Field renamed');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function removeField(d) {
+    if (!window.confirm(`Delete field "${d.label}"? Products keep their stored values but stop showing them.`)) return;
+    try {
+      await adminApi.productFields.remove(d.id, token);
+      setFieldDefs((ds) => ds.filter((x) => x.id !== d.id));
+      setCustom((c) => { const { [d.key]: _drop, ...rest } = c; return rest; });
+      toast('Field deleted');
+    } catch (e) { toast(e.message, 'error'); }
   }
   async function addVariant() {
     if (!product?.id) return toast('Save the product first to add variants', 'error');
@@ -1106,6 +1146,48 @@ function ProductModal({ product, onClose, onSaved, token }) {
         <div className="sm:col-span-2"><label className={label}>Description</label><textarea rows={3} className={input} value={form.description} onChange={(e) => set('description', e.target.value)} /></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} /> Featured</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active (visible in shop)</label>
+      </div>
+      <div className="mt-4 border border-line rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold text-muted">Custom fields</label>
+          <button onClick={() => setManageFields((m) => !m)} className="text-xs text-royal-700 font-semibold hover:underline">{manageFields ? 'Done' : '+ Manage fields'}</button>
+        </div>
+        {manageFields && (
+          <div className="space-y-2 mb-3 bg-surface3 rounded-lg p-2">
+            {fieldDefs.length === 0 && <div className="text-xs text-muted">No fields defined yet — add one below.</div>}
+            {fieldDefs.map((d) => (
+              <div key={d.id} className="flex items-center gap-2 text-xs flex-wrap">
+                <span className="font-semibold text-ink">{d.label}</span>
+                <code className="text-muted">{d.key}</code>
+                <span className="px-1.5 py-0.5 rounded bg-surface2 border text-muted">{d.type}</span>
+                <span className="flex-1" />
+                <button onClick={() => renameField(d)} className="text-royal-700 hover:underline">Rename</button>
+                <button onClick={() => removeField(d)} className="text-red-600 hover:underline">Delete</button>
+              </div>
+            ))}
+            <div className="flex gap-2 items-end flex-wrap border-t border-line pt-2">
+              <div className="flex-1 min-w-[140px]"><label className={label}>New field label</label><input className={input} value={newField.label} onChange={(e) => setNewField({ ...newField, label: e.target.value })} placeholder="e.g. Material" /></div>
+              <div><label className={label}>Type</label>
+                <select className={input} value={newField.type} onChange={(e) => setNewField({ ...newField, type: e.target.value })}>
+                  <option value="text">Text</option><option value="number">Number</option><option value="boolean">Yes / No</option>
+                </select>
+              </div>
+              <button onClick={addField} className="bg-bloom-500 text-white px-3 py-2 rounded-xl text-xs font-bold">Add</button>
+            </div>
+          </div>
+        )}
+        {fieldDefs.length === 0 && !manageFields && (
+          <div className="text-xs text-muted">No custom fields yet — open <b>Manage fields</b> to define your own (e.g. Material, Origin, Care).</div>
+        )}
+        {fieldDefs.length > 0 && (
+          <div className="grid sm:grid-cols-2 gap-3 mt-1">
+            {fieldDefs.map((d) => d.type === 'boolean' ? (
+              <label key={d.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={custom[d.key] === true} onChange={(e) => setCustom((c) => ({ ...c, [d.key]: e.target.checked }))} /> {d.label}</label>
+            ) : (
+              <div key={d.id}><label className={label}>{d.label}</label><input className={input} type={d.type === 'number' ? 'number' : 'text'} value={custom[d.key] ?? ''} onChange={(e) => setCustom((c) => ({ ...c, [d.key]: e.target.value }))} /></div>
+            ))}
+          </div>
+        )}
       </div>
       {product && (
         <div className="mt-4 border border-line rounded-xl p-3">

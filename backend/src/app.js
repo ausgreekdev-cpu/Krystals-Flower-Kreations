@@ -19,7 +19,6 @@ import customOrderRoutes from './routes/customOrders.js';
 import ticketRoutes from './routes/tickets.js';
 import loyaltyRoutes from './routes/loyalty.js';
 import sitemapRoutes from './routes/sitemap.js';
-import stockRoutes from './routes/stocks.js';
 // Separated routes (strengthen backend — single responsibility)
 import rawMaterialsRoutes from './routes/rawMaterials.js';
 import configuratorPricingRoutes from './routes/configuratorPricing.js';
@@ -144,7 +143,6 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/posts', blogRoutes);
 app.use('/api/workshops', workshopRoutes);
-app.use('/api/stocks', stockRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bom', bomRoutes); // legacy monolith kept for compat
 app.use('/api/custom-orders', customOrderRoutes);

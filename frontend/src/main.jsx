@@ -19,7 +19,6 @@ import Loyalty from './pages/Loyalty.jsx';
 import POS from './pages/POS.jsx';
 import Notebook from './pages/Notebook.jsx';
 import Privacy from './pages/Privacy.jsx';
-import StockProfilePage from './pages/StockProfilePage.jsx';
 import NotFound from './pages/NotFound.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import SiteLayout from './components/layout/SiteLayout.jsx';
@@ -46,7 +45,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/configurator" element={<Configurator />} />
           <Route path="/loyalty" element={<Loyalty />} />
           <Route path="/notebook" element={<Notebook />} />
-          <Route path="/stocks/:ticker" element={<StockProfilePage />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/login" element={<Login />} />
           <Route path="*" element={<NotFound />} />

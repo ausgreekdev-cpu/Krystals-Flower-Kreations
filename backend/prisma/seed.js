@@ -205,33 +205,6 @@ async function main() {
     if (resolved.length) await prisma.postProduct.createMany({ data: resolved.map((prod) => ({ postId: saved.id, productId: prod.id })) });
   }
 
-  // Demo custom art order for Kanban demo
-  const demoExists = await prisma.customArtOrder.findFirst({ where: { orderNumber: { contains: 'KFK-CA-' } } });
-  if (!demoExists && rose) {
-    const demoSpec = { paperColor: 'Blush', paperTexture: 'textured', weight: '65lb', stemCount: 12, armatureHeightMm: 350, templateId: 'paper-rose', addGreenery: true, vaseIncluded: false, notes: 'Demo: Dusty pink + sage for wedding' };
-    const wireMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-WIRE-18GA' } });
-    const bomSnapshot = [{ rawMaterialId: blushMat.id, sku: blushMat.sku, effectiveQty: 17.1, cost: 14.53 }, { rawMaterialId: wireMat.id, sku: wireMat.sku, effectiveQty: 6.0, cost: 7.2 }];
-    const order = await prisma.customArtOrder.create({
-      data: {
-        orderNumber: `KFK-CA-2026-DEMO1`,
-        customerEmail: 'demo@krystal.local',
-        customerName: 'Demo Customer',
-        productId: rose.id,
-        spec: demoSpec,
-        state: 'cricut_cutting',
-        bomSnapshot,
-        estimatedMinutes: 68,
-        totalPrice: 145,
-        costPrice: 21.73,
-        shippingPostcode: '6000',
-      },
-    });
-    await prisma.ticket.create({ data: { customArtOrderId: order.id, qrPayload: `KFK-T-CA-${order.orderNumber}-DEMO1`, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=KFK-T-CA-${order.orderNumber}-DEMO1` } });
-    await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: 'Demo created' } });
-    await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: 'drafting_proofing', toState: 'cricut_cutting', note: 'Moved to Cricut Cutting' } });
-    console.log('Seeded demo custom art order');
-  }
-
   console.log('Seed complete.');
 }
 

@@ -185,6 +185,8 @@ model Product {
   madeToOrderDays Int? // e.g., 5
   // SEO + social
   ogImageUrl    String?
+  // Admin-defined custom fields: { [fieldKey]: string | number | boolean }
+  customFields  Json?
 
   variants  ProductVariant[]
   images    ProductImage[]
@@ -209,6 +211,20 @@ model Product {
   @@index([type])
   @@index([deletedAt])
   @@map("products")
+}
+
+// Admin-defined product fields (label/type chosen at runtime; values live in Product.customFields)
+model ProductField {
+  id        String   @id @default(cuid())
+  key       String   @unique // slug generated from the label, e.g. "material"
+  label     String   // display label, e.g. "Material"
+  type      String   @default("text") // text | number | boolean
+  position  Int      @default(0)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([deletedAt])
+  @@map("product_fields")
 }
 
 model ProductVariant {
