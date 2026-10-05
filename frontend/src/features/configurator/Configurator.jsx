@@ -36,14 +36,14 @@ export default function Configurator(){
     if(name.length<2){ setErr('Full name required'); return; }
     try{
       const order = await ordersApi.customCreate({ customerEmail: email, customerName: name, spec, shippingPostcode: postcode });
-      setMsg(`Created ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR: ${order.ticket?.qrPayload || ''} — View Kanban → /kanban`);
+      setMsg(`Created ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR: ${order.ticket?.qrPayload || ''}${s.show_kanban === '1' ? ' — View Kanban → /kanban' : ''}`);
     }catch(e){ setErr(e.message || 'Failed — is backend running?'); }
   }
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
       <Breadcrumbs items={[{label:'Configurator'}]} />
       <h1 className="text-2xl font-black text-ink">Custom Bouquet Configurator</h1>
-      <p className="text-sm text-muted">Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.</p>
+      <p className="text-sm text-muted">{s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'}</p>
       <section className="bg-surface2 p-4 rounded-2xl border">
         <h3 className="font-bold">1 · Paper Colour</h3>
         <div className="flex flex-wrap gap-2 mt-2">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c})} className={`px-3 py-2 rounded-full text-xs border ${spec.paperColor===c?'bg-bloom-500 text-white border-bloom-500':'bg-surface2'}`}>{c}</button>)}</div>
@@ -60,7 +60,7 @@ export default function Configurator(){
         <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+${greeneryPrice})</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+${vasePrice})</label>
       </section>
-      <section className="bg-surface2 p-4 rounded-2xl border">
+      {s.show_cricut === '1' && <section className="bg-surface2 p-4 rounded-2xl border">
         <h3 className="font-bold">4 · Cricut Template — $0 Inkscape SVG</h3>
         <div className="flex flex-wrap gap-2 mt-2">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} className={`px-3 py-2 rounded-full text-xs border ${spec.templateId===t.id?'bg-bloom-500 text-white':'bg-surface2'}`}>{t.label}</button>)}</div>
         <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
@@ -68,7 +68,7 @@ export default function Configurator(){
           <div style={{display:'none'}} className="bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label} (add /public/svg/{spec.templateId}.svg via Inkscape potrace, free)</div>
         </div>
         <div className="text-[11px] text-muted mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>. No VectoSolve fees.</div>
-      </section>
+      </section>}
       <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
       <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
       <div className="bg-surface2 border rounded-2xl p-4 space-y-3">

@@ -4,7 +4,7 @@ import { cartApi } from '../lib/api/customClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
 
-const ORG = "Krystal's Flower Kreations";
+const ORG = "Krystals Flower Creations";
 const stars = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
 
 export default function Product(){
@@ -129,7 +129,7 @@ export default function Product(){
         <h1 className="text-3xl font-black text-ink">{p.title}</h1>
         <div className="text-2xl font-bold text-highlight mt-2">${Number(p.price).toFixed(2)} AUD</div>
         <p className="mt-4 text-ink">{p.description}</p>
-        {p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Cricut-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
+        {s.show_cricut === '1' && p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Cricut-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
         {p.madeToOrderDays && <div className="mt-2 text-sm text-muted">Made to order — {p.madeToOrderDays} days • Perth studio</div>}
         {customRows.length>0 && (
           <div className="mt-3 bg-surface border border-bloom-100 rounded-xl p-3 text-sm space-y-1">

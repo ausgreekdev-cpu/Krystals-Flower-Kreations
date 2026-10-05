@@ -64,6 +64,10 @@ test('GET /api/settings returns defaults for public keys, never private ones', a
   assert.equal(pub.status, 200);
   assert.equal(typeof pub.body.announcement_text, 'string', 'public text key present');
   assert.equal(pub.body.bank_bsb, '', 'unset public key still present as default');
+  assert.equal(pub.body.show_workshops, '0', 'feature toggles default OFF');
+  assert.equal(pub.body.show_cricut, '0', 'feature toggles default OFF');
+  assert.equal(pub.body.show_kanban, '0', 'feature toggles default OFF');
+  assert.equal(typeof pub.body.about_story, 'string', 'about story present with default');
   assert.ok(!('low_stock_recipient' in pub.body), 'private keys excluded');
   assert.ok(!('email_from_name' in pub.body), 'private keys excluded');
   assert.ok(!('cart_retention_hours' in pub.body), 'private keys excluded');
@@ -76,7 +80,7 @@ test('GET /api/settings/schema is admin-only and well-formed', async () => {
   assert.equal(res.status, 200);
   assert.ok(Array.isArray(res.body.sections) && res.body.sections.length >= 10);
   const keys = res.body.settings.map(s => s.key);
-  for (const k of ['bank_bsb', 'default_color_mode', 'workshop_reminder_24h_lead', 'pos_receipt_footer', 'theme_dark_bg']) {
+  for (const k of ['bank_bsb', 'default_color_mode', 'workshop_reminder_24h_lead', 'pos_receipt_footer', 'theme_dark_bg', 'show_workshops', 'show_cricut', 'show_kanban', 'about_story']) {
     assert.ok(keys.includes(k), `schema includes ${k}`);
   }
   const mode = res.body.settings.find(s => s.key === 'default_color_mode');

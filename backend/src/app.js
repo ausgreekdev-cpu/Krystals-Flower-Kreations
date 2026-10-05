@@ -105,7 +105,7 @@ app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
 app.get('/api/health', asyncHandler(async (req, res) => {
   let db = false;
   try { await prisma.$queryRaw`SELECT 1`; db = true; } catch (e) { console.error(JSON.stringify({ level: 'error', msg: 'health db probe failed', err: e?.message })); }
-  res.status(db ? 200 : 503).json({ ok: db, db, name: "Krystal's Flower Kreations", version: '1.0.0', env: process.env.NODE_ENV || 'development', requestId: req.id });
+  res.status(db ? 200 : 503).json({ ok: db, db, name: "Krystals Flower Creations", version: '1.0.0', env: process.env.NODE_ENV || 'development', requestId: req.id });
 }));
 app.get('/health', asyncHandler(async (req, res) => {
   let db = false;

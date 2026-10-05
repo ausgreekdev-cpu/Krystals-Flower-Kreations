@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core';
+import { usePublicSettings } from '../../lib/publicSettings';
 
 const STATES = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready'];
 const LABEL = { drafting_proofing:'Drafting/Proofing', cricut_cutting:'Cricut Cutting', hand_folding_assembly:'Hand Folding', quality_check:'Quality Check', dispatched_pickup_ready:'Dispatched/Pickup Ready' };
@@ -93,6 +95,9 @@ export default function Kanban(){
   }
   const ordersArr = Array.isArray(orders) ? orders : [];
   const filtered = filter==='all'? ordersArr : ordersArr.filter(o=>o.state===filter);
+  const settings = usePublicSettings();
+  if (settings.show_kanban === undefined) return <div className="max-w-7xl mx-auto p-6 text-sm text-muted">Loading…</div>;
+  if (settings.show_kanban !== '1') return <Navigate to="/" replace />;
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="max-w-7xl mx-auto p-6">

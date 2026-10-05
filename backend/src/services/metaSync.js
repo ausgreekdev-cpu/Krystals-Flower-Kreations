@@ -23,7 +23,7 @@ export async function pushProductToCatalog(product) {
     retailer_id: product.sku || product.id,
     image_url: product.images?.[0]?.url || product.ogImageUrl || '',
     url: `${process.env.FRONTEND_URL}/product/${product.slug}`,
-    brand: "Krystal's Flower Kreations",
+    brand: "Krystals Flower Creations",
   };
   try {
     const res = await fetch(`${GRAPH}/${catalogId}/products?access_token=${token}`, {

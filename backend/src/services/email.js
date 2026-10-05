@@ -26,7 +26,7 @@ export async function sendEmail({ to, subject, text, html }) {
   try {
     // From name + reply-to come from settings (env EMAIL_FROM still wins for from).
     const s = await getSettings().catch(() => ({}));
-    const fromName = s.email_from_name || "Krystal's Flower Kreations";
+    const fromName = s.email_from_name || "Krystals Flower Creations";
     const from = process.env.EMAIL_FROM || `${fromName} <${process.env.SMTP_USER}>`;
     const replyTo = s.email_reply_to || undefined;
     const info = await transporter.sendMail({ from, replyTo, to, subject, text, html: html || text });
@@ -93,21 +93,21 @@ export async function drainEmailQueue(limit = 50) {
 
 // Shared sign-off: business identity + admin-configured email signature.
 async function signatureBlock(s = {}) {
-  const lines = [`— ${s.business_name || "Krystal's Flower Kreations"}, Perth WA`];
+  const lines = [`— ${s.business_name || "Krystals Flower Creations"}, Perth WA`];
   if (s.business_address) lines.push(s.business_address);
   if (s.email_signature) lines.push(String(s.email_signature).trim());
   return lines.join('\n');
 }
 
 export async function sendOrderConfirmation(order) {
-  const subject = `Order ${order.orderNumber} — Krystal's Flower Kreations`;
+  const subject = `Order ${order.orderNumber} — Krystals Flower Creations`;
   const s = await getSettings().catch(() => ({}));
   // Include the actual payment details for the chosen method (bank/pickup come
   // from settings — previously the email promised details that never appeared).
   const paymentBlock = ['bank_transfer', 'pickup'].includes(order.paymentMethod)
     ? `\n\nPayment:\n${paymentInstructionsFor(order.paymentMethod, s)}\n` : '';
   const footer = s.invoice_footer ? `\n${String(s.invoice_footer).trim()}\n` : '';
-  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystal's Flower Kreations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}\nWe will notify you when it's ready for pickup/dispatch.\n${footer}\n${await signatureBlock(s)}`;
+  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystals Flower Creations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}\nWe will notify you when it's ready for pickup/dispatch.\n${footer}\n${await signatureBlock(s)}`;
   const row = await enqueueEmail({ to: order.email, subject, text, template: 'order_confirmation', payload: { orderNumber: order.orderNumber } });
   sendFromQueue(row).catch(()=>{});
   return row;
@@ -145,7 +145,7 @@ export async function sendWorkshopConfirmation(booking, workshop, session, { rem
   const when = new Date(session.startsAt).toLocaleString('en-AU', { timeZone: 'Australia/Perth' });
   const subject = reminder ? `Reminder: ${workshop.title} on ${when}` : `Workshop booked: ${workshop.title}`;
   const intro = reminder ? `Just a reminder — you're booked for ${workshop.title}` : `You're booked for ${workshop.title}`;
-  const text = `Hi ${booking.name},\n\n${intro} on ${when} at ${workshop.location}.\nQuantity: ${booking.quantity} • Status: ${booking.status}\n${booking.ticket ? `QR: ${booking.ticket.qrPayload}\n` : ''}\nSee you at the studio!\n— ${s.business_name || "Krystal's Flower Kreations"}`;
+  const text = `Hi ${booking.name},\n\n${intro} on ${when} at ${workshop.location}.\nQuantity: ${booking.quantity} • Status: ${booking.status}\n${booking.ticket ? `QR: ${booking.ticket.qrPayload}\n` : ''}\nSee you at the studio!\n— ${s.business_name || "Krystals Flower Creations"}`;
   const row = await enqueueEmail({ to: booking.email, subject, text, template: reminder ? 'workshop_reminder' : 'workshop_confirmation', payload: { workshop: workshop.title } });
   sendFromQueue(row).catch(()=>{});
   return row;

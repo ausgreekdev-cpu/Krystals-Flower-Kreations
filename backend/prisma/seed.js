@@ -4,7 +4,13 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Krystal\'s Flower Kreations...');
+  console.log('Seeding Krystals Flower Creations...');
+
+  // Demo catalog (products + raw materials) must never be injected into the
+  // live Supabase DB — it is manually seeded data owned by the studio.
+  // Local dev and CI (localhost) still get the full fixture set the tests assert on.
+  const SKIP_DEMO = /supabase/i.test(process.env.DATABASE_URL || '');
+  if (SKIP_DEMO) console.log('[seed] Supabase target detected — skipping demo products & raw materials.');
 
   const password = await bcrypt.hash('admin123', 10);
   await prisma.user.upsert({
@@ -67,7 +73,7 @@ async function main() {
     'workshop-origami-bouquet-masterclass': '200000000007',
     'native-bundle-table-centre': '200000000008',
   };
-  for (const p of products) {
+  if (!SKIP_DEMO) for (const p of products) {
     const barcode = TEST_BARCODES[p.slug] || null;
     const prod = await prisma.product.upsert({ where: { slug: p.slug }, update: barcode ? { barcode } : {}, create: { ...p, barcode } });
     // Local placeholder image (no external picsum — $0, offline, no 404)
@@ -125,10 +131,10 @@ async function main() {
     { sku: 'RM-GLUE-STICK', name: 'Glue Stick – Low-temp (pack)', unit: 'stick', onHand: 100, lowThreshold: 20, costPerUnit: 0.45, supplier: 'Spotlight' },
     { sku: 'RM-GLUE-GUN', name: 'Glue Gun Refill – 7mm', unit: 'stick', onHand: 80, lowThreshold: 15, costPerUnit: 0.35, supplier: 'Spotlight' },
   ];
-  for (const m of rawMaterials) {
+  if (!SKIP_DEMO) for (const m of rawMaterials) {
     await prisma.rawMaterial.upsert({ where: { sku: m.sku }, update: {}, create: { ...m } });
   }
-  console.log(`Seeded ${rawMaterials.length} raw materials`);
+  if (!SKIP_DEMO) console.log(`Seeded ${rawMaterials.length} raw materials`);
 
   // BOM recipe for paper rose (baseline 7-stem bouquet)
   const rose = await prisma.product.findUnique({ where: { slug: 'eucalyptus-paper-rose-bouquet-blush' } });

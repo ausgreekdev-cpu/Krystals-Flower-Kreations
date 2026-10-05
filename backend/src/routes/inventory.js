@@ -110,7 +110,7 @@ router.get('/low-stock', asyncHandler(async (req, res) => {
   const defaultThreshold = Number((await prisma.setting.findUnique({ where: { key: 'low_stock_default' } }))?.value || 5);
   const [levels, materials, variants] = await Promise.all([
     prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } }, location: { select: { name: true } } } }),
-    prisma.rawMaterial.findMany(),
+    prisma.rawMaterial.findMany({ orderBy: { name: 'asc' } }),
     prisma.productVariant.findMany({ include: { product: { select: { title: true } } } }),
   ]);
   const low = [];

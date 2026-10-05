@@ -10,7 +10,7 @@ const MODE_LABELS = { system: 'System', light: 'Light', dark: 'Dark' };
 const MODES_NEXT = { system: 'light', light: 'dark', dark: 'system' };
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
-const FALLBACK_BUSINESS = "Krystal's Flower Kreations";
+const FALLBACK_BUSINESS = "Krystals Flower Creations";
 
 function LogoMark({ src }) {
   const [failed, setFailed] = useState(false);
@@ -68,14 +68,18 @@ export default function SiteHeader() {
   const businessName = s.business_name || FALLBACK_BUSINESS;
   const showAnnouncement = Boolean(s.announcement_text) && s.announcement_enabled !== '0';
   const showModeToggle = s.show_color_mode_toggle !== '0';
+  const showWorkshops = s.show_workshops === '1';
+  const showKanban = s.show_kanban === '1';
+  const searchPlaceholder = s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…';
   const customerItems = (
     <>
       <NavLink to="/" end className={navClass}>Home</NavLink>
       <NavLink to="/shop" className={navClass}>Shop</NavLink>
       <NavLink to="/configurator" className={navClass}>Configurator</NavLink>
-      <NavLink to="/workshops" className={navClass}>Workshops</NavLink>
+      {showWorkshops && <NavLink to="/workshops" className={navClass}>Workshops</NavLink>}
       <NavLink to="/blog" className={navClass}>Journal</NavLink>
       <NavLink to="/notebook" className={navClass}>Notebook</NavLink>
+      <NavLink to="/about" className={navClass}>About</NavLink>
       <NavLink to="/loyalty" className={navClass}>Bloom Points</NavLink>
     </>
   );
@@ -103,7 +107,7 @@ export default function SiteHeader() {
           {/* Centred desktop search — visible from md up (was lg, leaving 768–1023px without one) */}
           <div className="col-start-2 hidden md:flex justify-center min-w-0">
             <form onSubmit={onSearch} className="flex w-full max-w-sm lg:max-w-md min-w-0">
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" aria-label="Search products" className="w-full min-w-0 border rounded-l-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label="Search products" className="w-full min-w-0 border rounded-l-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
               <button type="submit" className="bg-bloom-500 text-white px-4 rounded-r-xl text-sm font-bold hover:bg-bloom-700 shrink-0">Search</button>
             </form>
           </div>
@@ -118,7 +122,7 @@ export default function SiteHeader() {
             <nav className="hidden xl:flex gap-4 text-sm font-medium items-center">
               {customerItems}
               {staffRole && <NavLink to="/pos" className={navClass}>POS</NavLink>}
-              {staffRole && <NavLink to="/kanban" className={navClass}>Kanban</NavLink>}
+              {staffRole && showKanban && <NavLink to="/kanban" className={navClass}>Kanban</NavLink>}
               {staffRole && <NavLink to="/admin" className={navClass}>Admin</NavLink>}
               <NavLink to="/cart" className={({ isActive }) => `relative hover:text-highlight py-2 flex items-center gap-1 ${isActive ? 'text-highlight font-bold' : ''}`}>
                 Cart {cartCount > 0 && <span className="bg-bloom-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">{cartCount}</span>}
@@ -143,7 +147,7 @@ export default function SiteHeader() {
         {searchRowOpen && (
           <div className="md:hidden border-t bg-surface2 px-4 py-3">
             <form onSubmit={onSearch} className="flex">
-              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" aria-label="Search products" className="flex-1 min-w-0 border rounded-l-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label="Search products" className="flex-1 min-w-0 border rounded-l-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
               <button type="submit" className="bg-bloom-500 text-white px-3 rounded-r-xl text-sm font-bold">Go</button>
             </form>
           </div>
@@ -156,13 +160,14 @@ export default function SiteHeader() {
               <Link to="/" className="bg-bloom-500 text-white rounded-xl p-3 font-bold">🏠 Home</Link>
               <NavLink to="/shop" className={({ isActive }) => `rounded-xl p-3 font-bold ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface border'}`}>Shop</NavLink>
               <NavLink to="/configurator" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Configurator</NavLink>
-              <NavLink to="/workshops" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Workshops</NavLink>
+              {showWorkshops && <NavLink to="/workshops" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Workshops</NavLink>}
               <NavLink to="/blog" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Journal</NavLink>
               <NavLink to="/notebook" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Notebook</NavLink>
+              <NavLink to="/about" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>About</NavLink>
               <NavLink to="/loyalty" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Bloom Points</NavLink>
               <NavLink to="/cart" className={({ isActive }) => `rounded-xl p-3 relative ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Cart {cartCount > 0 && <span className="absolute top-2 right-2 bg-bloom-500 text-white text-[10px] px-1.5 rounded-full">{cartCount}</span>}</NavLink>
               {staffRole && <NavLink to="/pos" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>POS</NavLink>}
-              {staffRole && <NavLink to="/kanban" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Kanban</NavLink>}
+              {staffRole && showKanban && <NavLink to="/kanban" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Kanban</NavLink>}
               {staffRole && <NavLink to="/admin" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Admin</NavLink>}
               {!signedIn && <Link to="/login" className="bg-surface2 border rounded-xl p-3 font-bold">Sign in</Link>}
               {signedIn && <button onClick={signOut} className="bg-surface2 border rounded-xl p-3 text-left">Sign out — {user?.email || ''}</button>}

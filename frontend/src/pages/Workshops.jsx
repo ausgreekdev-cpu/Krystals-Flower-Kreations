@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import NotebookPanel from '../components/NotebookPanel';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { usePublicSettings } from '../lib/publicSettings';
 export default function Workshops(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -29,6 +30,9 @@ export default function Workshops(){
       if(refreshed) setItems(refreshed);
     }catch(e){ setBookErr(e.message); }
   }
+  const settings = usePublicSettings();
+  if (settings.show_workshops === undefined) return <div className="max-w-4xl mx-auto px-4 py-8 text-sm text-muted">Loading…</div>;
+  if (settings.show_workshops !== '1') return <Navigate to="/" replace />;
   if(loading) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="animate-pulse bg-surface2 border rounded-2xl p-6 h-32">Loading workshops…</div></div>;
   if(err) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">Failed to load workshops: {err} <button onClick={()=>window.location.reload()} className="ml-2 underline">Retry</button></div></div>;
   if(!loading && items.length===0) return <div className="max-w-4xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Workshops'}]} /><h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1><p className="text-muted mt-2">No workshops yet — check back or design via Configurator.</p><Link to="/configurator" className="mt-4 inline-block bg-bloom-500 text-white px-6 py-3 rounded-xl">Design Custom Bouquet</Link></div>;

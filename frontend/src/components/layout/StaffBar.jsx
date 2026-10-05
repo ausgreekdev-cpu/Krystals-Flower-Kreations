@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { clearSession, getUser } from '../../lib/api/customClient';
 import { currentStaffRole } from '../../lib/session';
+import { usePublicSettings } from '../../lib/publicSettings';
 
 const TITLES = { '/pos': 'Point of Sale', '/kanban': 'Custom Order Board' };
 
@@ -8,6 +9,7 @@ const TITLES = { '/pos': 'Point of Sale', '/kanban': 'Custom Order Board' };
 export default function StaffBar() {
   const { pathname } = useLocation();
   const role = currentStaffRole();
+  const s = usePublicSettings();
   const user = getUser();
   const title = TITLES[pathname] || 'Studio Tool';
   function signOut() {
@@ -26,7 +28,7 @@ export default function StaffBar() {
           <span className="font-bold">{title}</span>
           <nav className="ml-auto flex items-center gap-3 text-xs">
             {role && <Link to="/pos" className={linkCls(pathname === '/pos')}>POS</Link>}
-            {role && <Link to="/kanban" className={linkCls(pathname === '/kanban')}>Kanban</Link>}
+            {role && s.show_kanban === '1' && <Link to="/kanban" className={linkCls(pathname === '/kanban')}>Kanban</Link>}
             {role && <Link to="/admin" className={linkCls(pathname === '/admin')}>Admin</Link>}
             {user?.email && <span className="text-white/50 hidden sm:inline max-w-[10rem] truncate">{user.email}</span>}
             {role ? (

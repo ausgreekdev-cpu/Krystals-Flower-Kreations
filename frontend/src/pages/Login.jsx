@@ -36,7 +36,7 @@ export default function Login() {
           <span className="w-9 h-9 rounded-xl bg-royal-600 flex items-center justify-center text-white font-black">K</span>
           <div>
             <h1 className="font-black text-ink leading-tight">Studio sign in</h1>
-            <p className="text-[11px] text-muted">Krystal's Flower Kreations</p>
+            <p className="text-[11px] text-muted">Krystals Flower Creations</p>
           </div>
         </div>
         {err && <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{err}</div>}

@@ -53,7 +53,7 @@ const SHOP_SORT_OPTIONS = [
 
 export const SETTINGS = [
   // ── Business ──────────────────────────────────────────────
-  { key: 'business_name', section: 'business', label: 'Business name', type: 'text', default: "Krystal's Flower Kreations", public: true, max: 120 },
+  { key: 'business_name', section: 'business', label: 'Business name', type: 'text', default: "Krystals Flower Creations", public: true, max: 120 },
   { key: 'abn', section: 'business', label: 'ABN', type: 'text', default: '', public: true, max: 20 },
   { key: 'business_address', section: 'business', label: 'Business address', type: 'text', default: 'Perth WA 6000', public: true, max: 200 },
   { key: 'tax_gst_rate', section: 'business', label: 'GST rate (decimal)', type: 'number', default: '0.10', public: true, min: 0, max: 1, unit: '' },
@@ -78,7 +78,7 @@ export const SETTINGS = [
   { key: 'shop_page_size', section: 'storefront', label: 'Shop page size', type: 'number', default: '0', public: true, min: 0, max: 240, unit: 'items', description: '0 = show everything.' },
   { key: 'shop_sort_default', section: 'storefront', label: 'Shop default sort', type: 'select', default: 'newest', public: true, options: SHOP_SORT_OPTIONS },
   { key: 'handling_days_text', section: 'storefront', label: 'Handling time', type: 'text', default: '3-7 days', public: true, max: 60 },
-  { key: 'site_meta_title', section: 'storefront', label: 'Meta title (SEO)', type: 'text', default: "Krystal's Flower Kreations — Paper Florist Perth WA", public: true, max: 70 },
+  { key: 'site_meta_title', section: 'storefront', label: 'Meta title (SEO)', type: 'text', default: "Krystals Flower Creations — Paper Florist Perth WA", public: true, max: 70 },
   { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, armature art, Cricut SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
   { key: 'og_image_url', section: 'storefront', label: 'Social share image URL', type: 'url', default: '', public: true },
   { key: 'notebooklm_url', section: 'storefront', label: 'NotebookLM URL', type: 'url', default: '', public: true },
@@ -86,6 +86,10 @@ export const SETTINGS = [
   { key: 'configurator_per_stem', section: 'storefront', label: 'Configurator per-stem', type: 'number', default: '9.5', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_vase', section: 'storefront', label: 'Configurator vase add-on', type: 'number', default: '22', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_greenery', section: 'storefront', label: 'Configurator greenery add-on', type: 'number', default: '12', public: true, min: 0, max: 100000, unit: '$' },
+  { key: 'show_workshops', section: 'storefront', label: 'Show Workshops', type: 'toggle', default: '0', public: true, description: 'Off = hides all workshop links, cards, nav and the /workshops page.' },
+  { key: 'show_cricut', section: 'storefront', label: 'Show Cricut content', type: 'toggle', default: '0', public: true, description: 'Off = hides Cricut mentions in the hero, shop chips, configurator section and notebook copy.' },
+  { key: 'show_kanban', section: 'storefront', label: 'Show Kanban board', type: 'toggle', default: '0', public: true, description: 'Off = hides the staff custom-order board link and route.' },
+  { key: 'about_story', section: 'storefront', label: 'About page story', type: 'textarea', default: 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural armature art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.', public: true, max: 2000 },
 
   // ── Payments & pickup ─────────────────────────────────────
   { key: 'checkout_payment_methods', section: 'payments', label: 'Checkout payment methods', type: 'csv', default: 'bank_transfer,pickup', public: true, options: PAY_METHOD_OPTIONS },
@@ -119,7 +123,7 @@ export const SETTINGS = [
   { key: 'workshop_waitlist_enabled', section: 'workshops', label: 'Waitlist full sessions', type: 'toggle', default: '1', public: true, description: 'Off = full sessions reject with 409 instead of waitlisting.' },
 
   // ── Notifications ─────────────────────────────────────────
-  { key: 'email_from_name', section: 'notifications', label: 'Email from name', type: 'text', default: "Krystal's Flower Kreations", public: false, max: 120 },
+  { key: 'email_from_name', section: 'notifications', label: 'Email from name', type: 'text', default: "Krystals Flower Creations", public: false, max: 120 },
   { key: 'email_reply_to', section: 'notifications', label: 'Email reply-to', type: 'email', default: '', public: false, max: 254 },
   { key: 'low_stock_recipient', section: 'notifications', label: 'Low-stock alert recipient', type: 'email', default: '', public: false, max: 254, placeholder: 'defaults to COMPANY_EMAIL env' },
   { key: 'low_stock_alerts_enabled', section: 'notifications', label: 'Low-stock alerts', type: 'toggle', default: '1', public: false },
@@ -139,7 +143,7 @@ export const SETTINGS = [
   { key: 'loyalty_min_redeem_points', section: 'loyalty', label: 'Minimum redeem', type: 'number', default: '100', public: true, min: 0, max: 10000, unit: 'pts', description: 'Smallest redeemable amount (must also be a multiple of 100).' },
 
   // ── POS ───────────────────────────────────────────────────
-  { key: 'pos_receipt_footer', section: 'pos', label: 'Receipt footer', type: 'textarea', default: "Thank you! — Krystal's Flower Kreations • Perth WA", public: false, max: 300 },
+  { key: 'pos_receipt_footer', section: 'pos', label: 'Receipt footer', type: 'textarea', default: "Thank you! — Krystals Flower Creations • Perth WA", public: false, max: 300 },
   { key: 'pos_till_float_default', section: 'pos', label: 'Default till float', type: 'number', default: '50', public: false, min: 0, max: 10000, unit: '$' },
 
   // ── Appearance ────────────────────────────────────────────

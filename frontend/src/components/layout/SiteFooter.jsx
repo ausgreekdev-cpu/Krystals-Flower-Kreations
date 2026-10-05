@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../../lib/publicSettings';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
-const FALLBACK_BUSINESS = "Krystal's Flower Kreations";
+const FALLBACK_BUSINESS = "Krystals Flower Creations";
 
 export default function SiteFooter() {
   const s = usePublicSettings();
@@ -34,7 +34,7 @@ export default function SiteFooter() {
             <Link to="/" className="hover:text-highlight block">Home</Link>
             <Link to="/shop" className="hover:text-highlight block">All bouquets</Link>
             <Link to="/configurator" className="hover:text-highlight block">Custom configurator</Link>
-            <Link to="/workshops" className="hover:text-highlight block">Workshops</Link>
+            {s.show_workshops === '1' && <Link to="/workshops" className="hover:text-highlight block">Workshops</Link>}
             <Link to="/cart" className="hover:text-highlight block">Cart</Link>
           </div>
         </div>
@@ -44,6 +44,7 @@ export default function SiteFooter() {
             <Link to="/loyalty" className="hover:text-highlight block">Bloom Points</Link>
             <Link to="/blog" className="hover:text-highlight block">Journal</Link>
             <Link to="/notebook" className="hover:text-highlight block">Notebook</Link>
+            <Link to="/about" className="hover:text-highlight block">About</Link>
             <Link to="/login" className="hover:text-highlight block">Sign in / Account</Link>
             <Link to="/privacy" className="hover:text-highlight block">Privacy</Link>
             <a href={`mailto:${email}`} className="hover:text-highlight block">{email}</a>

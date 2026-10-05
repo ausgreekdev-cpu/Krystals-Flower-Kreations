@@ -70,7 +70,7 @@ router.post('/test-email', requireAuth, requireRole('admin','developer'), asyncH
   const smtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
   const result = await sendEmail({
     to,
-    subject: `Test email — ${s.business_name || "Krystal's Flower Kreations"}`,
+    subject: `Test email — ${s.business_name || "Krystals Flower Creations"}`,
     text: `This is a test email from your KFK admin settings.\n\nFrom: ${s.email_from_name || ''}\nReply-To: ${s.email_reply_to || '(unset)'}\n${s.email_signature ? `\n${s.email_signature}\n` : ''}\nIf you received this, SMTP is working.`,
   });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'settings_test_email', entityType: 'setting', details: { to, smtpConfigured, ok: Boolean(result.ok || result.skipped) } });

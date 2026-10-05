@@ -6,7 +6,7 @@ import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole } from '../../lib/session';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
-const FALLBACK_BUSINESS = "Krystal's Flower Kreations";
+const FALLBACK_BUSINESS = "Krystals Flower Creations";
 
 export default function SiteLayout() {
   const location = useLocation();

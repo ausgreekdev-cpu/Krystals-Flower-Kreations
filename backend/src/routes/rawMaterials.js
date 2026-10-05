@@ -16,7 +16,7 @@ router.get('/', requireAuth, requireRole('admin','developer','maker','staff'), a
 }));
 
 router.get('/low-stock', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
-  const all = await prisma.rawMaterial.findMany();
+  const all = await prisma.rawMaterial.findMany({ orderBy: { name: 'asc' } });
   const low = all.filter(m => m.onHand <= m.lowThreshold);
   res.json(low);
 }));

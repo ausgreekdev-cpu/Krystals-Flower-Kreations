@@ -2,12 +2,14 @@ import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
 import { renderMarkdown } from '../lib/markdown';
+import { usePublicSettings } from '../lib/publicSettings';
 
-const ORG = "Krystal's Flower Kreations";
-const DEFAULT_TITLE = "Krystal's Flower Kreations — Paper Florist Perth WA";
+const ORG = "Krystals Flower Creations";
+const DEFAULT_TITLE = "Krystals Flower Creations — Paper Florist Perth WA";
 
 export default function Post(){
   const {slug}=useParams(); const [p,setP]=useState(null); const [err,setErr]=useState('');
+  const s = usePublicSettings();
   useEffect(()=>{
     setErr('');
     fetch(`/api/posts/${slug}`).then(r=>{ if(!r.ok) throw new Error(r.status===404?'Post not found':'Failed to load post'); return r.json(); }).then(setP).catch(e=>setErr(e.message||'Failed to load post'));
@@ -66,7 +68,7 @@ export default function Post(){
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted mt-2">Fresh blooms, SVG templates & workshop tickets — <Link to="/shop" className="underline">browse the shop →</Link></p>
+          <p className="text-sm text-muted mt-2">{s.show_workshops === '1' ? 'Fresh blooms, SVG templates & workshop tickets' : 'Fresh blooms & custom commissions'} — <Link to="/shop" className="underline">browse the shop →</Link></p>
         )}
       </section>
     </div>

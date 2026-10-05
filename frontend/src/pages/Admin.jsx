@@ -50,6 +50,9 @@ const NAV_GROUPS = [
   { label: 'System', tabs: ['users', 'settings'] },
 ];
 
+// Case-insensitive alphanumeric ordering (A2 before A10) for material lists.
+const byNameNatural = (a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+
 function AdminInner({ user }) {
   const params = new URLSearchParams(window.location.search);
   const [tab, setTab] = useState(params.get('tab') || 'overview');
@@ -59,6 +62,7 @@ function AdminInner({ user }) {
   const tabRef = useRef(tab);
   const prevTabRef = useRef(tab);
   const skipUrlWriteRef = useRef(false);
+  const loadedTabsRef = useRef(new Set());
   const [err, setErr] = useState('');
   const token = getToken();
   const [colorMode, setColorModeState] = useState(() => getColorMode() || 'system');
@@ -87,7 +91,7 @@ function AdminInner({ user }) {
           adminApi.inventory.locations(token).catch(() => []),
           adminApi.inventory.movements(token, 30).catch(() => []),
         ]);
-        setData((s) => ({ ...s, levels, materials, recon, locations, movements }));
+        setData((s) => ({ ...s, levels, materials: [...materials].sort(byNameNatural), recon, locations, movements }));
       } else if (tabId === 'customers') {
         const customers = await adminApi.customers.list(token).catch(() => []);
         setData((s) => ({ ...s, customers }));
@@ -103,7 +107,7 @@ function AdminInner({ user }) {
           adminApi.materials.list(token).catch(() => []),
           adminApi.products.list(token).catch(() => ({ products: [] })),
         ]);
-        setData((s) => ({ ...s, recipes, materials, products: products.products || products }));
+        setData((s) => ({ ...s, recipes, materials: [...materials].sort(byNameNatural), products: products.products || products }));
       } else if (tabId === 'collections') {
         const [collections, products] = await Promise.all([
           adminApi.collections.list(token).catch(() => []),
@@ -153,7 +157,7 @@ function AdminInner({ user }) {
         setData((s) => ({ ...s, notebookUrl: url, notebookPosts: Array.isArray(posts) ? posts : [] }));
       }
     } catch (e) { setErr(e?.message || 'Failed to load'); }
-    finally { setLoading(false); }
+    finally { loadedTabsRef.current.add(tabId); setLoading(false); }
   }
 
   useEffect(() => {
@@ -249,7 +253,7 @@ function AdminInner({ user }) {
             <div className="flex items-center justify-between gap-3 mb-5">
               <div>
                 <h1 className="text-2xl font-black text-ink">{TABS.find((t) => t.id === tab)?.label}</h1>
-                <p className="text-xs text-muted mt-0.5">Krystal's Flower Kreations — Perth WA studio</p>
+                <p className="text-xs text-muted mt-0.5">Krystals Flower Creations — Perth WA studio</p>
               </div>
               <div className="flex items-center gap-2">
                 <Link to="/" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">🏠 Storefront</Link>
@@ -275,8 +279,8 @@ function AdminInner({ user }) {
               })}
             </div>
 
-            <div className="bg-surface2 border border-line rounded-2xl p-4 lg:p-6 shadow-sm min-h-[60vh]">
-              {loading ? <Skeleton /> : (
+            <div className={`bg-surface2 border border-line rounded-2xl p-4 lg:p-6 shadow-sm min-h-[60vh] ${loading ? 'opacity-60' : ''}`}>
+              {loading && !loadedTabsRef.current.has(tab) ? <Skeleton /> : (
                 <>
                   {tab === 'overview' && <Overview data={data} onOpen={setTab} />}
                   {tab === 'orders' && <Orders data={data} reload={() => load('orders')} token={token} />}
@@ -559,8 +563,12 @@ function InventoryStock({ data, reload, token, onOpen }) {
   const [locationEditor, setLocationEditor] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanHit, setScanHit] = useState(null);
+  const [matQ, setMatQ] = useState('');
   const levels = Array.isArray(data.levels) ? data.levels : [];
   const materials = Array.isArray(data.materials) ? data.materials : [];
+  const mq = matQ.trim().toLowerCase();
+  const filteredMaterials = !mq ? materials : materials.filter((m) => [m.name, m.sku, m.supplier, m.brand, m.colour, m.size, m.barcode,
+    m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : ''].some((v) => String(v ?? '').toLowerCase().includes(mq)));
   const recon = Array.isArray(data.recon) ? data.recon : [];
   const locations = Array.isArray(data.locations) ? data.locations : [];
   const drifted = recon.filter((r) => !r.ok);
@@ -683,9 +691,11 @@ function InventoryStock({ data, reload, token, onOpen }) {
           {levels.length === 0 && <div className="text-xs text-muted py-4 text-center">No levels — seed inventory</div>}
         </div>
       </Card>
-      <Card title={`Raw materials — ${materials.length}`} actions={<div className="flex gap-2"><Btn small color="ghost" onClick={() => setLabels(true)}>🖨 Labels</Btn><Btn small color="ghost" onClick={() => setMaterialEditor({})}>+ Add material</Btn></div>}>
+      <Card title={`Raw materials — ${filteredMaterials.length}${mq ? ` of ${materials.length}` : ''}`} actions={<div className="flex gap-2 items-center">
+        <input value={matQ} onChange={(e) => setMatQ(e.target.value)} placeholder="Search name, SKU, brand…" className="w-40 lg:w-56 border border-line-strong rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500" />
+        <Btn small color="ghost" onClick={() => setLabels(true)}>🖨 Labels</Btn><Btn small color="ghost" onClick={() => setMaterialEditor({})}>+ Add material</Btn></div>}>
         <div className="space-y-1.5">
-          {materials.map((m) => (
+          {filteredMaterials.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
               <span className="font-medium text-ink flex-1 min-w-[160px] cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('material', m.id, m)}>{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span>
                 {(m.brand || m.weightValue != null || m.colour || m.size) && <span className="block text-[11px] text-muted font-normal">{[m.brand, m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : null, m.colour, m.size].filter(Boolean).join(' • ')}</span>}
@@ -698,7 +708,7 @@ function InventoryStock({ data, reload, token, onOpen }) {
               <Btn small color="ghost" onClick={() => setMaterialEditor(m)}>Edit</Btn>
             </div>
           ))}
-          {materials.length === 0 && <div className="text-xs text-muted py-4 text-center">No materials</div>}
+          {filteredMaterials.length === 0 && <div className="text-xs text-muted py-4 text-center">{mq ? 'No materials match your search' : 'No materials'}</div>}
         </div>
       </Card>
       <Card title={`Locations — ${locations.length}`} actions={<Btn small color="ghost" onClick={() => setLocationEditor({})}>+ Add location</Btn>}>
@@ -714,7 +724,7 @@ function InventoryStock({ data, reload, token, onOpen }) {
         </div>
       </Card>
       {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
-      {labels && <LabelPrintModal title="Print material labels" items={materials.map((m) => ({ id: m.id, name: m.name, value: m.barcode || m.sku || '' }))} onClose={() => setLabels(false)} />}
+      {labels && <LabelPrintModal title="Print material labels" items={filteredMaterials.map((m) => ({ id: m.id, name: m.name, value: m.barcode || m.sku || '' }))} onClose={() => setLabels(false)} />}
       {locationEditor && <LocationModal location={locationEditor.id ? locationEditor : null} onClose={() => setLocationEditor(null)} onSaved={() => { setLocationEditor(null); toast('Location saved'); reload(); }} token={token} />}
       <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} allowCreate closeOnFound
         onResolved={(r) => { setScanHit(r); reload(); }} />
@@ -738,6 +748,18 @@ function generateMaterialSku(form, materials) {
   while (taken.has(candidate)) candidate = `${base}-${i++}`;
   return candidate;
 }
+// Zod `flatten()` details → flat { field: message } map (handles both the
+// { fieldErrors } wrapper and a plain map defensively).
+function extractFieldErrors(details) {
+  if (!details || typeof details !== 'object') return {};
+  const src = details.fieldErrors && typeof details.fieldErrors === 'object' ? details.fieldErrors : details;
+  const out = {};
+  for (const [k, v] of Object.entries(src)) {
+    if (k === 'formErrors') continue;
+    out[k] = Array.isArray(v) ? v[0] : (v && typeof v === 'object' ? (Array.isArray(v._errors) ? v._errors[0] : '') : String(v));
+  }
+  return out;
+}
 function MaterialModal({ material, locations, materials, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
@@ -748,9 +770,23 @@ function MaterialModal({ material, locations, materials, onClose, onSaved, token
     colour: material?.colour || '', size: material?.size || '',
   }));
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const initialJsonRef = useRef(JSON.stringify(form));
+  const dirty = JSON.stringify(form) !== initialJsonRef.current;
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
+  const fieldCls = (key) => (fieldErrors[key] ? `${input} border-red-400` : input);
+  const fieldErr = (key) => (fieldErrors[key] ? <div className="text-[11px] text-red-500 mt-1">{fieldErrors[key]}</div> : null);
+  const requestClose = () => { if (!dirty || window.confirm('Discard unsaved changes?')) onClose(); };
   async function save() {
+    setError(''); setFieldErrors({});
+    const fe = {};
+    if (!form.name.trim()) fe.name = 'Name is required';
+    if (!form.sku.trim()) fe.sku = 'SKU is required';
+    const wv = form.weightValue;
+    if (wv !== '' && wv != null && (Number.isNaN(Number(wv)) || Number(wv) < 0 || Number(wv) > 10000)) fe.weightValue = 'Weight must be between 0 and 10000';
+    if (Object.keys(fe).length) { setFieldErrors(fe); setError('Please fix the highlighted fields.'); return; }
     setBusy(true);
     try {
       const body = { ...form, barcode: form.barcode?.trim() || null, onHand: Number(form.onHand), lowThreshold: Number(form.lowThreshold), costPerUnit: Number(form.costPerUnit), locationId: form.locationId || null,
@@ -762,18 +798,23 @@ function MaterialModal({ material, locations, materials, onClose, onSaved, token
       if (material) await adminApi.materials.update(material.id, body, token);
       else await adminApi.materials.create(body, token);
       onSaved();
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) {
+      setFieldErrors(extractFieldErrors(e.details));
+      setError(e.message || 'Could not save material');
+      toast(e.message, 'error');
+    }
     finally { setBusy(false); }
   }
-  return <Modal title={material ? 'Edit material' : 'New material'} onClose={onClose}>
+  return <Modal title={material ? 'Edit material' : 'New material'} onClose={requestClose}>
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div><label className={label}>Name</label><input className={fieldCls('name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />{fieldErr('name')}</div>
         <div><label className={label}>SKU</label>
           <div className="flex gap-1.5">
-            <input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+            <input className={fieldCls('sku')} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
             <button type="button" title="Generate part number from brand/weight/colour/size" onClick={() => setForm((f) => ({ ...f, sku: generateMaterialSku(f, materials) }))} className="shrink-0 px-2 rounded-xl border border-line-strong text-xs font-semibold text-royal-700 bg-royal-50 hover:bg-royal-100">Generate</button>
           </div>
+          {fieldErr('sku')}
         </div>
         <div className="col-span-2"><label className={label}>Barcode (for scanner stocktakes)</label><input className={input} value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="e.g. 200000000001" /></div>
       </div>
@@ -791,15 +832,17 @@ function MaterialModal({ material, locations, materials, onClose, onSaved, token
         <div><label className={label}>Colour</label><input className={input} value={form.colour} placeholder="e.g. Blush" onChange={(e) => setForm({ ...form, colour: e.target.value })} /></div>
         <div><label className={label}>Weight (gsm/lb)</label>
           <div className="flex gap-1.5">
-            <input type="number" className={input} value={form.weightValue} placeholder="65" onChange={(e) => setForm({ ...form, weightValue: e.target.value })} />
-            <select className={input + ' w-20 shrink-0'} value={form.weightUnit} onChange={(e) => setForm({ ...form, weightUnit: e.target.value })}><option value="lb">lb</option><option value="gsm">gsm</option></select>
+            <input type="number" min={0} max={10000} step="any" className={fieldCls('weightValue') + ' flex-1 min-w-0'} value={form.weightValue} placeholder="65" onChange={(e) => setForm({ ...form, weightValue: e.target.value })} />
+            <select className="w-24 shrink-0 border border-line-strong rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500" value={form.weightUnit} onChange={(e) => setForm({ ...form, weightUnit: e.target.value })}><option value="lb">lb</option><option value="gsm">gsm</option></select>
           </div>
+          {fieldErr('weightValue')}
         </div>
         <div><label className={label}>Paper/board size</label><input className={input} value={form.size} placeholder="e.g. A4 / 12x12in" onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
       </div>
       {locations.length > 0 && <div><label className={label}>Location</label><select className={input} value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })}><option value="">None</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>}
     </div>
-    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name || !form.sku}>{busy ? 'Saving…' : material ? 'Save changes' : 'Create'}</Btn></div>
+    {error && <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>}
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={requestClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : material ? 'Save changes' : 'Create'}</Btn></div>
   </Modal>;
 }
 function LocationModal({ location, onClose, onSaved, token }) {
@@ -1133,7 +1176,11 @@ function Products({ data, reload, token }) {
   const [confirmDel, setConfirmDel] = useState(null);
   const [uploading, setUploading] = useState('');
   const [labels, setLabels] = useState(false);
+  const [q, setQ] = useState('');
   const products = Array.isArray(data.products) ? data.products : [];
+  const nq = q.trim().toLowerCase();
+  const filteredProducts = !nq ? products : products.filter((p) => [p.title, p.sku, p.barcode, p.description, p.stockMode]
+    .some((v) => String(v ?? '').toLowerCase().includes(nq)));
   async function toggle(p, field) {
     try { await adminApi.products.update(p.id, { [field]: !p[field] }, token); toast(`${p.title} ${field} toggled`); reload(); }
     catch (e) { toast(e.message, 'error'); }
@@ -1150,15 +1197,18 @@ function Products({ data, reload, token }) {
   }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <div className="text-xs text-muted">{products.length} products</div>
+      <div className="flex justify-between items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, SKU, barcode…" className="w-44 sm:w-60 border border-line-strong rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500" />
+          <div className="text-xs text-muted">{nq ? `${filteredProducts.length} of ${products.length} products` : `${products.length} products`}</div>
+        </div>
         <div className="flex gap-2">
           <Btn color="ghost" onClick={() => setLabels(true)}>🖨 Labels</Btn>
           <Btn onClick={() => setEditing({})}>+ New product</Btn>
         </div>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
-        {products.map((p) => (
+        {filteredProducts.map((p) => (
           <div key={p.id} className="border border-line rounded-xl p-3">
             <div className="flex gap-3">
               {p.images?.[0] ? <img src={p.images[0].url} alt={p.title} className="w-16 h-16 rounded-lg object-cover" loading="lazy" /> : <div className="w-16 h-16 rounded-lg bg-surface3 flex items-center justify-center text-muted text-xs">no img</div>}
@@ -1184,10 +1234,10 @@ function Products({ data, reload, token }) {
           </div>
         ))}
       </div>
-      {products.length === 0 && <div className="text-xs text-muted py-10 text-center">No products</div>}
+      {filteredProducts.length === 0 && <div className="text-xs text-muted py-10 text-center">{nq ? 'No products match your search' : 'No products'}</div>}
       {editing && <ProductModal product={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Product updated' : 'Product created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete product" message={`Delete "${confirmDel.title}"? This cannot be undone.`} confirmLabel="Delete" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
-      {labels && <LabelPrintModal title="Print product labels" items={products.map((p) => ({ id: p.id, name: p.title, value: p.barcode || p.sku || '' }))} onClose={() => setLabels(false)} />}
+      {labels && <LabelPrintModal title="Print product labels" items={filteredProducts.map((p) => ({ id: p.id, name: p.title, value: p.barcode || p.sku || '' }))} onClose={() => setLabels(false)} />}
     </div>
   );
 }
@@ -2219,7 +2269,7 @@ function Settings({ reload, token }) {
       else toast(`✓ ${Object.keys(payload).length} ${scopeLabel} saved & verified`, 'success');
       refreshStorefront();
     } catch (e) {
-      if (e.details && typeof e.details === 'object') setFieldErrors(e.details);
+      if (e.details && typeof e.details === 'object') setFieldErrors(extractFieldErrors(e.details));
       toast(e.message, 'error');
     } finally { setBusy(false); }
   }

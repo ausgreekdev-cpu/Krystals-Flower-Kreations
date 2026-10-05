@@ -41,7 +41,7 @@ export default function Shop(){
       {/* Toolbar: search + filter chips directly under the heading (was a detached full-width row) */}
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex gap-3 flex-1 min-w-0 sm:max-w-md">
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search — rose, banksia, Cricut…" aria-label="Search products" className="flex-1 min-w-0 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder={s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…'} aria-label="Search products" className="flex-1 min-w-0 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
           <button onClick={()=>setQ('')} className="hidden sm:block border rounded-xl px-4 text-sm hover:bg-surface3">Clear</button>
         </div>
         <div className="flex gap-2 flex-wrap sm:ml-auto">
@@ -60,7 +60,7 @@ export default function Shop(){
               <div className="p-3">
                 <div className="font-bold text-ink line-clamp-2 text-sm md:text-[15px] leading-tight">{p.title}</div>
                 <div className="text-highlight font-bold mt-1.5">${Number(p.price).toFixed(2)} <span className="text-xs font-normal text-muted">AUD</span></div>
-                <div className="text-xs text-muted mt-1">{p.paperStock || 'Canson 65lb'} {p.cricutCompatible && '• Cricut'}</div>
+                <div className="text-xs text-muted mt-1">{p.paperStock || 'Canson 65lb'} {s.show_cricut === '1' && p.cricutCompatible && '• Cricut'}</div>
               </div>
             </Link>
           ))}
