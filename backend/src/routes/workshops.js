@@ -31,6 +31,81 @@ const workshopSchema = z.object({
   location: z.string().optional().nullable(), durationMinutes: z.number().int().optional().nullable(),
 });
 
+// Edit — partial of the create shape plus admin-only fields (status/level/isActive)
+const workshopPatchSchema = z.object({
+  title: z.string().min(3).optional(), slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  description: z.string().max(5000).optional().nullable(),
+  price: z.number().nonnegative().optional(), capacity: z.number().int().min(1).optional(),
+  location: z.string().max(200).optional().nullable(), durationMinutes: z.number().int().positive().optional().nullable(),
+  level: z.string().max(40).optional().nullable(),
+  status: z.enum(['draft', 'open', 'full', 'cancelled', 'completed']).optional(),
+  isActive: z.boolean().optional(),
+}).strict();
+
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const existing = await prisma.workshop.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  try {
+    const w = await prisma.workshop.update({ where: { id }, data: workshopPatchSchema.parse(req.body) });
+    res.json(w);
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'A workshop with this slug already exists', code: 'conflict' });
+    throw e;
+  }
+}));
+
+// Delete — blocked while real bookings exist (sessions/booking cascade otherwise)
+router.delete('/:id', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const w = await prisma.workshop.findUnique({ where: { id }, include: { _count: { select: { sessions: true } } } });
+  if (!w) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const bookings = await prisma.booking.count({ where: { session: { workshopId: id }, status: { not: 'cancelled' } } });
+  if (bookings > 0) return res.status(409).json({ error: `${bookings} active booking(s) exist — deactivate the workshop instead of deleting`, code: 'conflict' });
+  await prisma.workshop.delete({ where: { id } });
+  res.json({ ok: true });
+}));
+
+const sessionPatchSchema = z.object({
+  startsAt: z.string().min(10).max(50).optional(),
+  endsAt: z.string().min(10).max(50).optional(),
+  capacity: z.number().int().finite().min(1).max(500).optional(),
+  status: z.enum(['draft', 'open', 'full', 'cancelled', 'completed']).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+}).strict();
+
+// Session edit — capacity cannot drop below confirmed bookings
+router.patch('/sessions/:sessionId', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
+  const id = String(req.params.sessionId).slice(0, 100);
+  const session = await prisma.workshopSession.findUnique({ where: { id } });
+  if (!session) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const data = sessionPatchSchema.parse(req.body);
+  if (data.capacity !== undefined && data.capacity < session.bookedCount) {
+    return res.status(409).json({ error: `Capacity cannot be below ${session.bookedCount} confirmed booking(s)`, code: 'conflict' });
+  }
+  const updated = await prisma.workshopSession.update({
+    where: { id },
+    data: {
+      ...(data.startsAt !== undefined ? { startsAt: new Date(data.startsAt) } : {}),
+      ...(data.endsAt !== undefined ? { endsAt: new Date(data.endsAt) } : {}),
+      ...(data.capacity !== undefined ? { capacity: data.capacity } : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes || null } : {}),
+    },
+  });
+  res.json(updated);
+}));
+
+// Session delete — blocked while bookings (any status) exist, they cascade
+router.delete('/sessions/:sessionId', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
+  const id = String(req.params.sessionId).slice(0, 100);
+  const session = await prisma.workshopSession.findUnique({ where: { id }, include: { _count: { select: { bookings: true } } } });
+  if (!session) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (session._count.bookings > 0) return res.status(409).json({ error: `${session._count.bookings} booking(s) exist for this session — cancel them first`, code: 'conflict' });
+  await prisma.workshopSession.delete({ where: { id } });
+  res.json({ ok: true });
+}));
+
 router.post('/', requireAuth, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
   const data = workshopSchema.parse(req.body);
   const w = await prisma.workshop.create({ data });

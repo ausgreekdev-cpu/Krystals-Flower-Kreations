@@ -10,8 +10,17 @@ import { registerFieldRoutes, validateCustomFields, customFieldsSchema } from '.
 const router = Router();
 const requireAuth = authenticate;
 
+// Resolve a supplier free-text name to a Supplier id (case-insensitive exact
+// match only — never creates suppliers implicitly; the directory owns creation).
+async function linkSupplierByName(name) {
+  const n = String(name).trim().slice(0, 120);
+  if (!n) return null;
+  const s = await prisma.supplier.findFirst({ where: { name: { equals: n, mode: 'insensitive' } }, select: { id: true } });
+  return s?.id || null;
+}
+
 router.get('/', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
-  const materials = await prisma.rawMaterial.findMany({ orderBy: { name: 'asc' } });
+  const materials = await prisma.rawMaterial.findMany({ orderBy: { name: 'asc' }, include: { supplierRef: { select: { id: true, name: true } } } });
   res.json(materials);
 }));
 
@@ -33,6 +42,7 @@ const materialSchema = z.object({
   lowThreshold: z.number().finite().nonnegative().max(1000000).default(5),
   costPerUnit: z.number().finite().nonnegative().max(1000000).default(0),
   supplier: z.string().max(200).optional().nullable(),
+  supplierId: z.string().min(8).max(100).optional().nullable(),
   brand: z.string().trim().max(80).optional().nullable(),
   weightValue: z.number().finite().nonnegative().max(10000).optional().nullable(),
   weightUnit: z.enum(['lb', 'gsm']).optional().nullable(),
@@ -46,11 +56,13 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
   const data = req.validated;
   data.customFields = await validateCustomFields(data.customFields, 'material');
   if (data.customFields === null) data.customFields = Prisma.DbNull; // clear = DB NULL, not JSON 'null'
+  if (data.supplierId === undefined && data.supplier) data.supplierId = await linkSupplierByName(data.supplier);
   try {
     const mat = await prisma.rawMaterial.upsert({ where: { sku: data.sku }, update: { ...data }, create: { ...data } });
     res.status(201).json(mat);
   } catch (e) {
     if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode already in use', code: 'barcode_taken' });
+    if (e.code === 'P2003') return res.status(400).json({ error: 'Unknown supplier', code: 'invalid_reference' });
     throw e;
   }
 }));
@@ -61,11 +73,16 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
   const data = req.validated;
   if (data.customFields !== undefined) data.customFields = await validateCustomFields(data.customFields, 'material');
   if (data.customFields === null) data.customFields = Prisma.DbNull; // clear = DB NULL, not JSON 'null'
+  // Supplier free-text changed (and no explicit supplierId) → re-link by name
+  if (data.supplier !== undefined && data.supplierId === undefined) {
+    data.supplierId = data.supplier ? await linkSupplierByName(data.supplier) : null;
+  }
   try {
     const mat = await prisma.rawMaterial.update({ where: { id }, data });
     res.json(mat);
   } catch (e) {
     if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode already in use', code: 'barcode_taken' });
+    if (e.code === 'P2003') return res.status(400).json({ error: 'Unknown supplier', code: 'invalid_reference' });
     throw e;
   }
 }));

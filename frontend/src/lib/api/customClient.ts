@@ -156,8 +156,16 @@ export const adminApi = {
     list: (token: string) => req<any[]>('/api/purchase-orders', { token }),
     get: (id: string, token: string) => req<any>(`/api/purchase-orders/${id}`, { token }),
     create: (body: any, token: string) => req<any>('/api/purchase-orders', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/purchase-orders/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     receive: (id: string, token: string) => req<any>(`/api/purchase-orders/${id}/receive`, { method: 'POST', token }),
     remove: (id: string, token: string) => req<any>(`/api/purchase-orders/${id}`, { method: 'DELETE', token }),
+  },
+  suppliers: {
+    list: (token: string, q = '') => req<any[]>(`/api/suppliers${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
+    get: (id: string, token: string) => req<any>(`/api/suppliers/${id}`, { token }),
+    create: (body: any, token: string) => req<any>('/api/suppliers', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/suppliers/${id}`, { method: 'DELETE', token }),
   },
   materials: {
     list: (token: string) => req<any[]>('/api/materials', { token }),
@@ -192,7 +200,11 @@ export const adminApi = {
   workshops: {
     list: () => req<any[]>('/api/workshops'),
     create: (body: any, token: string) => req<any>('/api/workshops', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/workshops/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/workshops/${id}`, { method: 'DELETE', token }),
     addSession: (workshopId: string, body: any, token: string) => req<any>(`/api/workshops/${workshopId}/sessions`, { method: 'POST', body: JSON.stringify(body), token }),
+    updateSession: (sessionId: string, body: any, token: string) => req<any>(`/api/workshops/sessions/${sessionId}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    removeSession: (sessionId: string, token: string) => req<any>(`/api/workshops/sessions/${sessionId}`, { method: 'DELETE', token }),
   },
   reviews: {
     pending: (token: string) => req<any[]>('/api/reviews/pending', { token }),
@@ -223,6 +235,8 @@ export const adminApi = {
   },
   users: {
     list: (token: string) => req<any[]>('/api/users', { token }),
+    create: (body: any, token: string) => req<any>('/api/users', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
   },
   loyalty: {
     leaderboard: () => req<any[]>('/api/loyalty/leaderboard'),

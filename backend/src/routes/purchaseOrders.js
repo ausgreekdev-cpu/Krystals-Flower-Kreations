@@ -8,6 +8,14 @@ import { asyncHandler } from '../middleware/async-handler.js';
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'developer', 'maker', 'staff'));
 
+// Resolve supplier free-text → Supplier id (same rules as materials)
+async function linkSupplierByName(name) {
+  const n = String(name).trim().slice(0, 120);
+  if (!n) return null;
+  const s = await prisma.supplier.findFirst({ where: { name: { equals: n, mode: 'insensitive' } }, select: { id: true } });
+  return s?.id || null;
+}
+
 const lineSchema = z.object({
   rawMaterialId: z.string().min(8).max(100).optional().nullable(),
   productId: z.string().min(8).max(100).optional().nullable(),
@@ -18,26 +26,62 @@ const lineSchema = z.object({
 
 const poSchema = z.object({
   supplier: z.string().min(2).max(200),
+  supplierId: z.string().min(8).max(100).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   lines: z.array(lineSchema).min(1).max(100),
 }).strict();
 
+// Edit — supplier/notes/lines before receiving (received POs are immutable)
+const poPatchSchema = z.object({
+  supplier: z.string().min(2).max(200).optional(),
+  supplierId: z.string().min(8).max(100).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  lines: z.array(lineSchema).min(1).max(100).optional(),
+}).strict();
+
 router.get('/', asyncHandler(async (req, res) => {
-  const pos = await prisma.purchaseOrder.findMany({ orderBy: { createdAt: 'desc' }, take: 50, include: { lines: true, _count: { select: { lines: true } } } });
+  const pos = await prisma.purchaseOrder.findMany({ orderBy: { createdAt: 'desc' }, take: 50, include: { lines: true, _count: { select: { lines: true } }, supplierRef: { select: { id: true, name: true } } } });
   res.json(pos);
 }));
 
 router.post('/', validate(poSchema), asyncHandler(async (req, res) => {
-  const { supplier, notes, lines } = req.validated;
+  const { supplier, supplierId, notes, lines } = req.validated;
   const poNumber = `PO-${Date.now().toString().slice(-8)}`;
   const po = await prisma.purchaseOrder.create({
     data: {
-      poNumber, supplier, notes: notes || null, createdBy: req.user.id, status: 'ordered',
+      poNumber, supplier, supplierId: supplierId || await linkSupplierByName(supplier), notes: notes || null, createdBy: req.user.id, status: 'ordered',
       lines: { create: lines.map(l => ({ ...l, unitCost: l.unitCost ?? undefined })) },
     },
     include: { lines: true },
   });
   res.status(201).json(po);
+}));
+
+// Edit — replace supplier/notes/lines while the PO hasn't been received
+router.patch('/:id', validate(poPatchSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const po = await prisma.purchaseOrder.findUnique({ where: { id }, include: { lines: true } });
+  if (!po) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (po.status === 'received') return res.status(409).json({ error: 'Received purchase orders cannot be edited', code: 'conflict' });
+  const d = req.validated;
+  // Supplier text changed without an explicit id → re-link by name
+  if (d.supplier !== undefined && d.supplierId === undefined) d.supplierId = await linkSupplierByName(d.supplier);
+  const updated = await prisma.$transaction(async (tx) => {
+    if (d.lines) {
+      await tx.purchaseOrderLine.deleteMany({ where: { purchaseOrderId: id } });
+      await tx.purchaseOrderLine.createMany({ data: d.lines.map(l => ({ purchaseOrderId: id, ...l, unitCost: l.unitCost ?? undefined })) });
+    }
+    return tx.purchaseOrder.update({
+      where: { id },
+      data: {
+        ...(d.supplier !== undefined ? { supplier: d.supplier } : {}),
+        ...(d.supplierId !== undefined ? { supplierId: d.supplierId || null } : {}),
+        ...(d.notes !== undefined ? { notes: d.notes || null } : {}),
+      },
+      include: { lines: true },
+    });
+  });
+  res.json(updated);
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {

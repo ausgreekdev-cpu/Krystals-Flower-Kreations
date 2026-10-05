@@ -32,6 +32,7 @@ const TABS = [
   { id: 'pos', label: 'POS', icon: '💳' },
   { id: 'customers', label: 'Customers', icon: '🧑' },
   { id: 'shipping', label: 'Shipping', icon: '🚚' },
+  { id: 'suppliers', label: 'Suppliers', icon: '🏭' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -46,7 +47,7 @@ const NAV_GROUPS = [
   { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
   { label: 'Catalog', tabs: ['products', 'collections', 'recipes', 'inventory'] },
   { label: 'Content', tabs: ['blog', 'reviews', 'meta', 'notebook'] },
-  { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping'] },
+  { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers'] },
   { label: 'System', tabs: ['users', 'settings'] },
 ];
 
@@ -84,20 +85,24 @@ function AdminInner({ user }) {
         const orders = await adminApi.orders.list(token).catch(() => []);
         setData((s) => ({ ...s, orders }));
       } else if (tabId === 'inventory') {
-        const [levels, materials, recon, locations, movements] = await Promise.all([
+        const [levels, materials, recon, locations, movements, suppliers] = await Promise.all([
           adminApi.inventory.levels(token).catch(() => []),
           adminApi.materials.list(token).catch(() => []),
           adminApi.inventory.reconciliation(token).catch(() => []),
           adminApi.inventory.locations(token).catch(() => []),
           adminApi.inventory.movements(token, 30).catch(() => []),
+          adminApi.suppliers.list(token).catch(() => []),
         ]);
-        setData((s) => ({ ...s, levels, materials: [...materials].sort(byNameNatural), recon, locations, movements }));
+        setData((s) => ({ ...s, levels, materials: [...materials].sort(byNameNatural), recon, locations, movements, suppliers }));
       } else if (tabId === 'customers') {
         const customers = await adminApi.customers.list(token).catch(() => []);
         setData((s) => ({ ...s, customers }));
       } else if (tabId === 'shipping') {
         const zones = await adminApi.shipping.list(token).catch(() => []);
         setData((s) => ({ ...s, zones }));
+      } else if (tabId === 'suppliers') {
+        const suppliers = await adminApi.suppliers.list(token).catch(() => []);
+        setData((s) => ({ ...s, suppliers }));
       } else if (tabId === 'products') {
         const products = (await adminApi.products.list(token).catch(() => ({ products: [] }))).products || [];
         setData((s) => ({ ...s, products }));
@@ -297,6 +302,7 @@ function AdminInner({ user }) {
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
+                  {tab === 'suppliers' && <Suppliers data={data} reload={() => load('suppliers')} token={token} />}
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
@@ -547,7 +553,7 @@ function Inventory({ data, reload, token, role }) {
           {sub === 'lots' && <InventoryLots data={data} reload={reload} token={token} onOpen={openDetail} />}
         </>
       )}
-      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); setTick((t) => t + 1); reload(); }} token={token} />}
+      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} suppliers={Array.isArray(data.suppliers) ? data.suppliers : []} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); setTick((t) => t + 1); reload(); }} token={token} />}
       <ScannerIndicator />
     </div>
   );
@@ -561,6 +567,7 @@ function InventoryStock({ data, reload, token, onOpen }) {
   const [materialEditor, setMaterialEditor] = useState(null);
   const [labels, setLabels] = useState(false);
   const [locationEditor, setLocationEditor] = useState(null);
+  const [confirmDelLoc, setConfirmDelLoc] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanHit, setScanHit] = useState(null);
   const [matQ, setMatQ] = useState('');
@@ -713,7 +720,14 @@ function InventoryStock({ data, reload, token, onOpen }) {
       </Card>
       <Card title={`Locations — ${locations.length}`} actions={<Btn small color="ghost" onClick={() => setLocationEditor({})}>+ Add location</Btn>}>
         <div className="space-y-1">
-          {locations.map((l) => <div key={l.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('location', l.id, l)}>{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span><span className="text-muted">{l.address || ''}</span></div>)}
+          {locations.map((l) => (
+            <div key={l.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5">
+              <span className="font-medium text-ink cursor-pointer hover:text-royal-700 hover:underline flex-1 min-w-0 truncate" title="View details" onClick={() => onOpen('location', l.id, l)}>{l.name} {l.isDefault && <span className="text-royal-700 font-semibold">• default</span>}</span>
+              <span className="text-muted truncate">{l.address || ''}</span>
+              <Btn small color="ghost" onClick={() => setLocationEditor(l)}>Edit</Btn>
+              <Btn small color="red" onClick={() => setConfirmDelLoc(l)}>Delete</Btn>
+            </div>
+          ))}
           {locations.length === 0 && <div className="text-xs text-muted py-4 text-center">No locations</div>}
         </div>
       </Card>
@@ -723,9 +737,10 @@ function InventoryStock({ data, reload, token, onOpen }) {
           {recon.length === 0 && <div className="text-xs text-muted py-4 text-center">No items to reconcile</div>}
         </div>
       </Card>
-      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
+      {materialEditor && <MaterialModal material={materialEditor.id ? materialEditor : null} locations={locations} materials={materials} suppliers={Array.isArray(data.suppliers) ? data.suppliers : []} onClose={() => setMaterialEditor(null)} onSaved={() => { setMaterialEditor(null); toast(materialEditor.id ? 'Material updated' : 'Material created'); reload(); }} token={token} />}
       {labels && <LabelPrintModal title="Print material labels" items={filteredMaterials.map((m) => ({ id: m.id, name: m.name, value: m.barcode || m.sku || '' }))} onClose={() => setLabels(false)} />}
       {locationEditor && <LocationModal location={locationEditor.id ? locationEditor : null} onClose={() => setLocationEditor(null)} onSaved={() => { setLocationEditor(null); toast('Location saved'); reload(); }} token={token} />}
+      {confirmDelLoc && <ConfirmDialog title="Delete location" message={`Delete ${confirmDelLoc.name}? Materials pointing at it will keep their stock but lose the location link.`} onConfirm={async () => { try { await adminApi.inventory.deleteLocation(confirmDelLoc.id, token); toast('Location deleted'); setConfirmDelLoc(null); reload(); } catch (e) { toast(e.message, 'error'); setConfirmDelLoc(null); } }} onClose={() => setConfirmDelLoc(null)} />}
       <ScanModal open={scanOpen} onClose={() => setScanOpen(false)} token={token} allowCreate closeOnFound
         onResolved={(r) => { setScanHit(r); reload(); }} />
     </div>
@@ -760,7 +775,7 @@ function extractFieldErrors(details) {
   }
   return out;
 }
-function MaterialModal({ material, locations, materials, onClose, onSaved, token }) {
+function MaterialModal({ material, locations, materials, suppliers = [], onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
     name: material?.name || '', sku: material?.sku || '', barcode: material?.barcode || '', unit: material?.unit || 'sheet',
@@ -825,7 +840,12 @@ function MaterialModal({ material, locations, materials, onClose, onSaved, token
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className={label}>Cost per unit ($)</label><input type="number" step="0.01" className={input} value={form.costPerUnit} onChange={(e) => setForm({ ...form, costPerUnit: e.target.value })} /></div>
-        <div><label className={label}>Supplier</label><input className={input} value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
+        <div><label className={label}>Supplier</label>
+          <input className={input} value={form.supplier} list={`supplier-pick-${material?.id || 'new'}`} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder="Type or pick from directory" />
+          <datalist id={`supplier-pick-${material?.id || 'new'}`}>
+            {suppliers.filter((s) => s.isActive !== false).map((s) => <option key={s.id} value={s.name}>{s.contact || s.email || ''}</option>)}
+          </datalist>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className={label}>Brand</label><input className={input} value={form.brand} placeholder="e.g. Canson" onChange={(e) => setForm({ ...form, brand: e.target.value })} /></div>
@@ -853,17 +873,22 @@ function LocationModal({ location, onClose, onSaved, token }) {
   const label = 'block text-xs font-semibold text-muted mb-1';
   async function save() {
     setBusy(true);
-    try { await adminApi.inventory.createLocation({ ...form, address: form.address || null, isActive: true }, token); onSaved(); }
+    try {
+      const body = { ...form, address: form.address || null };
+      if (location) await adminApi.inventory.updateLocation(location.id, body, token);
+      else await adminApi.inventory.createLocation({ ...body, isActive: true }, token);
+      onSaved();
+    }
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
-  return <Modal title="Add location" onClose={onClose}>
+  return <Modal title={location ? 'Edit location' : 'Add location'} onClose={onClose}>
     <div className="space-y-3">
       <div><label className={label}>Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
       <div><label className={label}>Address</label><input className={input} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} /> Default location</label>
     </div>
-    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name}>{busy ? 'Saving…' : 'Add'}</Btn></div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name}>{busy ? 'Saving…' : location ? 'Save changes' : 'Add'}</Btn></div>
   </Modal>;
 }
 
@@ -970,7 +995,9 @@ function InventoryStocktake({ data, reload, token, onOpen }) {
 function InventoryPurchase({ data, reload, token, onOpen }) {
   const toast = useToast();
   const materials = Array.isArray(data.materials) ? data.materials : [];
+  const suppliers = Array.isArray(data.suppliers) ? data.suppliers : [];
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [pos, setPos] = useState([]);
   useEffect(() => { adminApi.purchaseOrders.list(token).then((d) => setPos(Array.isArray(d) ? d : [])).catch(() => {}); }, [token]);
@@ -982,21 +1009,27 @@ function InventoryPurchase({ data, reload, token, onOpen }) {
         <div key={po.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
           <div className="flex-1 min-w-0 cursor-pointer hover:text-royal-700" title="View details" onClick={() => onOpen('purchase', po.id, po)}><div className="font-bold text-sm text-ink">{po.poNumber} — {po.supplier}</div><div className="text-xs text-muted">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
           <StatusBadge value={po.status} />
+          {po.status !== 'received' && <Btn small color="ghost" onClick={() => setEditing(po)}>Edit</Btn>}
           <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>
           <Btn small color="red" onClick={() => setConfirmDel(po)}>Delete</Btn>
         </div>
       ))}
-      {pos.length === 0 && !creating && <div className="text-xs text-muted py-10 text-center">No purchase orders — create one to track supplier stock</div>}
-      {creating && <POModal materials={materials} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('PO created'); reload(); }} token={token} />}
+      {pos.length === 0 && !creating && !editing && <div className="text-xs text-muted py-10 text-center">No purchase orders — create one to track supplier stock</div>}
+      {creating && <POModal materials={materials} suppliers={suppliers} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('PO created'); reload(); }} token={token} />}
+      {editing && <POModal po={editing} materials={materials} suppliers={suppliers} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast('PO updated'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete purchase order" message={`Delete ${confirmDel.poNumber}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
   );
 }
-function POModal({ materials, onClose, onSaved, token }) {
+function POModal({ po, materials, suppliers = [], onClose, onSaved, token }) {
   const toast = useToast();
-  const [supplier, setSupplier] = useState('');
-  const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState([{ rawMaterialId: '', qty: 10, unitCost: '' }]);
+  const [supplier, setSupplier] = useState(po?.supplier || '');
+  const [notes, setNotes] = useState(po?.notes || '');
+  const [lines, setLines] = useState(
+    po?.lines?.length
+      ? po.lines.map((l) => ({ rawMaterialId: l.rawMaterialId || '', qty: l.qty, unitCost: l.unitCost == null ? '' : Number(l.unitCost) }))
+      : [{ rawMaterialId: '', qty: 10, unitCost: '' }]
+  );
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
@@ -1007,14 +1040,24 @@ function POModal({ materials, onClose, onSaved, token }) {
     const clean = lines.filter((l) => l.rawMaterialId && Number(l.qty) > 0);
     if (!clean.length) return toast('Add at least one line', 'error');
     setBusy(true);
-    try { await adminApi.purchaseOrders.create({ supplier, notes, lines: clean.map((l) => ({ rawMaterialId: l.rawMaterialId, qty: Number(l.qty), unitCost: l.unitCost === '' ? undefined : Number(l.unitCost) })) }, token); onSaved(); }
+    try {
+      const body = { supplier, notes, lines: clean.map((l) => ({ rawMaterialId: l.rawMaterialId, qty: Number(l.qty), unitCost: l.unitCost === '' ? undefined : Number(l.unitCost) })) };
+      if (po) await adminApi.purchaseOrders.update(po.id, body, token);
+      else await adminApi.purchaseOrders.create(body, token);
+      onSaved();
+    }
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
-  return <Modal title="New purchase order" onClose={onClose} wide>
+  return <Modal title={po ? `Edit ${po.poNumber}` : 'New purchase order'} onClose={onClose} wide>
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={label}>Supplier</label><input className={input} value={supplier} onChange={(e) => setSupplier(e.target.value)} /></div>
+        <div><label className={label}>Supplier</label>
+          <input className={input} value={supplier} list={`po-supplier-${po?.id || 'new'}`} onChange={(e) => setSupplier(e.target.value)} placeholder="Type or pick from directory" />
+          <datalist id={`po-supplier-${po?.id || 'new'}`}>
+            {suppliers.filter((s) => s.isActive !== false).map((s) => <option key={s.id} value={s.name}>{s.contact || s.email || ''}</option>)}
+          </datalist>
+        </div>
         <div><label className={label}>Notes</label><input className={input} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
       </div>
       <div><div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-muted">Lines</label><button onClick={() => setLines((l) => [...l, { rawMaterialId: materials[0]?.id || '', qty: 10, unitCost: '' }])} className="text-xs text-royal-700 font-semibold hover:underline">+ Add line</button></div>
@@ -1030,7 +1073,7 @@ function POModal({ materials, onClose, onSaved, token }) {
         </div>
       </div>
     </div>
-    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create PO'}</Btn></div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : po ? 'Save changes' : 'Create PO'}</Btn></div>
   </Modal>;
 }
 
@@ -1437,8 +1480,19 @@ function ProductModal({ product, onClose, onSaved, token }) {
 function Workshops({ data, reload, token }) {
   const toast = useToast();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [sessionFor, setSessionFor] = useState(null);
+  const [sessionEdit, setSessionEdit] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
   const workshops = Array.isArray(data.workshops) ? data.workshops : [];
+  async function doDelete() {
+    try {
+      if (confirmDel.kind === 'workshop') await adminApi.workshops.remove(confirmDel.id, token);
+      else await adminApi.workshops.removeSession(confirmDel.id, token);
+      toast('Deleted'); reload();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setConfirmDel(null); }
+  }
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center"><div className="text-xs text-muted">{workshops.length} workshops</div><Btn onClick={() => setCreating(true)}>+ New workshop</Btn></div>
@@ -1446,11 +1500,19 @@ function Workshops({ data, reload, token }) {
         <div key={w.id} className="border border-line rounded-xl p-4">
           <div className="flex justify-between items-start gap-3">
             <div><div className="font-bold text-ink">{w.title}</div><div className="text-xs text-muted">{w.location} • {w.capacity} cap • ${Number(w.price).toFixed(2)} • {w.level}</div></div>
-            <Btn small color="ghost" onClick={() => setSessionFor(w)}>+ Session</Btn>
+            <div className="flex gap-1.5 shrink-0">
+              <Btn small color="ghost" onClick={() => setSessionFor(w)}>+ Session</Btn>
+              <Btn small color="ghost" onClick={() => setEditing(w)}>Edit</Btn>
+              <Btn small color="red" onClick={() => setConfirmDel({ kind: 'workshop', id: w.id, label: w.title })}>Delete</Btn>
+            </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {(w.sessions || []).map((s) => (
-              <span key={s.id} className="text-xs bg-surface3 border border-line rounded-lg px-2 py-1">{new Date(s.startsAt).toLocaleDateString('en-AU')} {new Date(s.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {s.bookedCount}/{s.capacity}</span>
+              <span key={s.id} className="text-xs bg-surface3 border border-line rounded-lg px-2 py-1 group">
+                {new Date(s.startsAt).toLocaleDateString('en-AU')} {new Date(s.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {s.bookedCount}/{s.capacity}
+                <button className="ml-1.5 font-bold text-muted hover:text-royal-700" title="Edit session" onClick={() => setSessionEdit({ workshop: w, session: s })}>✎</button>
+                <button className="ml-1 font-bold text-muted hover:text-red-600" title="Delete session" onClick={() => setConfirmDel({ kind: 'session', id: s.id, label: `session on ${new Date(s.startsAt).toLocaleDateString('en-AU')}` })}>✕</button>
+              </span>
             ))}
             {(w.sessions || []).length === 0 && <span className="text-xs text-muted">No sessions yet</span>}
           </div>
@@ -1458,60 +1520,88 @@ function Workshops({ data, reload, token }) {
       ))}
       {workshops.length === 0 && <div className="text-xs text-muted py-10 text-center">No workshops</div>}
       {creating && <WorkshopModal onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('Workshop created'); reload(); }} token={token} />}
+      {editing && <WorkshopModal workshop={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast('Workshop updated'); reload(); }} token={token} />}
       {sessionFor && <SessionModal workshop={sessionFor} onClose={() => setSessionFor(null)} onSaved={() => { setSessionFor(null); toast('Session added'); reload(); }} token={token} />}
+      {sessionEdit && <SessionModal workshop={sessionEdit.workshop} session={sessionEdit.session} onClose={() => setSessionEdit(null)} onSaved={() => { setSessionEdit(null); toast('Session updated'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title={confirmDel.kind === 'workshop' ? 'Delete workshop' : 'Delete session'} message={`Delete ${confirmDel.label}?${confirmDel.kind === 'workshop' ? '' : ''}`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
   );
 }
-function WorkshopModal({ onClose, onSaved, token }) {
+function WorkshopModal({ workshop, onClose, onSaved, token }) {
   const toast = useToast();
-  const [form, setForm] = useState({ title: '', slug: '', price: '', capacity: 12, location: 'Perth Studio, WA', description: '' });
+  const [form, setForm] = useState(() => workshop
+    ? { title: workshop.title, slug: workshop.slug, price: Number(workshop.price), capacity: workshop.capacity, location: workshop.location || '', description: workshop.description || '', level: workshop.level || '', isActive: workshop.isActive !== false }
+    : { title: '', slug: '', price: '', capacity: 12, location: 'Perth Studio, WA', description: '', level: '', isActive: true });
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
   useEffect(() => {
+    if (workshop) return;
     adminApi.settings.get()
       .then((s) => { const cap = Number(s?.workshop_default_capacity); if (Number.isFinite(cap) && cap >= 1) setForm((f) => ({ ...f, capacity: cap })); })
       .catch(() => {});
-  }, []);
+  }, [workshop]);
   async function save() {
     setBusy(true);
-    try { await adminApi.workshops.create({ ...form, price: Number(form.price), capacity: Number(form.capacity) }, token); onSaved(); }
+    try {
+      const body = { ...form, price: Number(form.price), capacity: Number(form.capacity) };
+      if (workshop) await adminApi.workshops.update(workshop.id, body, token);
+      else await adminApi.workshops.create(body, token);
+      onSaved();
+    }
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
-  return <Modal title="New workshop" onClose={onClose}>
+  return <Modal title={workshop ? 'Edit workshop' : 'New workshop'} onClose={onClose}>
     <div className="space-y-3">
       <div><label className={label}>Title</label><input className={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
       <div><label className={label}>Slug</label><input className={input} value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div><label className={label}>Price ($)</label><input type="number" className={input} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
         <div><label className={label}>Capacity</label><input type="number" className={input} value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} /></div>
+        <div><label className={label}>Level</label><input className={input} value={form.level} placeholder="beginner" onChange={(e) => setForm({ ...form, level: e.target.value })} /></div>
       </div>
       <div><label className={label}>Location</label><input className={input} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
       <div><label className={label}>Description</label><textarea rows={3} className={input} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Visible on the public Workshops page</label>
     </div>
-    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.title || !form.slug}>{busy ? 'Saving…' : 'Create'}</Btn></div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.title || !form.slug}>{busy ? 'Saving…' : workshop ? 'Save changes' : 'Create'}</Btn></div>
   </Modal>;
 }
-function SessionModal({ workshop, onClose, onSaved, token }) {
+function SessionModal({ workshop, session, onClose, onSaved, token }) {
   const toast = useToast();
-  const [startsAt, setStartsAt] = useState('');
-  const [capacity, setCapacity] = useState(workshop.capacity);
+  const [startsAt, setStartsAt] = useState(() => {
+    if (!session) return '';
+    const d = new Date(session.startsAt);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const [capacity, setCapacity] = useState(session?.capacity ?? workshop.capacity);
   const [busy, setBusy] = useState(false);
   async function save() {
     setBusy(true);
-    const start = new Date(startsAt);
-    const end = new Date(start.getTime() + (workshop.durationMinutes || 180) * 60000);
-    try { await adminApi.workshops.addSession(workshop.id, { startsAt: start.toISOString(), endsAt: end.toISOString(), capacity: Number(capacity) }, token); onSaved(); }
+    try {
+      if (session) {
+        const start = new Date(startsAt);
+        const end = new Date(start.getTime() + (workshop.durationMinutes || 180) * 60000);
+        await adminApi.workshops.updateSession(session.id, { startsAt: start.toISOString(), endsAt: end.toISOString(), capacity: Number(capacity) }, token);
+      } else {
+        const start = new Date(startsAt);
+        const end = new Date(start.getTime() + (workshop.durationMinutes || 180) * 60000);
+        await adminApi.workshops.addSession(workshop.id, { startsAt: start.toISOString(), endsAt: end.toISOString(), capacity: Number(capacity) }, token);
+      }
+      onSaved();
+    }
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
   }
-  return <Modal title={`Add session — ${workshop.title}`} onClose={onClose}>
+  return <Modal title={`${session ? 'Edit' : 'Add'} session — ${workshop.title}`} onClose={onClose}>
     <div className="space-y-3">
       <div><label className="block text-xs font-semibold text-muted mb-1">Starts at</label><input type="datetime-local" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div>
       <div><label className="block text-xs font-semibold text-muted mb-1">Capacity</label><input type="number" className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></div>
+      {session && session.bookedCount > 0 && <div className="text-xs text-muted">{session.bookedCount} confirmed booking(s) — capacity cannot drop below this</div>}
     </div>
-    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !startsAt}>{busy ? 'Saving…' : 'Add session'}</Btn></div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !startsAt}>{busy ? 'Saving…' : session ? 'Save changes' : 'Add session'}</Btn></div>
   </Modal>;
 }
 
@@ -2142,9 +2232,97 @@ function RateModal({ zone, rate, onClose, onSaved, token }) {
   </Modal>;
 }
 
+function Suppliers({ data, reload, token }) {
+  const toast = useToast();
+  const [q, setQ] = useState('');
+  const [editing, setEditing] = useState(null); // null | {} | supplier
+  const [confirmDel, setConfirmDel] = useState(null);
+  const suppliers = Array.isArray(data.suppliers) ? data.suppliers : [];
+  const filtered = q
+    ? suppliers.filter((s) => [s.name, s.contact, s.email, s.phone, s.website].some((v) => String(v || '').toLowerCase().includes(q.toLowerCase())))
+    : suppliers;
+  async function doDelete() {
+    try { await adminApi.suppliers.remove(confirmDel.id, token); toast('Supplier deleted'); setConfirmDel(null); reload(); }
+    catch (e) { toast(e.message, 'error'); setConfirmDel(null); }
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center gap-3">
+        <div className="text-xs text-muted">{suppliers.length} suppliers</div>
+        <div className="flex gap-2 items-center">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers…" className="w-44 sm:w-60 border border-line-strong rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500" />
+          <Btn onClick={() => setEditing({})}>+ New supplier</Btn>
+        </div>
+      </div>
+      {filtered.map((s) => (
+        <div key={s.id} className={`border border-line rounded-xl p-4 ${s.isActive ? '' : 'opacity-60'}`}>
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm text-ink">{s.name}{!s.isActive && <span className="ml-2 text-[10px] uppercase text-muted">inactive</span>}</div>
+              <div className="text-xs text-muted">
+                {[s.contact, s.email, s.phone, s.website, s.address].filter(Boolean).join(' • ') || 'No contact details'}
+              </div>
+              {s.notes && <div className="text-xs text-muted mt-1 whitespace-pre-wrap">{s.notes}</div>}
+            </div>
+            <div className="text-xs text-muted text-right shrink-0" title="Linked materials / purchase orders">
+              <div>{s._count?.rawMaterials ?? 0} materials</div>
+              <div>{s._count?.purchaseOrders ?? 0} POs</div>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              <Btn small color="ghost" onClick={() => setEditing(s)}>Edit</Btn>
+              <Btn small color="red" onClick={() => setConfirmDel(s)}>Delete</Btn>
+            </div>
+          </div>
+        </div>
+      ))}
+      {filtered.length === 0 && <div className="text-xs text-muted py-10 text-center">{q ? 'No suppliers match your search' : 'No suppliers yet — add the shops you buy cardstock and wire from'}</div>}
+      {editing && <SupplierModal supplier={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { const wasEdit = !!editing.id; setEditing(null); toast(wasEdit ? 'Supplier updated' : 'Supplier created'); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete supplier" message={`Delete ${confirmDel.name}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+function SupplierModal({ supplier, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({
+    name: supplier?.name || '', contact: supplier?.contact || '', email: supplier?.email || '',
+    phone: supplier?.phone || '', website: supplier?.website || '', address: supplier?.address || '',
+    notes: supplier?.notes || '', isActive: supplier ? !!supplier.isActive : true,
+  }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
+  async function save() {
+    if (!form.name.trim()) return toast('Name is required', 'error');
+    setBusy(true);
+    try {
+      const body = { ...form, name: form.name.trim() };
+      if (supplier) await adminApi.suppliers.update(supplier.id, body, token);
+      else await adminApi.suppliers.create(body, token);
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={supplier ? 'Edit supplier' : 'New supplier'} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Canson AU" /></div>
+        <div><label className={label}>Contact person</label><input className={input} value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></div>
+        <div><label className={label}>Email</label><input type="email" className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+        <div><label className={label}>Phone</label><input className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+        <div><label className={label}>Website</label><input className={input} value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://…" /></div>
+        <div><label className={label}>Address</label><input className={input} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+      </div>
+      <div><label className={label}>Notes</label><textarea rows={3} className={input} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Delivery times, account number, min order…" /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active (show in pickers)</label>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.name.trim()}>{busy ? 'Saving…' : supplier ? 'Save changes' : 'Create'}</Btn></div>
+  </Modal>;
+}
+
 function Users({ data, reload, token }) {
   const toast = useToast();
   const [busyId, setBusyId] = useState('');
+  const [editing, setEditing] = useState(null); // null | {} | user (create vs edit)
   const users = Array.isArray(data.users) ? data.users : [];
   async function setRole(u, role) {
     setBusyId(u.id);
@@ -2155,17 +2333,66 @@ function Users({ data, reload, token }) {
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusyId(''); }
   }
-  return <div><div className="text-xs text-muted mb-3">{users.length} accounts — change a role to update access</div><div className="grid sm:grid-cols-2 gap-2">
-    {users.map((u) => <div key={u.id} className="flex items-center gap-3 border border-line rounded-xl px-3 py-2 text-sm">
-      <span className="font-medium text-ink flex-1 truncate">{u.name}</span>
-      <span className="text-xs text-muted truncate">{u.email}</span>
-      <select value={u.role} disabled={busyId === u.id} onChange={(e) => setRole(u, e.target.value)}
-        className="border border-line-strong rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500">
-        <option value="customer">customer</option><option value="staff">staff</option><option value="maker">maker</option><option value="admin">admin</option><option value="developer">developer</option>
-      </select>
-    </div>)}
-    {users.length === 0 && <div className="text-xs text-muted py-8 text-center">No users</div>}
-  </div></div>;
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-3"><div className="text-xs text-muted">{users.length} accounts — change a role to update access</div><Btn onClick={() => setEditing({})}>+ New user</Btn></div>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {users.map((u) => (
+          <div key={u.id} className="flex items-center gap-2 border border-line rounded-xl px-3 py-2 text-sm">
+            <span className="font-medium text-ink flex-1 min-w-0 truncate">{u.name}</span>
+            <span className="text-xs text-muted truncate max-w-[140px]" title={u.email}>{u.email}</span>
+            <select value={u.role} disabled={busyId === u.id} onChange={(e) => setRole(u, e.target.value)}
+              className="border border-line-strong rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500">
+              <option value="customer">customer</option><option value="staff">staff</option><option value="maker">maker</option><option value="admin">admin</option><option value="developer">developer</option>
+            </select>
+            <Btn small color="ghost" onClick={() => setEditing(u)}>Edit</Btn>
+          </div>
+        ))}
+        {users.length === 0 && <div className="text-xs text-muted py-8 text-center">No users</div>}
+      </div>
+      {editing && <UserModal user={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { const wasEdit = !!editing.id; setEditing(null); toast(wasEdit ? 'User updated' : 'User created'); reload(); }} token={token} />}
+    </div>
+  );
+}
+function UserModal({ user, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '', password: '', role: user?.role || 'customer' }));
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
+  async function save() {
+    if (!form.name.trim() || !form.email.trim()) return toast('Name and email are required', 'error');
+    if (!user && form.password.length < 6) return toast('Password must be at least 6 characters', 'error');
+    setBusy(true);
+    try {
+      if (user) {
+        await adminApi.users.update(user.id, { name: form.name.trim(), email: form.email.trim(), phone: form.phone || null }, token);
+      } else {
+        await adminApi.users.create({ name: form.name.trim(), email: form.email.trim(), password: form.password, role: form.role, phone: form.phone || null }, token);
+      }
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={user ? `Edit ${user.name}` : 'New user'} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div><label className={label}>Email *</label><input type="email" className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+        <div><label className={label}>Phone</label><input className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+        {!user && (
+          <div><label className={label}>Role</label>
+            <select className={input} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="customer">customer</option><option value="staff">staff</option><option value="maker">maker</option><option value="admin">admin</option>
+            </select>
+          </div>
+        )}
+      </div>
+      {!user && <div><label className={label}>Password * (min 6 chars)</label><input type="password" className={input} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" /></div>}
+      {user && <div className="text-xs text-muted">Role changes use the dropdown in the list. Password resets are not available here.</div>}
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : user ? 'Save changes' : 'Create user'}</Btn></div>
+  </Modal>;
 }
 
 function Reports({ data }) {

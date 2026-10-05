@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
-import { requireAuth, requireRole, ROLE_RANK } from '../lib/auth.js';
+import { requireAuth, requireRole, ROLE_RANK, hashPassword } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { audit } from '../lib/audit.js';
@@ -85,6 +85,58 @@ router.patch('/:id/role', requireAuth, requireRole('admin','developer'), validat
   const user = await prisma.user.update({ where: { id: target.id }, data: { role: req.validated.role } });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'role_change', entityType: 'user', entityId: target.id, details: { fromRole: target.role, toRole: req.validated.role, targetEmail: target.email } });
   res.json({ id: user.id, email: user.email, role: user.role });
+}));
+
+// Create a user from the admin Users tab (staff/customer accounts — no self-register)
+const createUserSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email().max(254),
+  password: z.string().min(6).max(128),
+  role: z.enum(['customer', 'staff', 'maker', 'admin']),
+  phone: z.string().max(30).optional().nullable(),
+}).strict();
+router.post('/', requireAuth, requireRole('admin', 'developer'), validate(createUserSchema), asyncHandler(async (req, res) => {
+  const { name, password, role, phone } = req.validated;
+  const email = req.validated.email.trim().toLowerCase();
+  // Same rank guard as role changes: only developers may create developer-adjacent
+  // accounts — the schema already excludes 'developer' entirely.
+  const exists = await prisma.user.findUnique({ where: { email } });
+  if (exists) return res.status(409).json({ error: 'Email already registered', code: 'conflict' });
+  const user = await prisma.user.create({ data: { name: name.slice(0, 100), email, password: await hashPassword(password), role, phone: phone || null } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'user_create', entityType: 'user', entityId: user.id, details: { email, role } });
+  res.status(201).json({ id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone, createdAt: user.createdAt });
+}));
+
+// Profile edit — name/email/phone (role has its own guarded route above)
+const patchUserSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  email: z.string().email().max(254).optional(),
+  phone: z.string().max(30).optional().nullable(),
+}).strict();
+router.patch('/:id', requireAuth, requireRole('admin', 'developer'), validate(patchUserSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const d = req.validated;
+  const data = {};
+  if (d.name !== undefined) data.name = d.name.slice(0, 100);
+  if (d.phone !== undefined) data.phone = d.phone || null;
+  if (d.email !== undefined) {
+    const email = d.email.trim().toLowerCase();
+    if (email !== target.email) {
+      const clash = await prisma.user.findUnique({ where: { email } });
+      if (clash) return res.status(409).json({ error: 'Email already registered', code: 'conflict' });
+    }
+    data.email = email;
+  }
+  try {
+    const user = await prisma.user.update({ where: { id }, data });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'user_update', entityType: 'user', entityId: id, details: { changed: Object.keys(data) } });
+    res.json({ id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone });
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Email already registered', code: 'conflict' });
+    throw e;
+  }
 }));
 
 export default router;

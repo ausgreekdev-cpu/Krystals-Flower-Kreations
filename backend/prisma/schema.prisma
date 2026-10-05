@@ -2,7 +2,7 @@
 // Perth WA — paper florist + armature art workshop (Cricut + origami)
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // native = local/CI; rhel-openssl-3.0.x = Netlify/AWS Lambda runtime
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
@@ -126,13 +126,13 @@ model User {
 }
 
 model Collection {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
-  slug        String  @unique
-  description String? @db.Text
+  slug        String    @unique
+  description String?   @db.Text
   imageUrl    String?
-  sortOrder   Int     @default(0)
-  isActive    Boolean @default(true)
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
   deletedAt   DateTime?
 
   products CollectionProduct[]
@@ -157,52 +157,52 @@ model CollectionProduct {
 }
 
 model Product {
-  id            String      @id @default(cuid())
-  title         String
-  slug          String      @unique
-  description   String?     @db.Text
-  type          ProductType @default(physical)
-  stockMode     StockMode   @default(tracked)
-  price         Decimal     @db.Decimal(10, 2) // GST-inclusive per AU
-  compareAtPrice Decimal?   @db.Decimal(10, 2)
-  cost          Decimal?    @db.Decimal(10, 2)
-  sku           String?   @unique
-  barcode       String?   @unique // UPC-A / EAN-13 / Code128 — O(1) scan lookup
-  weightGrams   Int?
-  lengthMm      Int?
-  widthMm       Int?
-  heightMm      Int?
-  isActive      Boolean     @default(true)
-  isFeatured    Boolean     @default(false)
-  deletedAt     DateTime?
-  metaTitle     String?
-  metaDescription String?   @db.Text
+  id               String      @id @default(cuid())
+  title            String
+  slug             String      @unique
+  description      String?     @db.Text
+  type             ProductType @default(physical)
+  stockMode        StockMode   @default(tracked)
+  price            Decimal     @db.Decimal(10, 2) // GST-inclusive per AU
+  compareAtPrice   Decimal?    @db.Decimal(10, 2)
+  cost             Decimal?    @db.Decimal(10, 2)
+  sku              String?     @unique
+  barcode          String?     @unique // UPC-A / EAN-13 / Code128 — O(1) scan lookup
+  weightGrams      Int?
+  lengthMm         Int?
+  widthMm          Int?
+  heightMm         Int?
+  isActive         Boolean     @default(true)
+  isFeatured       Boolean     @default(false)
+  deletedAt        DateTime?
+  metaTitle        String?
+  metaDescription  String?     @db.Text
   // Paper/craft specifics
-  paperStock    String? // e.g., "250gsm cardstock, eucalyptus"
-  cricutCompatible Boolean @default(false)
-  svgUrl        String? // digital template file
-  careInstructions String? @db.Text
-  madeToOrderDays Int? // e.g., 5
+  paperStock       String? // e.g., "250gsm cardstock, eucalyptus"
+  cricutCompatible Boolean     @default(false)
+  svgUrl           String? // digital template file
+  careInstructions String?     @db.Text
+  madeToOrderDays  Int? // e.g., 5
   // SEO + social
-  ogImageUrl    String?
+  ogImageUrl       String?
   // Admin-defined custom fields: { [fieldKey]: string | number | boolean }
-  customFields  Json?
+  customFields     Json?
 
-  variants  ProductVariant[]
-  images    ProductImage[]
-  collections CollectionProduct[]
-  orderLines OrderLine[]
-  cartItems  CartItem[]
-  inventoryLevels InventoryLevel[]
-  stockMovements StockMovement[]
-  inventoryLots InventoryLot[]
-  stocktakeLines StocktakeLine[]
+  variants           ProductVariant[]
+  images             ProductImage[]
+  collections        CollectionProduct[]
+  orderLines         OrderLine[]
+  cartItems          CartItem[]
+  inventoryLevels    InventoryLevel[]
+  stockMovements     StockMovement[]
+  inventoryLots      InventoryLot[]
+  stocktakeLines     StocktakeLine[]
   purchaseOrderLines PurchaseOrderLine[]
-  reviews    Review[]
-  postProducts PostProduct[]
-  metaSync   MetaCatalogItem?
-  bomRecipes BOMRecipe[]
-  customArtOrders CustomArtOrder[]
+  reviews            Review[]
+  postProducts       PostProduct[]
+  metaSync           MetaCatalogItem?
+  bomRecipes         BOMRecipe[]
+  customArtOrders    CustomArtOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -215,43 +215,43 @@ model Product {
 
 // Admin-defined product fields (label/type chosen at runtime; values live in Product.customFields)
 model ProductField {
-  id         String   @id @default(cuid())
-  key        String   @unique // slug from label; unique across ALL entities (global key namespace)
-  label      String   // display label, e.g. "Material"
-  type       String   @default("text") // text | number | boolean
-  entityType String   @default("product") // product | material
-  position   Int      @default(0)
+  id         String    @id @default(cuid())
+  key        String    @unique // slug from label; unique across ALL entities (global key namespace)
+  label      String // display label, e.g. "Material"
+  type       String    @default("text") // text | number | boolean
+  entityType String    @default("product") // product | material
+  position   Int       @default(0)
   deletedAt  DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([entityType, deletedAt])
   @@map("product_fields")
 }
 
 model ProductVariant {
-  id       String  @id @default(cuid())
-  productId String
-  title    String // e.g., "Blush / Medium / 250gsm"
-  sku      String? @unique
-  barcode  String? @unique
-  option1  String? // colour
-  option2  String? // size
-  option3  String? // paper stock
-  price    Decimal @db.Decimal(10, 2)
-  compareAtPrice Decimal? @db.Decimal(10, 2)
-  inventoryQuantity Int @default(0)
-  isActive Boolean @default(true)
+  id                String   @id @default(cuid())
+  productId         String
+  title             String // e.g., "Blush / Medium / 250gsm"
+  sku               String?  @unique
+  barcode           String?  @unique
+  option1           String? // colour
+  option2           String? // size
+  option3           String? // paper stock
+  price             Decimal  @db.Decimal(10, 2)
+  compareAtPrice    Decimal? @db.Decimal(10, 2)
+  inventoryQuantity Int      @default(0)
+  isActive          Boolean  @default(true)
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  orderLines OrderLine[]
-  cartItems  CartItem[]
-  inventoryLevels InventoryLevel[]
-  inventoryLedger InventoryLedger[]
-  inventoryLots InventoryLot[]
-  stocktakeLines StocktakeLine[]
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderLines         OrderLine[]
+  cartItems          CartItem[]
+  inventoryLevels    InventoryLevel[]
+  inventoryLedger    InventoryLedger[]
+  inventoryLots      InventoryLot[]
+  stocktakeLines     StocktakeLine[]
   purchaseOrderLines PurchaseOrderLine[]
-  bomRecipes BOMRecipe[]
-  customArtOrders CustomArtOrder[]
+  bomRecipes         BOMRecipe[]
+  customArtOrders    CustomArtOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -261,11 +261,11 @@ model ProductVariant {
 }
 
 model ProductImage {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   productId String
   url       String
   alt       String?
-  sortOrder Int    @default(0)
+  sortOrder Int     @default(0)
   width     Int?
   height    Int?
 
@@ -276,33 +276,33 @@ model ProductImage {
 }
 
 model InventoryLocation {
-  id       String  @id @default(cuid())
-  name     String  // "Perth Studio", "Market Van", "Storage"
-  address  String?
+  id        String  @id @default(cuid())
+  name      String // "Perth Studio", "Market Van", "Storage"
+  address   String?
   isDefault Boolean @default(false)
-  isActive Boolean @default(true)
+  isActive  Boolean @default(true)
 
-  levels InventoryLevel[]
-  movements StockMovement[]
-  lots      InventoryLot[]
+  levels       InventoryLevel[]
+  movements    StockMovement[]
+  lots         InventoryLot[]
   rawMaterials RawMaterial[]
-  stocktakes Stocktake[]
+  stocktakes   Stocktake[]
 
   @@map("inventory_locations")
 }
 
 model InventoryLevel {
-  id               String @id @default(cuid())
-  productId        String
-  variantId        String?
-  locationId       String
-  onHand           Int    @default(0)
-  reserved         Int    @default(0)
-  allocated        Int    @default(0)
-  lowStockThreshold Int?  // null = fall back to low_stock_default setting
+  id                String  @id @default(cuid())
+  productId         String
+  variantId         String?
+  locationId        String
+  onHand            Int     @default(0)
+  reserved          Int     @default(0)
+  allocated         Int     @default(0)
+  lowStockThreshold Int? // null = fall back to low_stock_default setting
 
-  product  Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variant  ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product  Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant  ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: Cascade)
   location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([productId, variantId, locationId])
@@ -310,21 +310,21 @@ model InventoryLevel {
 }
 
 model InventoryLot {
-  id           String   @id @default(cuid())
-  productId    String?
-  variantId    String?
+  id            String    @id @default(cuid())
+  productId     String?
+  variantId     String?
   rawMaterialId String?
-  locationId   String
-  lotNumber    String?
-  quantity     Int
-  remainingQty Int      @default(0)
-  costPerUnit  Decimal? @db.Decimal(10,2)
-  receivedAt   DateTime @default(now())
-  expiresAt    DateTime?
+  locationId    String
+  lotNumber     String?
+  quantity      Int
+  remainingQty  Int       @default(0)
+  costPerUnit   Decimal?  @db.Decimal(10, 2)
+  receivedAt    DateTime  @default(now())
+  expiresAt     DateTime?
 
-  product     Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variant     ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  rawMaterial RawMaterial?     @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant     ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  rawMaterial RawMaterial?      @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
   location    InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
@@ -332,30 +332,30 @@ model InventoryLot {
 }
 
 model Stocktake {
-  id         String   @id @default(cuid())
-  locationId String
-  status     String   @default("in_progress") // in_progress, completed, cancelled
-  notes      String?
-  countedBy  String?
-  createdAt  DateTime @default(now())
+  id          String    @id @default(cuid())
+  locationId  String
+  status      String    @default("in_progress") // in_progress, completed, cancelled
+  notes       String?
+  countedBy   String?
+  createdAt   DateTime  @default(now())
   completedAt DateTime?
 
-  location InventoryLocation  @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  user     User?              @relation(fields: [countedBy], references: [id])
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  user     User?             @relation(fields: [countedBy], references: [id])
   lines    StocktakeLine[]
 
   @@map("stocktakes")
 }
 
 model StocktakeLine {
-  id           String @id @default(cuid())
-  stocktakeId  String
-  productId    String?
-  variantId    String?
+  id            String  @id @default(cuid())
+  stocktakeId   String
+  productId     String?
+  variantId     String?
   rawMaterialId String?
-  expectedQty  Int    @default(0)
-  countedQty   Int    @default(0)
-  variance     Int    @default(0)
+  expectedQty   Int     @default(0)
+  countedQty    Int     @default(0)
+  variance      Int     @default(0)
 
   stocktake   Stocktake       @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
   product     Product?        @relation(fields: [productId], references: [id])
@@ -366,30 +366,32 @@ model StocktakeLine {
 }
 
 model PurchaseOrder {
-  id         String   @id @default(cuid())
-  poNumber   String   @unique
+  id         String    @id @default(cuid())
+  poNumber   String    @unique
   supplier   String
-  status     String   @default("draft") // draft, ordered, partial, received, cancelled
+  supplierId String?
+  status     String    @default("draft") // draft, ordered, partial, received, cancelled
   notes      String?
   createdBy  String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   receivedAt DateTime?
 
-  user  User?                @relation(fields: [createdBy], references: [id])
-  lines PurchaseOrderLine[]
+  user        User?               @relation(fields: [createdBy], references: [id])
+  supplierRef Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  lines       PurchaseOrderLine[]
 
   @@map("purchase_orders")
 }
 
 model PurchaseOrderLine {
-  id              String @id @default(cuid())
+  id              String   @id @default(cuid())
   purchaseOrderId String
   rawMaterialId   String?
   productId       String?
   variantId       String?
-  qty             Int    @default(1)
-  receivedQty     Int    @default(0)
-  unitCost        Decimal? @db.Decimal(10,2)
+  qty             Int      @default(1)
+  receivedQty     Int      @default(0)
+  unitCost        Decimal? @db.Decimal(10, 2)
 
   purchaseOrder PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   rawMaterial   RawMaterial?    @relation(fields: [rawMaterialId], references: [id])
@@ -400,21 +402,21 @@ model PurchaseOrderLine {
 }
 
 model StockMovement {
-  id            String   @id @default(cuid())
+  id            String  @id @default(cuid())
   productId     String?
   variantId     String?
   locationId    String?
   rawMaterialId String?
-  type          String   // in, out, adjustment, sale, return, stocktake, po, bom_deduct
+  type          String // in, out, adjustment, sale, return, stocktake, po, bom_deduct
   quantity      Int
   reason        String?
   reference     String? // order_id, po_id
   userId        String?
 
-  product     Product? @relation(fields: [productId], references: [id])
+  product     Product?           @relation(fields: [productId], references: [id])
   location    InventoryLocation? @relation(fields: [locationId], references: [id])
-  rawMaterial RawMaterial? @relation(fields: [rawMaterialId], references: [id])
-  user        User? @relation(fields: [userId], references: [id])
+  rawMaterial RawMaterial?       @relation(fields: [rawMaterialId], references: [id])
+  user        User?              @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -428,15 +430,15 @@ model StockMovement {
 }
 
 model InventoryLedger {
-  id        String   @id @default(cuid())
-  variantId String
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  delta     Int      // +in, -out
-  reason    String   // sale, adjustment, bom_deduct, return, stocktake
-  orderId   String?
+  id            String         @id @default(cuid())
+  variantId     String
+  variant       ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  delta         Int // +in, -out
+  reason        String // sale, adjustment, bom_deduct, return, stocktake
+  orderId       String?
   customOrderId String?
-  userId    String?
-  createdAt DateTime @default(now())
+  userId        String?
+  createdAt     DateTime       @default(now())
 
   @@index([variantId])
   @@index([orderId])
@@ -458,15 +460,15 @@ model Cart {
 }
 
 model CartItem {
-  id        String @id @default(cuid())
-  cartId    String
-  productId String
-  variantId String?
-  quantity  Int    @default(1)
-  priceSnapshot Decimal @db.Decimal(10,2)
+  id            String  @id @default(cuid())
+  cartId        String
+  productId     String
+  variantId     String?
+  quantity      Int     @default(1)
+  priceSnapshot Decimal @db.Decimal(10, 2)
 
-  cart    Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  cart    Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@index([cartId])
@@ -474,43 +476,43 @@ model CartItem {
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  orderNumber   String      @unique // KFK-2026-0001
-  idempotencyKey String?    @unique // Idempotency-Key header for checkout
-  userId        String?
-  email         String
-  phone         String?
-  status        OrderStatus @default(pending_payment)
-  paymentStatus PaymentStatus @default(pending)
-  paymentMethod PaymentMethod?
-  currency      String      @default("AUD")
-  subtotal      Decimal     @db.Decimal(10,2)
-  shippingCost  Decimal     @db.Decimal(10,2) @default(0)
-  discountTotal Decimal     @db.Decimal(10,2) @default(0)
-  taxTotal      Decimal     @db.Decimal(10,2) @default(0) // GST component for AU invoice
-  total         Decimal     @db.Decimal(10,2)
+  id                    String         @id @default(cuid())
+  orderNumber           String         @unique // KFK-2026-0001
+  idempotencyKey        String?        @unique // Idempotency-Key header for checkout
+  userId                String?
+  email                 String
+  phone                 String?
+  status                OrderStatus    @default(pending_payment)
+  paymentStatus         PaymentStatus  @default(pending)
+  paymentMethod         PaymentMethod?
+  currency              String         @default("AUD")
+  subtotal              Decimal        @db.Decimal(10, 2)
+  shippingCost          Decimal        @default(0) @db.Decimal(10, 2)
+  discountTotal         Decimal        @default(0) @db.Decimal(10, 2)
+  taxTotal              Decimal        @default(0) @db.Decimal(10, 2) // GST component for AU invoice
+  total                 Decimal        @db.Decimal(10, 2)
   // Address (snapshot)
-  shippingName    String?
-  shippingAddress String? @db.Text
-  shippingSuburb  String?
-  shippingState   String?
-  shippingPostcode String?
-  shippingCountry String? @default("AU")
-  billingSameAsShipping Boolean @default(true)
-  billingAddress String? @db.Text
-  customerNote String? @db.Text
-  adminNote    String? @db.Text
+  shippingName          String?
+  shippingAddress       String?        @db.Text
+  shippingSuburb        String?
+  shippingState         String?
+  shippingPostcode      String?
+  shippingCountry       String?        @default("AU")
+  billingSameAsShipping Boolean        @default(true)
+  billingAddress        String?        @db.Text
+  customerNote          String?        @db.Text
+  adminNote             String?        @db.Text
   stripePaymentIntentId String?
-  stripeSessionId String?
-  shippedAt   DateTime?
-  deliveredAt DateTime?
-  trackingNumber String?
-  trackingUrl String?
+  stripeSessionId       String?
+  shippedAt             DateTime?
+  deliveredAt           DateTime?
+  trackingNumber        String?
+  trackingUrl           String?
 
-  user   User? @relation(fields: [userId], references: [id])
-  lines  OrderLine[]
+  user     User?                @relation(fields: [userId], references: [id])
+  lines    OrderLine[]
   payments Payment[]
-  history OrderStatusHistory[]
+  history  OrderStatusHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -524,20 +526,20 @@ model Order {
 }
 
 model OrderLine {
-  id        String @id @default(cuid())
-  orderId   String
-  productId String
-  variantId String?
-  title     String // snapshot
-  sku       String?
-  quantity  Int
-  unitPrice Decimal @db.Decimal(10,2)
-  lineTotal Decimal @db.Decimal(10,2)
-  isDigital Boolean @default(false)
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  variantId   String?
+  title       String // snapshot
+  sku         String?
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  lineTotal   Decimal @db.Decimal(10, 2)
+  isDigital   Boolean @default(false)
   downloadUrl String?
 
-  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@index([orderId])
@@ -546,12 +548,12 @@ model OrderLine {
 }
 
 model OrderStatusHistory {
-  id        String   @id @default(cuid())
-  orderId   String
+  id         String   @id @default(cuid())
+  orderId    String
   fromStatus String?
-  toStatus  String
-  note      String?
-  createdAt DateTime @default(now())
+  toStatus   String
+  note       String?
+  createdAt  DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -560,14 +562,14 @@ model OrderStatusHistory {
 }
 
 model Payment {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   orderId   String
-  amount    Decimal  @db.Decimal(10,2)
+  amount    Decimal       @db.Decimal(10, 2)
   method    PaymentMethod
   status    PaymentStatus @default(pending)
   reference String? // Stripe PI id
-  rawJson   String? @db.Text
-  createdAt DateTime @default(now())
+  rawJson   String?       @db.Text
+  createdAt DateTime      @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -576,17 +578,17 @@ model Payment {
 }
 
 model Discount {
-  id          String   @id @default(cuid())
-  code        String   @unique // e.g., BLOOM10
+  id          String    @id @default(cuid())
+  code        String    @unique // e.g., BLOOM10
   description String?
-  type        String   // percent, fixed
-  value       Decimal  @db.Decimal(10,2)
-  minSpend    Decimal? @db.Decimal(10,2)
+  type        String // percent, fixed
+  value       Decimal   @db.Decimal(10, 2)
+  minSpend    Decimal?  @db.Decimal(10, 2)
   maxUses     Int?
-  usedCount   Int      @default(0)
+  usedCount   Int       @default(0)
   startsAt    DateTime?
   endsAt      DateTime?
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   deletedAt   DateTime?
 
   @@index([deletedAt])
@@ -594,19 +596,19 @@ model Discount {
 }
 
 model Workshop {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  description String?  @db.Text
-  imageUrl    String?
-  location    String? // Perth Studio address
-  status      WorkshopStatus @default(draft)
-  price       Decimal  @db.Decimal(10,2)
-  capacity    Int      @default(12)
-  materialsIncluded String? @db.Text
-  durationMinutes Int?
-  level       String? // beginner, intermediate
-  isActive    Boolean  @default(true)
+  id                String         @id @default(cuid())
+  title             String
+  slug              String         @unique
+  description       String?        @db.Text
+  imageUrl          String?
+  location          String? // Perth Studio address
+  status            WorkshopStatus @default(draft)
+  price             Decimal        @db.Decimal(10, 2)
+  capacity          Int            @default(12)
+  materialsIncluded String?        @db.Text
+  durationMinutes   Int?
+  level             String? // beginner, intermediate
+  isActive          Boolean        @default(true)
 
   sessions WorkshopSession[]
 
@@ -617,17 +619,17 @@ model Workshop {
 }
 
 model WorkshopSession {
-  id         String   @id @default(cuid())
-  workshopId String
-  startsAt   DateTime
-  endsAt     DateTime
-  capacity   Int
-  bookedCount Int @default(0)
-  waitlistCount Int @default(0)
-  status     WorkshopStatus @default(open)
-  notes      String? @db.Text
+  id            String         @id @default(cuid())
+  workshopId    String
+  startsAt      DateTime
+  endsAt        DateTime
+  capacity      Int
+  bookedCount   Int            @default(0)
+  waitlistCount Int            @default(0)
+  status        WorkshopStatus @default(open)
+  notes         String?        @db.Text
 
-  workshop Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  workshop Workshop  @relation(fields: [workshopId], references: [id], onDelete: Cascade)
   bookings Booking[]
 
   @@index([startsAt])
@@ -635,24 +637,24 @@ model WorkshopSession {
 }
 
 model Booking {
-  id         String @id @default(cuid())
-  sessionId  String
-  userId     String?
-  name       String
-  email      String
-  phone      String?
-  quantity   Int    @default(1)
-  status     BookingStatus @default(pending)
-  totalPaid  Decimal @db.Decimal(10,2) @default(0)
+  id                    String        @id @default(cuid())
+  sessionId             String
+  userId                String?
+  name                  String
+  email                 String
+  phone                 String?
+  quantity              Int           @default(1)
+  status                BookingStatus @default(pending)
+  totalPaid             Decimal       @default(0) @db.Decimal(10, 2)
   stripePaymentIntentId String?
-  checkedInAt DateTime?
-  notes      String? @db.Text
+  checkedInAt           DateTime?
+  notes                 String?       @db.Text
   // Reminder de-dupe (hourly cron sends 24h + 2h before start)
-  reminder24hSentAt DateTime?
-  reminder2hSentAt  DateTime?
+  reminder24hSentAt     DateTime?
+  reminder2hSentAt      DateTime?
 
   session WorkshopSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user    User? @relation(fields: [userId], references: [id])
+  user    User?           @relation(fields: [userId], references: [id])
   ticket  Ticket?
 
   createdAt DateTime @default(now())
@@ -666,21 +668,21 @@ model Booking {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  title     String
-  slug      String   @unique
-  excerpt   String?  @db.Text
-  content   String?  @db.Text // markdown / rich text
-  coverImageUrl String?
-  status    PostStatus @default(draft)
-  authorId  String?
-  publishedAt DateTime?
-  metaTitle String?
-  metaDescription String? @db.Text
-  tags      String? // comma-separated or JSON
-  viewCount Int @default(0)
+  id              String     @id @default(cuid())
+  title           String
+  slug            String     @unique
+  excerpt         String?    @db.Text
+  content         String?    @db.Text // markdown / rich text
+  coverImageUrl   String?
+  status          PostStatus @default(draft)
+  authorId        String?
+  publishedAt     DateTime?
+  metaTitle       String?
+  metaDescription String?    @db.Text
+  tags            String? // comma-separated or JSON
+  viewCount       Int        @default(0)
 
-  author User? @relation(fields: [authorId], references: [id])
+  author   User?         @relation(fields: [authorId], references: [id])
   products PostProduct[]
 
   createdAt DateTime @default(now())
@@ -702,18 +704,18 @@ model PostProduct {
 }
 
 model Review {
-  id        String @id @default(cuid())
-  productId String
-  userId    String?
-  name      String
-  rating    Int // 1-5
-  title     String?
-  body      String? @db.Text
+  id         String  @id @default(cuid())
+  productId  String
+  userId     String?
+  name       String
+  rating     Int // 1-5
+  title      String?
+  body       String? @db.Text
   isApproved Boolean @default(false)
-  images    String? @db.Text // JSON array of urls
+  images     String? @db.Text // JSON array of urls
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user    User? @relation(fields: [userId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -722,32 +724,32 @@ model Review {
 }
 
 model PosSession {
-  id        String @id @default(cuid())
-  openedBy  String
-  location  String? // Perth Studio, Market
-  openedAt  DateTime @default(now())
-  closedAt  DateTime?
-  openingCash Decimal @db.Decimal(10,2) @default(0)
-  closingCash Decimal? @db.Decimal(10,2)
-  expectedCash Decimal? @db.Decimal(10,2)
-  variance  Decimal? @db.Decimal(10,2)
-  status    String @default("open") // open, closed, reconciled
-  notes     String? @db.Text
+  id           String    @id @default(cuid())
+  openedBy     String
+  location     String? // Perth Studio, Market
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+  openingCash  Decimal   @default(0) @db.Decimal(10, 2)
+  closingCash  Decimal?  @db.Decimal(10, 2)
+  expectedCash Decimal?  @db.Decimal(10, 2)
+  variance     Decimal?  @db.Decimal(10, 2)
+  status       String    @default("open") // open, closed, reconciled
+  notes        String?   @db.Text
 
-  user  User @relation(fields: [openedBy], references: [id])
+  user     User         @relation(fields: [openedBy], references: [id])
   payments PosPayment[]
 
   @@map("pos_sessions")
 }
 
 model PosPayment {
-  id         String @id @default(cuid())
-  sessionId  String
-  orderId    String?
-  amount     Decimal @db.Decimal(10,2)
-  method     PaymentMethod
-  reference  String?
-  createdAt  DateTime @default(now())
+  id        String        @id @default(cuid())
+  sessionId String
+  orderId   String?
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  reference String?
+  createdAt DateTime      @default(now())
 
   session PosSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -756,13 +758,13 @@ model PosPayment {
 }
 
 model MetaCatalogItem {
-  id          String @id @default(cuid())
-  productId   String @unique
-  fbProductId String? // Facebook catalog item id
-  status      MetaSyncStatus @default(pending)
+  id           String         @id @default(cuid())
+  productId    String         @unique
+  fbProductId  String? // Facebook catalog item id
+  status       MetaSyncStatus @default(pending)
   lastSyncedAt DateTime?
-  lastError   String? @db.Text
-  rawJson     String? @db.Text
+  lastError    String?        @db.Text
+  rawJson      String?        @db.Text
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -771,12 +773,12 @@ model MetaCatalogItem {
 }
 
 model MetaSyncLog {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   action    String // push, pull, webhook
   productId String?
   status    String // success, error
-  message   String? @db.Text
-  rawJson   String? @db.Text
+  message   String?  @db.Text
+  rawJson   String?  @db.Text
   createdAt DateTime @default(now())
 
   @@index([createdAt])
@@ -784,23 +786,23 @@ model MetaSyncLog {
 }
 
 model ShippingZone {
-  id       String @id @default(cuid())
-  name     String // Perth Metro, WA Regional, East Coast, National
-  postcodes String? @db.Text // JSON array or comma
-  isActive Boolean @default(true)
-  rates    ShippingRate[]
+  id        String         @id @default(cuid())
+  name      String // Perth Metro, WA Regional, East Coast, National
+  postcodes String?        @db.Text // JSON array or comma
+  isActive  Boolean        @default(true)
+  rates     ShippingRate[]
 
   @@map("shipping_zones")
 }
 
 model ShippingRate {
-  id       String @id @default(cuid())
-  zoneId   String
-  name     String // Standard, Express
-  price    Decimal @db.Decimal(10,2)
-  freeOver Decimal? @db.Decimal(10,2)
+  id             String   @id @default(cuid())
+  zoneId         String
+  name           String // Standard, Express
+  price          Decimal  @db.Decimal(10, 2)
+  freeOver       Decimal? @db.Decimal(10, 2)
   maxWeightGrams Int?
-  isActive Boolean @default(true)
+  isActive       Boolean  @default(true)
 
   zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
 
@@ -808,11 +810,31 @@ model ShippingRate {
 }
 
 model Setting {
-  key   String @id
-  value String @db.Text
+  key       String   @id
+  value     String   @db.Text
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// ── Suppliers directory ─────────────────────────────────────────────
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  contact   String? // contact person
+  email     String?
+  phone     String?
+  website   String?
+  address   String?
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rawMaterials   RawMaterial[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
 }
 
 // ── Custom BOM & Kanban (Supabase-synced) ──────────────────────────
@@ -837,45 +859,47 @@ enum RawUnit {
 }
 
 model RawMaterial {
-  id           String   @id @default(cuid())
-  sku          String   @unique
-  barcode      String?  @unique // optional scan label for stocktakes
-  name         String
-  unit         RawUnit  @default(sheet)
-  onHand       Float    @default(0)
-  lowThreshold Float    @default(5)
-  costPerUnit  Decimal  @db.Decimal(10,2) @default(0)
-  supplier     String?
-  brand        String? // e.g. Canson
-  weightValue  Float? // e.g. 65
-  weightUnit   String? // lb | gsm — validated in route schemas
-  colour       String? // e.g. Blush
-  size         String? // board size, e.g. A4 / 12x12in
-  customFields Json? // admin-defined field values (ProductField with entityType=material)
-  locationId   String?
-  location     InventoryLocation? @relation(fields: [locationId], references: [id])
-  bomLines     BOMLine[]
-  stockMovements StockMovement[]
-  inventoryLots InventoryLot[]
-  stocktakeLines StocktakeLine[]
+  id                 String              @id @default(cuid())
+  sku                String              @unique
+  barcode            String?             @unique // optional scan label for stocktakes
+  name               String
+  unit               RawUnit             @default(sheet)
+  onHand             Float               @default(0)
+  lowThreshold       Float               @default(5)
+  costPerUnit        Decimal             @default(0) @db.Decimal(10, 2)
+  supplier           String?
+  supplierId         String?
+  supplierRef        Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  brand              String? // e.g. Canson
+  weightValue        Float? // e.g. 65
+  weightUnit         String? // lb | gsm — validated in route schemas
+  colour             String? // e.g. Blush
+  size               String? // board size, e.g. A4 / 12x12in
+  customFields       Json? // admin-defined field values (ProductField with entityType=material)
+  locationId         String?
+  location           InventoryLocation?  @relation(fields: [locationId], references: [id])
+  bomLines           BOMLine[]
+  stockMovements     StockMovement[]
+  inventoryLots      InventoryLot[]
+  stocktakeLines     StocktakeLine[]
   purchaseOrderLines PurchaseOrderLine[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@map("raw_materials")
 }
 
 model BOMRecipe {
-  id                     String   @id @default(cuid())
-  productId              String?
-  variantId              String?
-  product                Product? @relation(fields: [productId], references: [id])
-  variant                ProductVariant? @relation(fields: [variantId], references: [id])
-  labourMinutesPerUnit   Float    @default(25)
-  cricutMinutesPerUnit   Float    @default(8)
-  lines                  BOMLine[]
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                   String          @id @default(cuid())
+  productId            String?
+  variantId            String?
+  product              Product?        @relation(fields: [productId], references: [id])
+  variant              ProductVariant? @relation(fields: [variantId], references: [id])
+  labourMinutesPerUnit Float           @default(25)
+  cricutMinutesPerUnit Float           @default(8)
+  lines                BOMLine[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   @@unique([productId, variantId])
   @@map("bom_recipes")
@@ -896,34 +920,34 @@ model BOMLine {
 }
 
 model CustomArtOrder {
-  id              String           @id @default(cuid())
-  orderNumber     String           @unique
-  idempotencyKey  String?          @unique
-  customerEmail   String
-  customerName    String?
-  customerPhone   String?
-  productId       String?
-  product         Product?         @relation(fields: [productId], references: [id])
-  variantId       String?
-  variant         ProductVariant?  @relation(fields: [variantId], references: [id])
-  spec            Json             @default("{}")
-  state           CustomOrderState @default(drafting_proofing)
-  bomSnapshot     Json             @default("[]")
-  estimatedMinutes Float           @default(0)
-  totalPrice      Decimal          @db.Decimal(10,2) @default(0)
-  costPrice       Decimal?         @db.Decimal(10,2)
-  shippingName    String?
-  shippingAddress String?          @db.Text
-  shippingSuburb  String?
-  shippingState   String?          @default("WA")
+  id               String                  @id @default(cuid())
+  orderNumber      String                  @unique
+  idempotencyKey   String?                 @unique
+  customerEmail    String
+  customerName     String?
+  customerPhone    String?
+  productId        String?
+  product          Product?                @relation(fields: [productId], references: [id])
+  variantId        String?
+  variant          ProductVariant?         @relation(fields: [variantId], references: [id])
+  spec             Json                    @default("{}")
+  state            CustomOrderState        @default(drafting_proofing)
+  bomSnapshot      Json                    @default("[]")
+  estimatedMinutes Float                   @default(0)
+  totalPrice       Decimal                 @default(0) @db.Decimal(10, 2)
+  costPrice        Decimal?                @db.Decimal(10, 2)
+  shippingName     String?
+  shippingAddress  String?                 @db.Text
+  shippingSuburb   String?
+  shippingState    String?                 @default("WA")
   shippingPostcode String?
-  shippingCountry String?          @default("AU")
-  pickupReadyAt   DateTime?
-  dispatchedAt    DateTime?
-  history         CustomArtOrderHistory[]
-  ticket          Ticket?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  shippingCountry  String?                 @default("AU")
+  pickupReadyAt    DateTime?
+  dispatchedAt     DateTime?
+  history          CustomArtOrderHistory[]
+  ticket           Ticket?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
   @@index([state])
   @@index([customerEmail])
@@ -931,29 +955,29 @@ model CustomArtOrder {
 }
 
 model CustomArtOrderHistory {
-  id        String           @id @default(cuid())
+  id        String            @id @default(cuid())
   orderId   String
-  order     CustomArtOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     CustomArtOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   fromState CustomOrderState?
   toState   CustomOrderState
-  note      String?          @db.Text
+  note      String?           @db.Text
   byUserId  String?
-  createdAt DateTime         @default(now())
+  createdAt DateTime          @default(now())
 
   @@index([orderId])
   @@map("custom_art_order_history")
 }
 
 model Ticket {
-  id                 String          @id @default(cuid())
-  bookingId          String?         @unique
-  booking            Booking?        @relation(fields: [bookingId], references: [id])
-  customArtOrderId   String?         @unique
-  customArtOrder     CustomArtOrder? @relation(fields: [customArtOrderId], references: [id])
-  qrPayload          String          @unique
-  qrUrl              String?
-  checkedInAt        DateTime?
-  createdAt          DateTime        @default(now())
+  id               String          @id @default(cuid())
+  bookingId        String?         @unique
+  booking          Booking?        @relation(fields: [bookingId], references: [id])
+  customArtOrderId String?         @unique
+  customArtOrder   CustomArtOrder? @relation(fields: [customArtOrderId], references: [id])
+  qrPayload        String          @unique
+  qrUrl            String?
+  checkedInAt      DateTime?
+  createdAt        DateTime        @default(now())
 
   @@map("tickets")
 }
@@ -970,16 +994,18 @@ model LoyaltyAccount {
   updatedAt DateTime @updatedAt
 
   transactions LoyaltyTransaction[]
+
   @@map("loyalty_accounts")
 }
+
 model LoyaltyTransaction {
-  id        String   @id @default(cuid())
-  accountId String
-  account   LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id          String         @id @default(cuid())
+  accountId   String
+  account     LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   pointsDelta Int
-  reason    String   // earn: purchase, review, referral, streak | burn: discount, redeem
-  orderId   String?
-  createdAt DateTime @default(now())
+  reason      String // earn: purchase, review, referral, streak | burn: discount, redeem
+  orderId     String?
+  createdAt   DateTime       @default(now())
 
   @@index([accountId])
   @@map("loyalty_transactions")
@@ -1018,17 +1044,17 @@ model AuditLog {
 // so fire-and-forget sends can be lost — routes enqueue (awaited, durable) and the
 // hourly scheduled job drains whatever didn't send immediately.
 model EmailQueue {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   to        String
   subject   String
-  text      String?  @db.Text
-  html      String?  @db.Text
+  text      String?   @db.Text
+  html      String?   @db.Text
   template  String?
   payload   Json?
-  status    String   @default("pending") // pending | sent | failed
-  attempts  Int      @default(0)
-  lastError String?  @db.Text
-  createdAt DateTime @default(now())
+  status    String    @default("pending") // pending | sent | failed
+  attempts  Int       @default(0)
+  lastError String?   @db.Text
+  createdAt DateTime  @default(now())
   sentAt    DateTime?
 
   @@index([status, createdAt])
