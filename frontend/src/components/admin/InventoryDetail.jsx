@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
 import { useToast } from './Toast';
 import LabelPrintModal from './LabelPrintModal';
+import SupplierDetail from './SupplierDetail.jsx';
 
 const KIND_LABELS = {
   material: 'Material', level: 'Stock level', location: 'Location', stocktake: 'Stocktake',
@@ -30,7 +31,7 @@ function fmtValue(v, key) {
 }
 
 // ── Generic key/value detail for non-material entities ─────────────────────
-function GenericDetail({ kind, item, loading, error, onBack, onOpen, data }) {
+function GenericDetail({ kind, item, loading, error, onBack, onOpen, data, onViewSupplier }) {
   const [linesOpen, setLinesOpen] = useState(false);
   if (loading && !item) return <div className="text-xs text-muted py-10 text-center">Loading…</div>;
   if (!item) {
@@ -62,6 +63,7 @@ function GenericDetail({ kind, item, loading, error, onBack, onOpen, data }) {
   // Contextual jumps
   const jumps = [];
   if (item.rawMaterialId && kind !== 'material') jumps.push({ label: 'Open material →', fn: () => onOpen('material', item.rawMaterialId, (data.materials || []).find((m) => m.id === item.rawMaterialId)) });
+  if (item.supplierRef?.id && onViewSupplier) jumps.push({ label: `Supplier: ${item.supplierRef.name} →`, fn: () => onViewSupplier(item.supplierRef.id) });
   if (item.productId && kind === 'movement') {
     const lvl = (data.levels || []).find((l) => l.productId === item.productId && (!item.locationId || l.locationId === item.locationId)) || (data.levels || []).find((l) => l.productId === item.productId);
     if (lvl) jumps.push({ label: 'Open stock level →', fn: () => onOpen('level', lvl.id, lvl) });
@@ -114,7 +116,7 @@ function BackBar({ title, onBack, actions }) {
 }
 
 // ── Material detail — attributes, custom fields, history, usage ────────────
-function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial, role }) {
+function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial, role, onViewSupplier }) {
   const toast = useToast();
   const [m, setM] = useState(seed || null);
   const [err, setErr] = useState('');
@@ -222,6 +224,9 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
 
   const locations = Array.isArray(data.locations) ? data.locations : [];  const locationName = locations.find((l) => l.id === m.locationId)?.name || '—';
   const weight = m.weightValue != null ? `${m.weightValue} ${m.weightUnit || ''}`.trim() : '—';
+  // Resolve the supplier record (detail include, or by name from the loaded directory)
+  const supplierId = m.supplierRef?.id
+    || (Array.isArray(data.suppliers) ? data.suppliers.find((x) => x.name === m.supplier)?.id : null);
   const attrs = [
     ['SKU', m.sku || '—'], ['Barcode', m.barcode || '—'], ['Unit', m.unit],
     ['Supplier', m.supplier || '—'], ['Brand', m.brand || '—'], ['Weight (gsm/lb)', weight],
@@ -250,6 +255,10 @@ function MaterialDetail({ id, seed, token, data, reload, onBack, onEditMaterial,
         <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 font-semibold">{m.sku}</span>
         {m.barcode && <span className="px-2 py-1 rounded-lg bg-surface3 text-muted font-mono">{m.barcode}</span>}
         <span className={`px-2 py-1 rounded-lg font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{m.onHand} {m.unit} on hand</span>
+        {m.supplier && supplierId && onViewSupplier && (
+          <button onClick={() => onViewSupplier(supplierId)} title="View supplier details"
+            className="px-2 py-1 rounded-lg bg-royal-50 text-royal-700 font-semibold hover:bg-royal-100">🏭 {m.supplier}</button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -349,6 +358,7 @@ export default function InventoryDetail({ kind, id, seed, token, data, reload, o
   const [item, setItem] = useState(seed || null);
   const [loading, setLoading] = useState(!seed);
   const [error, setError] = useState('');
+  const [viewSupplier, setViewSupplier] = useState(null);
 
   // Adopt a seed that arrives after mount (deep link: inventory data resolves later)
   useEffect(() => {
@@ -376,7 +386,17 @@ export default function InventoryDetail({ kind, id, seed, token, data, reload, o
   }, [kind, id]);
 
   if (kind === 'material') {
-    return <MaterialDetail id={id} seed={seed} token={token} data={data} reload={reload} onBack={onBack} onEditMaterial={onEditMaterial} role={role} />;
+    return (
+      <>
+        <MaterialDetail id={id} seed={seed} token={token} data={data} reload={reload} onBack={onBack} onEditMaterial={onEditMaterial} role={role} onViewSupplier={setViewSupplier} />
+        {viewSupplier && <SupplierDetail supplierId={viewSupplier} token={token} onClose={() => setViewSupplier(null)} />}
+      </>
+    );
   }
-  return <GenericDetail kind={kind} item={item} loading={loading} error={error} onBack={onBack} onOpen={onOpen} data={data || {}} />;
+  return (
+    <>
+      <GenericDetail kind={kind} item={item} loading={loading} error={error} onBack={onBack} onOpen={onOpen} data={data || {}} onViewSupplier={setViewSupplier} />
+      {viewSupplier && <SupplierDetail supplierId={viewSupplier} token={token} onClose={() => setViewSupplier(null)} />}
+    </>
+  );
 }

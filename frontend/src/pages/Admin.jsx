@@ -8,6 +8,7 @@ import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import LabelPrintModal from '../components/admin/LabelPrintModal';
 import InventoryDetail from '../components/admin/InventoryDetail';
+import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
 import ScanModal from '../components/scan/ScanModal';
@@ -705,7 +706,7 @@ function InventoryStock({ data, reload, token, onOpen }) {
           {filteredMaterials.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
               <span className="font-medium text-ink flex-1 min-w-[160px] cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('material', m.id, m)}>{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span>
-                {(m.brand || m.weightValue != null || m.colour || m.size) && <span className="block text-[11px] text-muted font-normal">{[m.brand, m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : null, m.colour, m.size].filter(Boolean).join(' • ')}</span>}
+                {(m.brand || m.weightValue != null || m.colour || m.size || m.supplier) && <span className="block text-[11px] text-muted font-normal">{[m.supplier, m.brand, m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : null, m.colour, m.size].filter(Boolean).join(' • ')}</span>}
               </span>
               <span className={`font-bold ${Number(m.onHand) <= Number(m.lowThreshold) ? 'text-amber-600' : 'text-ink'}`}>{m.onHand}</span>
               <button disabled={adjusting === m.id} onClick={() => adjustMat(m, 10)} className="w-7 h-7 rounded-lg bg-royal-50 text-royal-700 font-bold hover:bg-royal-100">+</button>
@@ -998,16 +999,21 @@ function InventoryPurchase({ data, reload, token, onOpen }) {
   const suppliers = Array.isArray(data.suppliers) ? data.suppliers : [];
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [viewSupplier, setViewSupplier] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [pos, setPos] = useState([]);
   useEffect(() => { adminApi.purchaseOrders.list(token).then((d) => setPos(Array.isArray(d) ? d : [])).catch(() => {}); }, [token]);
   async function doDelete() { try { await adminApi.purchaseOrders.remove(confirmDel.id, token); toast('PO deleted'); setPos((p) => p.filter((x) => x.id !== confirmDel.id)); } catch (e) { toast(e.message, 'error'); } }
+  const supplierIdFor = (po) => po.supplierRef?.id || suppliers.find((x) => x.name === po.supplier)?.id || null;
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center"><div className="text-xs text-muted">{pos.length} purchase orders</div><Btn onClick={() => setCreating(true)}>+ New purchase order</Btn></div>
       {pos.map((po) => (
         <div key={po.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
-          <div className="flex-1 min-w-0 cursor-pointer hover:text-royal-700" title="View details" onClick={() => onOpen('purchase', po.id, po)}><div className="font-bold text-sm text-ink">{po.poNumber} — {po.supplier}</div><div className="text-xs text-muted">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div></div>
+          <div className="flex-1 min-w-0 cursor-pointer hover:text-royal-700" title="View details" onClick={() => onOpen('purchase', po.id, po)}>
+            <div className="font-bold text-sm text-ink">{po.poNumber} — <span className="text-royal-700" title="View supplier" onClick={(e) => { const sid = supplierIdFor(po); if (sid) { e.stopPropagation(); setViewSupplier(sid); } }}>{po.supplier}</span></div>
+            <div className="text-xs text-muted">{po.lines?.length || 0} lines • {new Date(po.createdAt).toLocaleDateString('en-AU')}</div>
+          </div>
           <StatusBadge value={po.status} />
           {po.status !== 'received' && <Btn small color="ghost" onClick={() => setEditing(po)}>Edit</Btn>}
           <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>
@@ -1017,6 +1023,7 @@ function InventoryPurchase({ data, reload, token, onOpen }) {
       {pos.length === 0 && !creating && !editing && <div className="text-xs text-muted py-10 text-center">No purchase orders — create one to track supplier stock</div>}
       {creating && <POModal materials={materials} suppliers={suppliers} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('PO created'); reload(); }} token={token} />}
       {editing && <POModal po={editing} materials={materials} suppliers={suppliers} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast('PO updated'); reload(); }} token={token} />}
+      {viewSupplier && <SupplierDetail supplierId={viewSupplier} token={token} onClose={() => setViewSupplier(null)} />}
       {confirmDel && <ConfirmDialog title="Delete purchase order" message={`Delete ${confirmDel.poNumber}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
   );
@@ -2235,22 +2242,64 @@ function RateModal({ zone, rate, onClose, onSaved, token }) {
 function Suppliers({ data, reload, token }) {
   const toast = useToast();
   const [q, setQ] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all'); // all | active | inactive
   const [editing, setEditing] = useState(null); // null | {} | supplier
+  const [viewing, setViewing] = useState(null); // supplier id for detail modal
   const [confirmDel, setConfirmDel] = useState(null);
+  const [deactivateFor, setDeactivateFor] = useState(null);
   const suppliers = Array.isArray(data.suppliers) ? data.suppliers : [];
-  const filtered = q
-    ? suppliers.filter((s) => [s.name, s.contact, s.email, s.phone, s.website].some((v) => String(v || '').toLowerCase().includes(q.toLowerCase())))
-    : suppliers;
+  const mq = q.trim().toLowerCase();
+  const filtered = suppliers.filter((s) => {
+    if (activeFilter === 'active' && !s.isActive) return false;
+    if (activeFilter === 'inactive' && s.isActive) return false;
+    if (!mq) return true;
+    return [s.name, s.contact, s.email, s.phone, s.website, s.address].some((v) => String(v || '').toLowerCase().includes(mq));
+  });
+  const totals = suppliers.reduce((acc, s) => ({
+    spend: acc.spend + Number(s.stats?.totalSpend || 0),
+    active: acc.active + (s.isActive ? 1 : 0),
+  }), { spend: 0, active: 0 });
   async function doDelete() {
     try { await adminApi.suppliers.remove(confirmDel.id, token); toast('Supplier deleted'); setConfirmDel(null); reload(); }
-    catch (e) { toast(e.message, 'error'); setConfirmDel(null); }
+    catch (e) {
+      setConfirmDel(null);
+      if (e.code === 'conflict') setDeactivateFor(confirmDel);
+      else toast(e.message, 'error');
+    }
+  }
+  async function doDeactivate() {
+    try { await adminApi.suppliers.update(deactivateFor.id, { isActive: false }, token); toast(`${deactivateFor.name} deactivated`); setDeactivateFor(null); reload(); }
+    catch (e) { toast(e.message, 'error'); setDeactivateFor(null); }
+  }
+  function exportCsv() {
+    const cols = ['name', 'contact', 'email', 'phone', 'website', 'address', 'active', 'materials', 'purchaseOrders', 'totalSpend', 'lastOrder', 'notes'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = suppliers.map((s) => [
+      s.name, s.contact, s.email, s.phone, s.website, s.address, s.isActive ? 'yes' : 'no',
+      s._count?.rawMaterials ?? 0, s._count?.purchaseOrders ?? 0,
+      Number(s.stats?.totalSpend || 0).toFixed(2),
+      s.stats?.lastPoAt ? new Date(s.stats.lastPoAt).toISOString().slice(0, 10) : '',
+      s.notes,
+    ].map(esc).join(','));
+    const blob = new Blob([[cols.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `suppliers-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center gap-3">
-        <div className="text-xs text-muted">{suppliers.length} suppliers</div>
-        <div className="flex gap-2 items-center">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers…" className="w-44 sm:w-60 border border-line-strong rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500" />
+      <div className="flex justify-between items-center gap-3 flex-wrap">
+        <div className="text-xs text-muted">{suppliers.length} suppliers • {totals.active} active • total spend <span className="font-bold text-royal-700">${totals.spend.toFixed(2)}</span></div>
+        <div className="flex gap-2 items-center flex-wrap">
+          <div className="flex rounded-xl border border-line-strong overflow-hidden text-xs font-semibold">
+            {[['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive']].map(([k, label]) => (
+              <button key={k} onClick={() => setActiveFilter(k)} className={`px-2.5 py-1.5 ${activeFilter === k ? 'bg-royal-600 text-white' : 'bg-surface2 text-muted hover:bg-surface3'}`}>{label}</button>
+            ))}
+          </div>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers…" className="w-40 sm:w-52 border border-line-strong rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-royal-500" />
+          <Btn small color="ghost" onClick={exportCsv}>⬇ CSV</Btn>
           <Btn onClick={() => setEditing({})}>+ New supplier</Btn>
         </div>
       </div>
@@ -2258,26 +2307,31 @@ function Suppliers({ data, reload, token }) {
         <div key={s.id} className={`border border-line rounded-xl p-4 ${s.isActive ? '' : 'opacity-60'}`}>
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm text-ink">{s.name}{!s.isActive && <span className="ml-2 text-[10px] uppercase text-muted">inactive</span>}</div>
+              <div className="font-bold text-sm text-ink cursor-pointer hover:text-royal-700 hover:underline" title="View supplier details" onClick={() => setViewing(s.id)}>{s.name}{!s.isActive && <span className="ml-2 text-[10px] uppercase text-muted">inactive</span>}</div>
               <div className="text-xs text-muted">
                 {[s.contact, s.email, s.phone, s.website, s.address].filter(Boolean).join(' • ') || 'No contact details'}
               </div>
-              {s.notes && <div className="text-xs text-muted mt-1 whitespace-pre-wrap">{s.notes}</div>}
+              {s.notes && <div className="text-xs text-muted mt-1 whitespace-pre-wrap line-clamp-2">{s.notes}</div>}
             </div>
-            <div className="text-xs text-muted text-right shrink-0" title="Linked materials / purchase orders">
+            <div className="text-xs text-muted text-right shrink-0" title="Materials / POs / total spend">
               <div>{s._count?.rawMaterials ?? 0} materials</div>
               <div>{s._count?.purchaseOrders ?? 0} POs</div>
+              <div className="font-bold text-royal-700">${Number(s.stats?.totalSpend || 0).toFixed(2)}</div>
+              {s.stats?.lastPoAt && <div className="text-[10px]">last {new Date(s.stats.lastPoAt).toLocaleDateString('en-AU')}</div>}
             </div>
             <div className="flex gap-1.5 shrink-0">
+              <Btn small color="ghost" onClick={() => setViewing(s.id)}>View</Btn>
               <Btn small color="ghost" onClick={() => setEditing(s)}>Edit</Btn>
               <Btn small color="red" onClick={() => setConfirmDel(s)}>Delete</Btn>
             </div>
           </div>
         </div>
       ))}
-      {filtered.length === 0 && <div className="text-xs text-muted py-10 text-center">{q ? 'No suppliers match your search' : 'No suppliers yet — add the shops you buy cardstock and wire from'}</div>}
+      {filtered.length === 0 && <div className="text-xs text-muted py-10 text-center">{mq || activeFilter !== 'all' ? 'No suppliers match your filters' : 'No suppliers yet — add the shops you buy cardstock and wire from'}</div>}
+      {viewing && <SupplierDetail supplierId={viewing} token={token} onClose={() => setViewing(null)} onChanged={reload} onEdit={(s) => { setViewing(null); setEditing(s); }} />}
       {editing && <SupplierModal supplier={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { const wasEdit = !!editing.id; setEditing(null); toast(wasEdit ? 'Supplier updated' : 'Supplier created'); reload(); }} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete supplier" message={`Delete ${confirmDel.name}?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+      {deactivateFor && <ConfirmDialog title="Supplier is in use" confirmLabel="Deactivate instead" message={`${deactivateFor.name} has linked materials or purchase orders. Deactivate it to hide it from pickers without breaking those links?`} onConfirm={doDeactivate} onClose={() => setDeactivateFor(null)} />}
     </div>
   );
 }

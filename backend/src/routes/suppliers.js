@@ -20,16 +20,50 @@ const supplierSchema = z.object({
   isActive: z.boolean().optional(),
 }).strict();
 
+// Spend/activity stats keyed by supplier id (name fallback for legacy POs that
+// predate supplierId). One pass over POs+lines — admin-scale data.
+async function supplierStats() {
+  const pos = await prisma.purchaseOrder.findMany({
+    select: {
+      supplierId: true, supplier: true, status: true, createdAt: true,
+      lines: { select: { qty: true, unitCost: true } },
+    },
+  });
+  const byId = new Map();
+  const byName = new Map();
+  for (const po of pos) {
+    const spend = po.lines.reduce((t, l) => t + l.qty * Number(l.unitCost || 0), 0);
+    const open = po.status !== 'received' && po.status !== 'cancelled';
+    const bucketFor = po.supplierId ? byId : byName;
+    const key = po.supplierId || String(po.supplier || '').trim().toLowerCase();
+    if (!key) continue;
+    let s = bucketFor.get(key);
+    if (!s) { s = { totalSpend: 0, lastPoAt: null, poCount: 0, openPos: 0 }; bucketFor.set(key, s); }
+    s.totalSpend += spend;
+    s.poCount += 1;
+    if (open) s.openPos += 1;
+    if (!s.lastPoAt || new Date(po.createdAt) > new Date(s.lastPoAt)) s.lastPoAt = po.createdAt;
+  }
+  return (s) => {
+    const hit = byId.get(s.id) || byName.get(String(s.name || '').trim().toLowerCase())
+      || { totalSpend: 0, lastPoAt: null, poCount: 0, openPos: 0 };
+    return { ...hit, totalSpend: Math.round(hit.totalSpend * 100) / 100 };
+  };
+}
+
 // List with usage counts (materials + purchase orders referencing the supplier)
 router.get('/', asyncHandler(async (req, res) => {
   const q = req.query.q ? String(req.query.q).slice(0, 200) : '';
   const where = q ? { name: { contains: q, mode: 'insensitive' } } : {};
-  const suppliers = await prisma.supplier.findMany({
-    where,
-    orderBy: { name: 'asc' },
-    include: { _count: { select: { rawMaterials: true, purchaseOrders: true } } },
-  });
-  res.json(suppliers);
+  const [suppliers, stats] = await Promise.all([
+    prisma.supplier.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { rawMaterials: true, purchaseOrders: true } } },
+    }),
+    supplierStats(),
+  ]);
+  res.json(suppliers.map((s) => ({ ...s, stats: stats(s) })));
 }));
 
 router.post('/', validate(supplierSchema), asyncHandler(async (req, res) => {
@@ -101,16 +135,32 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 // Materials/POs currently linked to this supplier (for drill-in context)
 router.get('/:id', asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0, 100);
-  const supplier = await prisma.supplier.findUnique({
-    where: { id },
-    include: {
-      _count: { select: { rawMaterials: true, purchaseOrders: true } },
-      rawMaterials: { select: { id: true, sku: true, name: true, onHand: true, unit: true }, orderBy: { name: 'asc' }, take: 100 },
-      purchaseOrders: { select: { id: true, poNumber: true, status: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 50 },
-    },
-  });
+  const [supplier, stats] = await Promise.all([
+    prisma.supplier.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { rawMaterials: true, purchaseOrders: true } },
+        rawMaterials: { orderBy: { name: 'asc' }, take: 100 },
+        purchaseOrders: {
+          orderBy: { createdAt: 'desc' }, take: 50,
+          include: { lines: { select: { qty: true, unitCost: true } } },
+        },
+      },
+    }),
+    supplierStats(),
+  ]);
   if (!supplier) return res.status(404).json({ error: 'Not found', code: 'not_found' });
-  res.json(supplier);
+  const pos = supplier.purchaseOrders.map((po) => ({
+    ...po,
+    total: Math.round(po.lines.reduce((t, l) => t + l.qty * Number(l.unitCost || 0), 0) * 100) / 100,
+    lines: undefined,
+  }));
+  res.json({
+    ...supplier,
+    purchaseOrders: pos,
+    stats: stats(supplier),
+    lowStock: supplier.rawMaterials.filter((m) => Number(m.onHand) <= Number(m.lowThreshold)).length,
+  });
 }));
 
 export default router;

@@ -121,7 +121,7 @@ router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandle
 router.get('/:id', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
-  const material = await prisma.rawMaterial.findUnique({ where: { id } });
+  const material = await prisma.rawMaterial.findUnique({ where: { id }, include: { supplierRef: { select: { id: true, name: true } } } });
   if (!material) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   res.json(material);
 }));

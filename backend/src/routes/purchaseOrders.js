@@ -85,7 +85,7 @@ router.patch('/:id', validate(poPatchSchema), asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
-  const po = await prisma.purchaseOrder.findUnique({ where: { id: String(req.params.id).slice(0,100) }, include: { lines: { include: { rawMaterial: { select: { name: true, sku: true, unit: true } }, product: { select: { title: true } }, variant: { select: { title: true } } } } } });
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: String(req.params.id).slice(0,100) }, include: { supplierRef: { select: { id: true, name: true } }, lines: { include: { rawMaterial: { select: { name: true, sku: true, unit: true } }, product: { select: { title: true } }, variant: { select: { title: true } } } } } });
   if (!po) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   res.json(po);
 }));
