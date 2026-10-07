@@ -17,6 +17,8 @@ router.post('/check-in', requireAuth, requireRole('admin','developer','maker','s
   const ticket = await prisma.ticket.findUnique({ where: { qrPayload }, include: { booking: { include: { session: true } }, customArtOrder: true } });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
   if (ticket.checkedInAt) return res.status(409).json({ error: 'Already checked in', ticket });
+  // Cancelled bookings keep their QR, but checking one in would flip it back to attended
+  if (ticket.booking?.status === 'cancelled') return res.status(409).json({ error: 'Booking is cancelled', code: 'booking_cancelled' });
   const updated = await prisma.ticket.update({ where: { id: ticket.id }, data: { checkedInAt: new Date() } });
   if (ticket.bookingId) await prisma.booking.update({ where: { id: ticket.bookingId }, data: { status: 'attended', checkedInAt: new Date() } }).catch(()=>{});
   if (ticket.customArtOrderId) await prisma.customArtOrder.update({ where: { id: ticket.customArtOrderId }, data: { state: 'dispatched_pickup_ready', dispatchedAt: new Date() } }).catch(()=>{});

@@ -306,7 +306,7 @@ function AdminInner({ user }) {
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
                   {tab === 'suppliers' && <Suppliers data={data} reload={() => load('suppliers')} token={token} />}
-                  {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} />}
+                  {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
                   {tab === 'notebook' && <NotebookAdmin data={data} onSave={(url) => setData((s) => ({ ...s, notebookUrl: url }))} token={token} />}
@@ -1856,24 +1856,88 @@ function MetaSync({ data, reload, token }) {
   );
 }
 
-function Bookings({ data }) {
+function Bookings({ data, reload, token }) {
+  const toast = useToast();
+  const [confirm, setConfirm] = useState(null); // { kind: 'cancel'|'refund', booking }
   const bookings = Array.isArray(data.bookings) ? data.bookings : [];
+  const [filter, setFilter] = useState('all');
   const confirmed = bookings.filter((b) => b.status === 'confirmed' || b.status === 'attended').length;
+  async function setStatus(b, status, label) {
+    try {
+      await adminApi.bookings.update(b.id, { status }, token);
+      toast(`${b.name} → ${label}`); reload();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function doConfirm() {
+    const { kind, booking } = confirm;
+    try {
+      if (kind === 'cancel') {
+        await adminApi.bookings.update(booking.id, { status: 'cancelled' }, token);
+        toast(`${booking.name} cancelled — ${booking.quantity} seat(s) freed`);
+      } else {
+        await adminApi.bookings.update(booking.id, { refund: true }, token);
+        toast(`Refund marked for ${booking.name}`);
+      }
+      reload();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  const shown = bookings.filter((b) => {
+    if (filter === 'active') return ['pending', 'confirmed', 'waitlisted'].includes(b.status);
+    if (filter === 'attended') return b.status === 'attended';
+    if (filter === 'cancelled') return b.status === 'cancelled';
+    return true;
+  });
+  const FILTERS = [['all', 'All'], ['active', 'Active'], ['attended', 'Attended'], ['cancelled', 'Cancelled']];
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted">{bookings.length} bookings • {confirmed} confirmed/attended</div>
-      {bookings.map((b) => (
-        <div key={b.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-xs text-muted flex-1">{bookings.length} bookings • {confirmed} confirmed/attended</div>
+        {FILTERS.map(([id, label]) => (
+          <button key={id} onClick={() => setFilter(id)}
+            className={`px-2.5 py-1 rounded-full text-xs font-semibold ${filter === id ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line text-muted'}`}>{label}</button>
+        ))}
+      </div>
+      {shown.map((b) => (
+        <div key={b.id} className="flex flex-wrap items-center gap-3 border border-line rounded-xl px-4 py-3 text-sm">
           <div className="flex-1 min-w-0">
             <div className="font-bold text-ink">{b.name} <span className="text-muted font-normal">• {b.email}</span></div>
             <div className="text-xs text-muted">{b.session?.workshop?.title} • {b.session ? new Date(b.session.startsAt).toLocaleDateString('en-AU') : ''} • qty {b.quantity}</div>
           </div>
           <StatusBadge value={b.status} />
+          {b.refundedAt && <StatusBadge value="refunded" />}
           <span className="text-xs font-bold text-royal-700">${Number(b.totalPaid).toFixed(2)}</span>
           {b.ticket && <span className="text-[10px] text-muted font-mono" title={b.ticket.qrPayload}>✓ ticket</span>}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            {['pending', 'confirmed', 'waitlisted'].includes(b.status) && (
+              <Btn small color="red" onClick={() => setConfirm({ kind: 'cancel', booking: b })}>Cancel</Btn>
+            )}
+            {b.status === 'cancelled' && (
+              <Btn small color="ghost" onClick={() => setStatus(b, 'confirmed', 'restored')}>Restore</Btn>
+            )}
+            {['pending', 'confirmed'].includes(b.status) && (
+              <>
+                <Btn small color="ghost" onClick={() => setStatus(b, 'attended', 'attended')}>Attended</Btn>
+                <Btn small color="ghost" onClick={() => setStatus(b, 'no_show', 'no-show')}>No-show</Btn>
+              </>
+            )}
+            {Number(b.totalPaid) > 0 && !b.refundedAt && (
+              <Btn small color="ghost" onClick={() => setConfirm({ kind: 'refund', booking: b })}>Refund</Btn>
+            )}
+          </div>
         </div>
       ))}
-      {bookings.length === 0 && <div className="text-xs text-muted py-10 text-center">No bookings yet</div>}
+      {shown.length === 0 && <div className="text-xs text-muted py-10 text-center">{bookings.length === 0 ? 'No bookings yet' : 'No bookings match this filter'}</div>}
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.kind === 'cancel' ? 'Cancel booking' : 'Mark refund'}
+          message={confirm.kind === 'cancel'
+            ? `Cancel ${confirm.booking.name}'s booking (${confirm.booking.quantity} seat(s))? The seat returns to the session and check-in is blocked.`
+            : `Record a refund of $${Number(confirm.booking.totalPaid).toFixed(2)} for ${confirm.booking.name}? (Payments are not processed automatically.)`}
+          confirmLabel={confirm.kind === 'cancel' ? 'Cancel booking' : 'Mark refunded'}
+          onConfirm={doConfirm}
+          onClose={() => setConfirm(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2422,10 +2486,12 @@ function SupplierModal({ supplier, onClose, onSaved, token }) {
   </Modal>;
 }
 
-function Users({ data, reload, token }) {
+function Users({ data, reload, token, user }) {
   const toast = useToast();
   const [busyId, setBusyId] = useState('');
   const [editing, setEditing] = useState(null); // null | {} | user (create vs edit)
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [resetting, setResetting] = useState(null);
   const users = Array.isArray(data.users) ? data.users : [];
   async function setRole(u, role) {
     setBusyId(u.id);
@@ -2435,6 +2501,10 @@ function Users({ data, reload, token }) {
       toast(`Role → ${role}`); reload();
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusyId(''); }
+  }
+  async function doDelete() {
+    try { await adminApi.users.remove(confirmDel.id, token); toast(`${confirmDel.name} deleted`); reload(); }
+    catch (e) { toast(e.message, 'error'); }
   }
   return (
     <div>
@@ -2449,13 +2519,40 @@ function Users({ data, reload, token }) {
               <option value="customer">customer</option><option value="staff">staff</option><option value="maker">maker</option><option value="admin">admin</option><option value="developer">developer</option>
             </select>
             <Btn small color="ghost" onClick={() => setEditing(u)}>Edit</Btn>
+            <Btn small color="ghost" title="Reset password" onClick={() => setResetting(u)}>🔑</Btn>
+            {u.id !== user?.id && <Btn small color="red" onClick={() => setConfirmDel(u)}>Delete</Btn>}
           </div>
         ))}
         {users.length === 0 && <div className="text-xs text-muted py-8 text-center">No users</div>}
       </div>
       {editing && <UserModal user={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { const wasEdit = !!editing.id; setEditing(null); toast(wasEdit ? 'User updated' : 'User created'); reload(); }} token={token} />}
+      {resetting && <ResetPasswordModal target={resetting} onClose={() => setResetting(null)} onSaved={() => { setResetting(null); reload(); }} token={token} />}
+      {confirmDel && <ConfirmDialog title="Delete user" message={`Delete ${confirmDel.name} (${confirmDel.email})? Orders and bookings keep their history by email. Accounts with POS sessions cannot be deleted.`} confirmLabel="Delete" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
     </div>
   );
+}
+function ResetPasswordModal({ target, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
+  async function save() {
+    if (password.length < 6) return toast('Password must be at least 6 characters', 'error');
+    setBusy(true);
+    try {
+      await adminApi.users.resetPassword(target.id, password, token);
+      toast(`Password reset for ${target.name}`); onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={`Reset password — ${target.name}`} onClose={onClose}>
+    <div>
+      <label className="block text-xs font-semibold text-muted mb-1">New password (min 6 chars)</label>
+      <input type="password" className={input} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" autoFocus />
+      <div className="text-xs text-muted mt-2">{target.email} will need the new password next time they sign in.</div>
+    </div>
+    <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Reset password'}</Btn></div>
+  </Modal>;
 }
 function UserModal({ user, onClose, onSaved, token }) {
   const toast = useToast();
@@ -2492,7 +2589,7 @@ function UserModal({ user, onClose, onSaved, token }) {
         )}
       </div>
       {!user && <div><label className={label}>Password * (min 6 chars)</label><input type="password" className={input} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" /></div>}
-      {user && <div className="text-xs text-muted">Role changes use the dropdown in the list. Password resets are not available here.</div>}
+      {user && <div className="text-xs text-muted">Role changes use the dropdown in the list. Use 🔑 in the list to reset this account's password.</div>}
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : user ? 'Save changes' : 'Create user'}</Btn></div>
   </Modal>;

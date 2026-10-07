@@ -139,4 +139,50 @@ router.patch('/:id', requireAuth, requireRole('admin', 'developer'), validate(pa
   }
 }));
 
+// Shared rank guard for destructive/credential actions on a target user
+function forbiddenTarget(req, target) {
+  if (target.id === req.user.id) return { status: 400, error: 'Cannot perform this action on your own account', code: 'validation_failed' };
+  const callerRank = ROLE_RANK[req.user.role] || 0;
+  const targetRank = ROLE_RANK[target.role] || 0;
+  if (req.user.role !== 'developer') {
+    if (targetRank >= ROLE_RANK.developer) return { status: 403, error: 'Only a developer can modify a developer account', code: 'forbidden' };
+    if (callerRank <= targetRank) return { status: 403, error: 'Cannot modify a user with equal or higher rank', code: 'forbidden' };
+  }
+  return null;
+}
+
+// Admin password reset — there is no self-service forgot-password flow, so an
+// admin/developer sets a fresh password directly (min 6 like registration).
+const resetPasswordSchema = z.object({ password: z.string().min(6).max(128) }).strict();
+router.post('/:id/reset-password', requireAuth, requireRole('admin','developer'), validate(resetPasswordSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const guard = forbiddenTarget(req, target);
+  if (guard) return res.status(guard.status).json({ error: guard.error, code: guard.code });
+  await prisma.user.update({ where: { id }, data: { password: await hashPassword(req.validated.password) } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'user_password_reset', entityType: 'user', entityId: id, details: { targetEmail: target.email } });
+  res.json({ ok: true, id: target.id });
+}));
+
+// Admin delete — orders/loyalty reference users optionally (SetNull, history is
+// keyed by email), but PosSession.openedBy is required: those users can't be deleted.
+router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const guard = forbiddenTarget(req, target);
+  if (guard) return res.status(guard.status).json({ error: guard.error, code: guard.code });
+  const posSessions = await prisma.posSession.count({ where: { openedBy: id } });
+  if (posSessions > 0) return res.status(409).json({ error: 'User has POS session history and cannot be deleted', code: 'conflict' });
+  try {
+    await prisma.user.delete({ where: { id } });
+  } catch (e) {
+    if (e.code === 'P2003') return res.status(409).json({ error: 'User is referenced by records that cannot be removed', code: 'conflict' });
+    throw e;
+  }
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'user_delete', entityType: 'user', entityId: id, details: { targetEmail: target.email, targetRole: target.role } });
+  res.json({ ok: true, id });
+}));
+
 export default router;

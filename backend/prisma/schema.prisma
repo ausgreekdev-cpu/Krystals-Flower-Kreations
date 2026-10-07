@@ -648,6 +648,7 @@ model Booking {
   totalPaid             Decimal       @default(0) @db.Decimal(10, 2)
   stripePaymentIntentId String?
   checkedInAt           DateTime?
+  refundedAt            DateTime?
   notes                 String?       @db.Text
   // Reminder de-dupe (hourly cron sends 24h + 2h before start)
   reminder24hSentAt     DateTime?

@@ -8,6 +8,8 @@ const COLORS = {
   pending: 'bg-amber-100 text-amber-700',
   shipped: 'bg-sky-100 text-sky-700',
   confirmed: 'bg-emerald-100 text-emerald-700',
+  attended: 'bg-emerald-100 text-emerald-700',
+  no_show: 'bg-red-100 text-red-600',
   waitlisted: 'bg-amber-100 text-amber-700',
   draft: 'bg-surface3 text-muted',
   cancelled: 'bg-red-100 text-red-600',

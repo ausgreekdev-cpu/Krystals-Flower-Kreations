@@ -237,6 +237,8 @@ export const adminApi = {
     list: (token: string) => req<any[]>('/api/users', { token }),
     create: (body: any, token: string) => req<any>('/api/users', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/users/${id}`, { method: 'DELETE', token }),
+    resetPassword: (id: string, password: string, token: string) => req<any>(`/api/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }), token }),
   },
   loyalty: {
     leaderboard: () => req<any[]>('/api/loyalty/leaderboard'),
@@ -273,5 +275,6 @@ export const adminApi = {
   },
   bookings: {
     list: (token: string) => req<any[]>('/api/bookings', { token }),
+    update: (id: string, body: { status?: string; notes?: string; refund?: boolean }, token: string) => req<any>(`/api/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
   },
 };

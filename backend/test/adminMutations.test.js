@@ -217,6 +217,155 @@ test('admin can create and edit users; customer tokens cannot', async () => {
   assert.equal(guestCreate.status, 403, JSON.stringify(guestCreate.body));
 });
 
+test('admin can reset a password; old password stops working', async () => {
+  const email = `admmut-rpw-${uniq}@example.com`;
+  const create = await api(srv.base, '/api/users', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ name: 'Reset Target', email, password: 'secret123', role: 'staff' }),
+  });
+  assert.equal(create.status, 201, JSON.stringify(create.body));
+  userIds.push(create.body.id);
+
+  const oldLogin = await api(srv.base, '/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: 'secret123' }),
+  });
+  assert.equal(oldLogin.status, 200, JSON.stringify(oldLogin.body));
+
+  const shortPw = await api(srv.base, `/api/users/${create.body.id}/reset-password`, {
+    method: 'POST', headers: auth(), body: JSON.stringify({ password: 'abc' }),
+  });
+  assert.equal(shortPw.status, 400, JSON.stringify(shortPw.body));
+
+  const reset = await api(srv.base, `/api/users/${create.body.id}/reset-password`, {
+    method: 'POST', headers: auth(), body: JSON.stringify({ password: 'newpass456' }),
+  });
+  assert.equal(reset.status, 200, JSON.stringify(reset.body));
+
+  const stale = await api(srv.base, '/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: 'secret123' }),
+  });
+  assert.equal(stale.status, 401, JSON.stringify(stale.body));
+
+  const fresh = await api(srv.base, '/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: 'newpass456' }),
+  });
+  assert.equal(fresh.status, 200, JSON.stringify(fresh.body));
+
+  const guestReset = await api(srv.base, `/api/users/${create.body.id}/reset-password`, {
+    method: 'POST', headers: { Authorization: `Bearer ${custToken}` }, body: JSON.stringify({ password: 'hacked99' }),
+  });
+  assert.equal(guestReset.status, 403, JSON.stringify(guestReset.body));
+
+  const selfMe = await prisma.user.findUnique({ where: { email: 'admin@krystal.local' }, select: { id: true } });
+  const selfReset = await api(srv.base, `/api/users/${selfMe.id}/reset-password`, {
+    method: 'POST', headers: auth(), body: JSON.stringify({ password: 'selfpass1' }),
+  });
+  assert.equal(selfReset.status, 400, JSON.stringify(selfReset.body));
+});
+
+test('admin can delete users; self/rank/POS-history/guest are guarded', async () => {
+  // Self-delete is refused
+  const me = await prisma.user.findUnique({ where: { email: 'admin@krystal.local' }, select: { id: true } });
+  const self = await api(srv.base, `/api/users/${me.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(self.status, 400, JSON.stringify(self.body));
+
+  // Plain user deletes cleanly (orders/loyalty key off email and survive)
+  const email = `admmut-del-${uniq}@example.com`;
+  const create = await api(srv.base, '/api/users', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ name: 'Delete Target', email, password: 'secret123', role: 'staff' }),
+  });
+  assert.equal(create.status, 201, JSON.stringify(create.body));
+
+  const del = await api(srv.base, `/api/users/${create.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(del.status, 200, JSON.stringify(del.body));
+  const gone = await prisma.user.findUnique({ where: { id: create.body.id } });
+  assert.equal(gone, null, 'user row removed');
+
+  const again = await api(srv.base, `/api/users/${create.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(again.status, 404, JSON.stringify(again.body));
+
+  // POS session history blocks deletion with a clear 409
+  const posEmail = `admmut-pos-${uniq}@example.com`;
+  const posUser = await api(srv.base, '/api/users', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ name: 'POS Target', email: posEmail, password: 'secret123', role: 'staff' }),
+  });
+  assert.equal(posUser.status, 201, JSON.stringify(posUser.body));
+  userIds.push(posUser.body.id);
+  const posLogin = await api(srv.base, '/api/auth/login', {
+    method: 'POST', body: JSON.stringify({ email: posEmail, password: 'secret123' }),
+  });
+  assert.equal(posLogin.status, 200, JSON.stringify(posLogin.body));
+  const open = await api(srv.base, '/api/pos/sessions/open', {
+    method: 'POST', headers: { Authorization: `Bearer ${posLogin.body.token}` }, body: JSON.stringify({ openingCash: 0 }),
+  });
+  assert.equal(open.status, 201, JSON.stringify(open.body));
+
+  const blocked = await api(srv.base, `/api/users/${posUser.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(blocked.status, 409, JSON.stringify(blocked.body));
+  assert.match(blocked.body.error, /POS session/);
+
+  // Cleanup so after() can remove the user
+  await prisma.posSession.deleteMany({ where: { openedBy: posUser.body.id } });
+  const retry = await api(srv.base, `/api/users/${posUser.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(retry.status, 200, JSON.stringify(retry.body));
+
+  // Customer token cannot delete anyone
+  const victim = await api(srv.base, '/api/users', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ name: 'Guest Victim', email: `admmut-gv-${uniq}@example.com`, password: 'secret123', role: 'customer' }),
+  });
+  assert.equal(victim.status, 201, JSON.stringify(victim.body));
+  userIds.push(victim.body.id);
+  const guestDel = await api(srv.base, `/api/users/${victim.body.id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${custToken}` },
+  });
+  assert.equal(guestDel.status, 403, JSON.stringify(guestDel.body));
+
+  // Developer account cannot be deleted by non-developers; here caller IS a
+  // developer, but deleting the seeded developer is still refused (self rank rule
+  // is already covered above — instead prove equal-rank admin protection).
+  const admEmail = `admmut-adm-${uniq}@example.com`;
+  const adm = await api(srv.base, '/api/users', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ name: 'Peer Admin', email: admEmail, password: 'secret123', role: 'admin' }),
+  });
+  assert.equal(adm.status, 201, JSON.stringify(adm.body));
+  userIds.push(adm.body.id);
+  const admLogin = await api(srv.base, '/api/auth/login', {
+    method: 'POST', body: JSON.stringify({ email: admEmail, password: 'secret123' }),
+  });
+  assert.equal(admLogin.status, 200, JSON.stringify(admLogin.body));
+  // Admin (rank 3) cannot delete another admin (rank 3) or a developer (rank 4)
+  const peerTarget = await api(srv.base, '/api/users', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({ name: 'Peer Victim', email: `admmut-pv-${uniq}@example.com`, password: 'secret123', role: 'admin' }),
+  });
+  assert.equal(peerTarget.status, 201, JSON.stringify(peerTarget.body));
+  userIds.push(peerTarget.body.id);
+  const peer = await api(srv.base, `/api/users/${peerTarget.body.id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${admLogin.body.token}` },
+  });
+  assert.equal(peer.status, 403, JSON.stringify(peer.body));
+  const upDev = await api(srv.base, `/api/users/${me.id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${admLogin.body.token}` },
+  });
+  assert.equal(upDev.status, 403, JSON.stringify(upDev.body));
+  // ...but the developer can remove the admin
+  const devDel = await api(srv.base, `/api/users/${adm.body.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(devDel.status, 200, JSON.stringify(devDel.body));
+});
+
 // ── locations ────────────────────────────────────────────────────────────────
 
 test('inventory location create → edit → delete', async () => {
