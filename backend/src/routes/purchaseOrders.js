@@ -121,7 +121,11 @@ router.post('/:id/receive', asyncHandler(async (req, res) => {
 }));
 
 router.delete('/:id', asyncHandler(async (req, res) => {
-  await prisma.purchaseOrder.delete({ where: { id: String(req.params.id).slice(0,100) } });
+  const id = String(req.params.id).slice(0,100);
+  const po = await prisma.purchaseOrder.findUnique({ where: { id } });
+  if (!po) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (po.status !== 'ordered') return res.status(409).json({ error: 'Partially or fully received purchase orders cannot be deleted — they already changed stock', code: 'conflict' });
+  await prisma.purchaseOrder.delete({ where: { id } });
   res.json({ ok: true });
 }));
 

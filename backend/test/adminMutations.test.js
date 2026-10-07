@@ -162,7 +162,12 @@ test('PO edit replaces lines and blocks once received; supplier auto-links', asy
   });
   assert.equal(lateEdit.status, 409, JSON.stringify(lateEdit.body));
 
-  await api(srv.base, `/api/purchase-orders/${id}`, { method: 'DELETE', headers: auth() });
+  const lateDelete = await api(srv.base, `/api/purchase-orders/${id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(lateDelete.status, 409, JSON.stringify(lateDelete.body));
+  const stillThere = await api(srv.base, `/api/purchase-orders/${id}`, { headers: auth() });
+  assert.equal(stillThere.status, 200, 'received PO survives delete attempt');
+
+  await prisma.purchaseOrder.delete({ where: { id } }).catch(() => {});
   await api(srv.base, `/api/materials/${mat.body.id}`, { method: 'DELETE', headers: auth() });
 });
 

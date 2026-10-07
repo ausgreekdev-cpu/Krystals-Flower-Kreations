@@ -162,9 +162,9 @@ test('list + detail report spend, last order and open PO stats', async () => {
   assert.equal(poWithTotal.total, 5, 'PO total computed from lines');
 
   // Cleanup this test's POs so the after() supplier delete isn't blocked
-  for (const po of [po1.body.id, po2.body.id]) {
-    await api(srv.base, `/api/purchase-orders/${po}`, { method: 'DELETE', headers: auth() });
-  }
+  // (received POs can't be deleted via API anymore — remove directly)
+  await prisma.purchaseOrder.delete({ where: { id: po1.body.id } }).catch(() => {});
+  await api(srv.base, `/api/purchase-orders/${po2.body.id}`, { method: 'DELETE', headers: auth() });
 });
 
 test('stats fall back to supplier name for POs with no supplierId', async () => {

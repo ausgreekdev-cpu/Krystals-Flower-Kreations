@@ -1016,8 +1016,8 @@ function InventoryPurchase({ data, reload, token, onOpen }) {
           </div>
           <StatusBadge value={po.status} />
           {po.status !== 'received' && <Btn small color="ghost" onClick={() => setEditing(po)}>Edit</Btn>}
-          <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>
-          <Btn small color="red" onClick={() => setConfirmDel(po)}>Delete</Btn>
+          {po.status !== 'received' && <Btn small color="ghost" onClick={async () => { try { await adminApi.purchaseOrders.receive(po.id, token); toast(`Received ${po.poNumber}`); reload(); setPos((p) => p.map((x) => x.id === po.id ? { ...x, status: 'received' } : x)); } catch (e) { toast(e.message, 'error'); } }}>Receive</Btn>}
+          {po.status === 'ordered' && <Btn small color="red" onClick={() => setConfirmDel(po)}>Delete</Btn>}
         </div>
       ))}
       {pos.length === 0 && !creating && !editing && <div className="text-xs text-muted py-10 text-center">No purchase orders — create one to track supplier stock</div>}
