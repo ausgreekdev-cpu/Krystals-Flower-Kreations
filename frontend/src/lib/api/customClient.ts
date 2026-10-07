@@ -80,6 +80,8 @@ export const cartApi = {
 };
 export const ordersApi = {
   checkout: (body: any, idempotencyKey?: string) => req<any>('/api/orders/checkout', { method: 'POST', body: JSON.stringify(body), idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),
+  paypalCreate: (body: any, idempotencyKey?: string) => req<any>('/api/orders/paypal/create', { method: 'POST', body: JSON.stringify(body), idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),
+  paypalCapture: (paypalOrderId: string) => req<any>('/api/orders/paypal/capture', { method: 'POST', body: JSON.stringify({ paypalOrderId }) }),
   customCreate: (body: any, token?: string, idempotencyKey?: string) => req<any>('/api/custom-orders', { method: 'POST', body: JSON.stringify(body), token, idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),
   customList: (token: string) => req<any[]>('/api/custom-orders', { token }),
   customMove: (id: string, state: string, token: string) => req<any>(`/api/custom-orders/${id}/state`, { method: 'PATCH', body: JSON.stringify({ state }), token }),
@@ -101,6 +103,7 @@ export const adminApi = {
     list: (token: string) => req<any[]>('/api/orders', { token }),
     get: (orderNumber: string, token: string) => req<any>(`/api/orders/${orderNumber}`, { token }),
     updateStatus: (id: string, status: string, note: string, token: string) => req<any>(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, note }), token }),
+    paypalRefund: (id: string, token: string) => req<any>(`/api/orders/${id}/refund`, { method: 'POST', body: JSON.stringify({}), token }),
   },
   productFields: {
     list: () => req<any[]>('/api/products/fields'),

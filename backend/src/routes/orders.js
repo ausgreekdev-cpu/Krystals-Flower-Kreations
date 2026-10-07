@@ -6,7 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { calculateShipping, calculateGstInclusive } from '../services/shipping.js';
-import { stripe } from '../services/stripe.js';
+import { createPayPalOrder, capturePayPalOrder, refundPayPalCapture, assertPayPalReady } from '../services/paypal.js';
 import { sendOrderConfirmation, sendAdminOrderAlert, sendStatusUpdate } from '../services/email.js';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
@@ -48,32 +48,38 @@ const checkoutSchema = z.object({
   discountCode: z.string().max(30).optional().nullable(),
   customerNote: z.string().max(2000).optional().nullable(),
   acceptTerms: z.boolean().optional(),
-  paymentMethod: z.enum(['cash','bank_transfer','pickup','manual']).default('manual'),
+  paymentMethod: z.enum(['paypal','cash','bank_transfer','pickup','manual']).default('manual'),
 }).strict();
 
-router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), asyncHandler(async (req, res) => {
-  const data = req.validated;
-  const publicSettings = await getSettings({ onlyPublic: true });
-  const idempotencyKey = req.headers['idempotency-key'] ? String(req.headers['idempotency-key']).slice(0,100) : null;
+function idempotencyKeyOf(req) {
+  return req.headers['idempotency-key'] ? String(req.headers['idempotency-key']).slice(0, 100) : null;
+}
 
+// Shared checkout pipeline: price the cart, deduct stock, create the order.
+// Returns { error: { status, body } } for expected client failures,
+// { idempotent: true, order, shipping, gst } on an Idempotency-Key hit, or
+// { order, shipping, gst, paymentInstructions } on success.
+// deferFinalize=true (PayPal path) keeps the cart and withholds confirmation
+// emails until the payment is captured — /paypal/capture finalizes instead.
+async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFinalize = false }) {
   // Enforce the admin-configured payment methods list (checkout_payment_methods).
   const enabledMethods = String(publicSettings.checkout_payment_methods || '').split(',').map(m => m.trim()).filter(Boolean);
   if (enabledMethods.length && !enabledMethods.includes(data.paymentMethod)) {
-    const LABELS = { bank_transfer: 'Bank transfer', pickup: 'Pay on pickup', cash: 'Cash', manual: 'Manual' };
-    return res.status(422).json({
+    const LABELS = { paypal: 'PayPal', bank_transfer: 'Bank transfer', pickup: 'Pay on pickup', cash: 'Cash', manual: 'Manual' };
+    return { error: { status: 422, body: {
       error: `${LABELS[data.paymentMethod] || data.paymentMethod} payments are not available right now`,
       code: 'payment_method_disabled',
       details: { enabled: enabledMethods },
-    });
+    } } };
   }
 
   // Terms acceptance (settings: terms_required + terms_url)
   if (publicSettings.terms_required === '1' && !data.acceptTerms) {
-    return res.status(422).json({
+    return { error: { status: 422, body: {
       error: 'Please accept the terms to continue',
       code: 'terms_required',
       details: { termsUrl: publicSettings.terms_url || null },
-    });
+    } } };
   }
 
   // Order notes can be switched off admin-side — ignore anything sent while disabled
@@ -84,15 +90,15 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
     const existing = await prisma.order.findUnique({ where: { idempotencyKey }, include: { lines: true } });
     if (existing) {
       const gstExisting = await calculateGstInclusive(Number(existing.total));
-      return res.json({ order: existing, shipping: { price: Number(existing.shippingCost) }, gst: gstExisting, checkoutUrl: null, idempotent: true });
+      return { idempotent: true, order: existing, shipping: { price: Number(existing.shippingCost) }, gst: gstExisting };
     }
   }
 
   const cart = await prisma.cart.findUnique({ where: { id: data.cartId }, include: { items: { include: { product: true, variant: true } } } });
-  if (!cart || !cart.items.length) return res.status(400).json({ error: 'Cart empty', code: 'cart_empty' });
+  if (!cart || !cart.items.length) return { error: { status: 400, body: { error: 'Cart empty', code: 'cart_empty' } } };
 
   const inactive = cart.items.find((it) => !it.product.isActive || it.product.deletedAt);
-  if (inactive) return res.status(409).json({ error: `${inactive.product.title} is no longer available — remove it from your cart`, code: 'product_unavailable' });
+  if (inactive) return { error: { status: 409, body: { error: `${inactive.product.title} is no longer available — remove it from your cart`, code: 'product_unavailable' } } };
 
   // Re-check current price (not the stale add-to-cart snapshot) so a price change
   // is honoured at checkout time.
@@ -129,11 +135,11 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
   const minOrder = Number(publicSettings.min_order_amount) || 0;
   const goodsTotal = subtotal - discountTotal;
   if (minOrder > 0 && goodsTotal < minOrder) {
-    return res.status(422).json({
+    return { error: { status: 422, body: {
       error: `Minimum order is $${minOrder.toFixed(2)}`,
       code: 'below_minimum_order',
       details: { minimum: minOrder, subtotal: goodsTotal },
-    });
+    } } };
   }
 
   const shipping = await calculateShipping({ postcode: data.shippingPostcode, subtotal: goodsTotal, weightGrams: weight });
@@ -212,23 +218,115 @@ router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), 
       if (inc.count === 0) throw Object.assign(new Error('Discount code has reached its usage limit'), { status: 409, code: 'discount_exhausted' });
     }
 
-    // Clear cart
-    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    // Clear cart (deferred on the PayPal path — the order only counts once
+    // PayPal capture succeeds; the frontend clears its own cart there)
+    if (!deferFinalize) await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
     return created;
   });
 
-  const checkoutUrl = null; // Stripe disabled
-  if (stripe) { /* manual */ }
+  // Loyalty points are earned only when the order is marked paid (staff PATCH
+  // /:id/status for manual payments, /paypal/capture for PayPal).
 
-  // Loyalty points are earned only when staff mark the order paid (PATCH /:id/status).
+  if (!deferFinalize) {
+    // Email receipt (non-blocking, logs if SMTP not configured)
+    await sendOrderConfirmation(order).catch(()=>{});
+    // Studio alert (settings: admin_order_alert_enabled / _recipient)
+    await sendAdminOrderAlert(order).catch(()=>{});
+  }
 
-  // Email receipt (non-blocking, logs if SMTP not configured)
-  await sendOrderConfirmation(order).catch(()=>{});
-  // Studio alert (settings: admin_order_alert_enabled / _recipient)
-  await sendAdminOrderAlert(order).catch(()=>{});
+  return { order, shipping, gst, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) };
+}
 
-  res.json({ order, shipping, gst, checkoutUrl, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) });
+// ── Manual checkout (bank transfer / pickup / cash / invoice) ───────────────
+router.post('/checkout', rateLimit('checkout', 5, 1), validate(checkoutSchema), asyncHandler(async (req, res) => {
+  const publicSettings = await getSettings({ onlyPublic: true });
+  const result = await prepareCheckout({ data: req.validated, publicSettings, idempotencyKey: idempotencyKeyOf(req) });
+  if (result.error) return res.status(result.error.status).json(result.error.body);
+  if (result.idempotent) {
+    return res.json({ order: result.order, shipping: result.shipping, gst: result.gst, checkoutUrl: null, idempotent: true });
+  }
+  res.json({ order: result.order, shipping: result.shipping, gst: result.gst, checkoutUrl: null, paymentInstructions: result.paymentInstructions });
+}));
+
+// ── PayPal checkout (Orders v2) ─────────────────────────────────────────────
+// Step 1 — run the shared checkout pipeline with finalize deferred, then
+// create (or reuse) the PayPal order. The store order stays pending_payment
+// until step 2 confirms the money moved. The amount is derived server-side
+// from the order; the client never supplies one.
+router.post('/paypal/create', rateLimit('paypal', 10, 1), validate(checkoutSchema), asyncHandler(async (req, res) => {
+  await assertPayPalReady(); // 503 before any stock/order is reserved when PayPal can't take money
+  const data = { ...req.validated, paymentMethod: 'paypal' }; // route semantics override the body
+  const publicSettings = await getSettings({ onlyPublic: true });
+  const result = await prepareCheckout({ data, publicSettings, idempotencyKey: idempotencyKeyOf(req), deferFinalize: true });
+  if (result.error) return res.status(result.error.status).json(result.error.body);
+  const order = result.order;
+  if (order.paymentStatus === 'paid' || order.status === 'refunded') {
+    // Already captured (idempotent retry after success) — frontend shows success.
+    return res.json({ order, paypalOrderId: order.paypalOrderId, paid: true });
+  }
+  if (order.status === 'cancelled') {
+    return res.status(409).json({ error: 'Order can no longer be paid', code: 'order_not_payable' });
+  }
+  if (order.paypalOrderId) return res.json({ order, paypalOrderId: order.paypalOrderId });
+  const pp = await createPayPalOrder({ order });
+  const saved = await prisma.order.update({ where: { id: order.id }, data: { paypalOrderId: pp.id } });
+  res.json({ order: saved, paypalOrderId: saved.paypalOrderId });
+}));
+
+const paypalCaptureSchema = z.object({ paypalOrderId: z.string().min(3).max(128) }).strict();
+
+// Step 2 — capture the approved PayPal order, then finalize the store order
+// (paid flip, Payment row, loyalty + the emails deferred from step 1).
+// Safe without auth: the paypalOrderId comes from our own DB, amounts are
+// server-derived, and a capture can only move an order towards paid.
+router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptureSchema), asyncHandler(async (req, res) => {
+  const { paypalOrderId } = req.validated;
+  const order = await prisma.order.findUnique({ where: { paypalOrderId }, include: { lines: true } });
+  if (!order) return res.status(404).json({ error: 'PayPal session not found', code: 'not_found' });
+  if (order.paymentStatus === 'paid') return res.json({ order, captured: true, idempotent: true });
+  if (order.paymentStatus === 'refunded' || order.status === 'cancelled' || order.status === 'refunded') {
+    return res.status(409).json({ error: 'Order can no longer be paid', code: 'order_not_payable' });
+  }
+
+  const cap = await capturePayPalOrder(paypalOrderId); // throws 503/502 when disabled/unreachable
+
+  // Verify PayPal captured what the order says (skip when amount unknown, e.g. mock).
+  if (cap.amount != null) {
+    const got = Math.round(Number(cap.amount) * 100);
+    const want = Math.round(Number(order.total) * 100);
+    if (got < want) {
+      console.error(JSON.stringify({ level: 'error', msg: 'paypal_amount_mismatch', orderNumber: order.orderNumber, got, want, captureId: cap.captureId }));
+      throw Object.assign(new Error('PayPal captured amount does not match the order'), { status: 409, code: 'paypal_amount_mismatch', expose: true });
+    }
+  }
+
+  const { isNew } = await prisma.$transaction(async (tx) => {
+    const current = await tx.order.findUnique({ where: { id: order.id } });
+    if (!current) throw Object.assign(new Error('Order not found'), { status: 404, code: 'not_found' });
+    if (current.paymentStatus === 'paid') return { isNew: false };
+    const toPaid = current.status === 'pending_payment' || current.status === 'draft';
+    const updated = await tx.order.update({
+      where: { id: current.id },
+      data: { paymentStatus: 'paid', paymentMethod: 'paypal', ...(toPaid ? { status: 'paid' } : {}) },
+    });
+    await tx.orderStatusHistory.create({ data: { orderId: updated.id, fromStatus: current.status, toStatus: updated.status, note: `PayPal capture ${cap.captureId || 'unknown'}` } });
+    await tx.payment.create({ data: {
+      orderId: updated.id, amount: updated.total, method: 'paypal', status: 'paid',
+      reference: cap.captureId || null,
+      rawJson: cap.raw ? JSON.stringify(cap.raw).slice(0, 20000) : null,
+    } });
+    return { isNew: true };
+  });
+
+  const fresh = await prisma.order.findUnique({ where: { id: order.id }, include: { lines: true } });
+  if (isNew) {
+    // Finalize deferred from /paypal/create: loyalty + emails now money moved.
+    await earnForOrder(prisma, { email: fresh.email, total: fresh.total, orderId: fresh.id, reason: 'purchase' });
+    await sendOrderConfirmation(fresh).catch(()=>{});
+    await sendAdminOrderAlert(fresh).catch(()=>{});
+  }
+  res.json({ order: fresh, captured: true, idempotent: !isNew });
 }));
 
 router.get('/my', authenticate, asyncHandler(async (req, res) => {
@@ -252,6 +350,41 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   if (!['admin','developer','maker','staff'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' }, take: 100, include: { lines: true } });
   res.json(orders);
+}));
+
+// Full refund of a captured PayPal order: refunds the capture upstream, then
+// mirrors the PATCH /:id/status refund behaviour (transition guard, restock,
+// history, audit, customer email).
+router.post('/:id/refund', authenticate, asyncHandler(async (req, res) => {
+  if (!['admin','developer'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  const order = await prisma.order.findUnique({ where: { id: String(req.params.id).slice(0, 60) }, include: { lines: true, payments: true } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (order.paymentMethod !== 'paypal') return res.status(409).json({ error: 'Only PayPal orders can be refunded here', code: 'not_paypal_order' });
+  if (order.paymentStatus === 'refunded' || order.status === 'refunded') return res.status(409).json({ error: 'Order already refunded', code: 'already_refunded' });
+  if (order.paymentStatus !== 'paid') return res.status(409).json({ error: 'Nothing to refund — payment was never captured', code: 'nothing_to_refund' });
+  if (!(STATUS_TRANSITIONS[order.status] || []).includes('refunded')) {
+    return res.status(409).json({ error: `Cannot move order from '${order.status}' to 'refunded'`, code: 'invalid_transition' });
+  }
+
+  // Capture id stored on the Payment row at capture time.
+  const captureId = (order.payments.find(p => p.method === 'paypal' && p.status === 'paid') || order.payments.find(p => p.method === 'paypal'))?.reference || null;
+  if (!captureId) return res.status(409).json({ error: 'No PayPal capture found for this order', code: 'missing_capture' });
+
+  const refund = await refundPayPalCapture(captureId); // throws 503/502 when disabled/unreachable
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.order.findUnique({ where: { id: order.id } });
+    if (!current) throw Object.assign(new Error('Order not found'), { status: 404, code: 'not_found' });
+    const o = await tx.order.update({ where: { id: order.id }, data: { status: 'refunded', paymentStatus: 'refunded' } });
+    await tx.orderStatusHistory.create({ data: { orderId: o.id, fromStatus: current.status, toStatus: 'refunded', note: `PayPal refund ${refund.id}` } });
+    return o;
+  });
+
+  await prisma.payment.updateMany({ where: { orderId: order.id, method: 'paypal', status: 'paid' }, data: { status: 'refunded' } });
+  await restockOrder(updated, order.lines);
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'order_refund', entityType: 'order', entityId: order.id, details: { orderNumber: order.orderNumber, via: 'paypal', refundId: refund.id } });
+  await sendStatusUpdate(updated, order.status, 'refunded').catch(()=>{});
+  res.json(updated);
 }));
 
 router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {

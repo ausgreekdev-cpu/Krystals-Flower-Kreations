@@ -10,7 +10,7 @@ Guidance for agents/tooling working in this repo. Concise, action-oriented.
 
 ## Stack
 
-Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mobile (`mobile/`). Stripe **disabled** (`stripe=null`; payment enum `cash|bank_transfer|pickup|manual`).
+Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mobile (`mobile/`). Stripe **disabled** (`stripe=null`); online payments: **PayPal** (`paypal` in payment enum `paypal|cash|bank_transfer|pickup|manual`, service `backend/src/services/paypal.js`, modes via `PAYPAL_MODE`), plus manual `cash|bank_transfer|pickup|manual`.
 
 ## Commands
 

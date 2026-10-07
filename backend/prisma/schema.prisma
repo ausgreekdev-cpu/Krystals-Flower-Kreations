@@ -504,6 +504,7 @@ model Order {
   adminNote             String?        @db.Text
   stripePaymentIntentId String?
   stripeSessionId       String?
+  paypalOrderId         String?       @unique // PayPal Orders v2 id — order stays pending_payment until capture
   shippedAt             DateTime?
   deliveredAt           DateTime?
   trackingNumber        String?

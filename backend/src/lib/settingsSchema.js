@@ -38,6 +38,7 @@ const COLOR_MODE_OPTIONS = [
 ];
 
 const PAY_METHOD_OPTIONS = [
+  { value: 'paypal', label: 'PayPal' },
   { value: 'bank_transfer', label: 'Bank transfer' },
   { value: 'pickup', label: 'Pay on pickup' },
   { value: 'cash', label: 'Cash' },
@@ -93,6 +94,7 @@ export const SETTINGS = [
 
   // ── Payments & pickup ─────────────────────────────────────
   { key: 'checkout_payment_methods', section: 'payments', label: 'Checkout payment methods', type: 'csv', default: 'bank_transfer,pickup', public: true, options: PAY_METHOD_OPTIONS },
+  { key: 'paypal_client_id', section: 'payments', label: 'PayPal Client ID', type: 'text', default: '', public: true, max: 128, placeholder: 'AW...or A...', description: 'From developer.paypal.com → Apps & Credentials (Sandbox Client ID while testing, Live Client ID at launch). The Secret goes in PAYPAL_CLIENT_SECRET env only — never paste it here. Also add "paypal" to Checkout payment methods to switch it on.' },
   { key: 'bank_name', section: 'payments', label: 'Bank name', type: 'text', default: '', public: true, max: 80 },
   { key: 'bank_bsb', section: 'payments', label: 'BSB', type: 'text', default: '', public: true, max: 12, placeholder: '000-000' },
   { key: 'bank_account_name', section: 'payments', label: 'Account name', type: 'text', default: '', public: true, max: 120 },
@@ -287,5 +289,6 @@ export function paymentInstructionsFor(method, s = {}) {
     return `Pickup from ${where} — pay on collection.\n${how}`;
   }
   if (method === 'cash') return 'Order placed — pay cash on collection/delivery. We\'ll confirm once received.';
+  if (method === 'paypal') return 'PayPal — your order is reserved while you complete payment in the PayPal window.';
   return 'Order placed — manual payment.';
 }

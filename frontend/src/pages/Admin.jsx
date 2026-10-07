@@ -438,10 +438,19 @@ function Orders({ data, reload, token }) {
   const toast = useToast();
   const [expanded, setExpanded] = useState(null);
   const [busy, setBusy] = useState('');
+  const [confirmRefund, setConfirmRefund] = useState(null);
   const orders = Array.isArray(data.orders) ? data.orders : [];
   async function move(o, status) {
     setBusy(`${o.id}-${status}`);
     try { await adminApi.orders.updateStatus(o.id, status, 'Updated from admin', token); toast(`Order ${o.orderNumber} → ${status}`); reload(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(''); }
+  }
+  async function doRefund() {
+    const o = confirmRefund;
+    setConfirmRefund(null);
+    setBusy(`${o.id}-refund`);
+    try { await adminApi.orders.paypalRefund(o.id, token); toast(`Order ${o.orderNumber} refunded via PayPal`); reload(); }
     catch (e) { toast(e.message, 'error'); }
     finally { setBusy(''); }
   }
@@ -464,6 +473,10 @@ function Orders({ data, reload, token }) {
                   <button key={s} disabled={busy === `${o.id}-${s}`} onClick={() => move(o, s)}
                     className={`px-2.5 py-1 rounded-full text-xs font-semibold ${o.status === s ? 'bg-royal-600 text-white' : 'bg-surface2 border border-line-strong text-muted hover:bg-royal-50'}`}>{s.replace(/_/g, ' ')}</button>
                 ))}
+                {o.paymentMethod === 'paypal' && o.paymentStatus === 'paid' && (
+                  <button disabled={busy === `${o.id}-refund`} onClick={() => setConfirmRefund(o)}
+                    className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-600 text-white disabled:opacity-50 hover:bg-red-700">refund via PayPal</button>
+                )}
               </div>
               <div className="grid sm:grid-cols-2 gap-4 text-xs">
                 <div>
@@ -485,6 +498,7 @@ function Orders({ data, reload, token }) {
         </div>
       ))}
       {orders.length === 0 && <div className="text-xs text-muted py-10 text-center">No orders — login as admin@krystal.local (maker+ token required)</div>}
+      {confirmRefund && <ConfirmDialog title="Refund via PayPal" message={`Refund PayPal order ${confirmRefund.orderNumber} ($${Number(confirmRefund.total).toFixed(2)})? The money goes back to the buyer and the stock is returned.`} confirmLabel="Refund" onConfirm={doRefund} onClose={() => setConfirmRefund(null)} />}
     </div>
   );
 }
