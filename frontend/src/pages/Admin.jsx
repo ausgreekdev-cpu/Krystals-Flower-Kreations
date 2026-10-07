@@ -76,12 +76,14 @@ function AdminInner({ user }) {
     setLoading(true); setErr('');
     try {
       if (tabId === 'overview') {
-        const [orders, low, workshops] = await Promise.all([
+        const [orders, low, workshops, purchaseOrders, suppliers] = await Promise.all([
           adminApi.orders.list(token).catch(() => []),
           adminApi.materials.lowStock(token).catch(() => []),
           adminApi.workshops.list().catch(() => []),
+          adminApi.purchaseOrders.list(token).catch(() => []),
+          adminApi.suppliers.list(token).catch(() => []),
         ]);
-        setData((s) => ({ ...s, orders, low, workshops }));
+        setData((s) => ({ ...s, orders, low, workshops, purchaseOrders, suppliers }));
       } else if (tabId === 'orders') {
         const orders = await adminApi.orders.list(token).catch(() => []);
         setData((s) => ({ ...s, orders }));
@@ -124,7 +126,7 @@ function AdminInner({ user }) {
         const meta = await adminApi.meta.status(token).catch(() => ({}));
         setData((s) => ({ ...s, meta }));
       } else if (tabId === 'workshops') {
-        const workshops = await adminApi.workshops.list().catch(() => []);
+        const workshops = await adminApi.workshops.list(token).catch(() => []);
         setData((s) => ({ ...s, workshops }));
       } else if (tabId === 'bookings') {
         const bookings = await adminApi.bookings.list(token).catch(() => []);
@@ -363,16 +365,28 @@ const Btn = ({ children, onClick, color = 'royal', disabled, small }) => (
 function Overview({ data, onOpen }) {
   const orders = Array.isArray(data.orders) ? data.orders : [];
   const low = Array.isArray(data.low) ? data.low : [];
+  const workshops = Array.isArray(data.workshops) ? data.workshops : [];
+  const pos = Array.isArray(data.purchaseOrders) ? data.purchaseOrders : [];
+  const suppliers = Array.isArray(data.suppliers) ? data.suppliers : [];
   const today = orders.filter((o) => new Date(o.createdAt).toDateString() === new Date().toDateString());
   const revenueToday = today.reduce((a, o) => a + Number(o.total || 0), 0);
   const revenueMonth = orders.filter((o) => new Date(o.createdAt).getMonth() === new Date().getMonth()).reduce((a, o) => a + Number(o.total || 0), 0);
+  const openPos = pos.filter((p) => p.status !== 'received');
+  const poTotal = (p) => (p.lines || []).reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0);
+  const totalSpend = suppliers.reduce((a, s) => a + Number(s.stats?.totalSpend || 0), 0);
+  const upcoming = workshops
+    .flatMap((w) => (w.sessions || []).filter((s) => new Date(s.startsAt).getTime() > Date.now()).map((s) => ({ ...s, workshop: w })))
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
+    .slice(0, 5);
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         <Stat label="Orders today" value={today.length} />
         <Stat label="Revenue today" value={`$${revenueToday.toFixed(2)}`} accent />
         <Stat label="Revenue this month" value={`$${revenueMonth.toFixed(2)}`} />
         <Stat label="Low stock items" value={low.length} warn={low.length > 0} />
+        <Stat label="Open POs" value={openPos.length} warn={openPos.length > 0} />
+        <Stat label="Supplier spend" value={`$${totalSpend.toFixed(2)}`} accent />
       </div>
       <div className="grid lg:grid-cols-2 gap-4">
         <Card title="Recent orders" actions={<button onClick={() => onOpen('orders')} className="text-xs text-royal-700 hover:underline font-semibold">View all</button>}>
@@ -385,6 +399,28 @@ function Overview({ data, onOpen }) {
           <div className="space-y-1.5">
             {low.slice(0, 6).map((m) => <div key={m.id || m.sku} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{m.name || m.sku}</span><span className="text-amber-600 font-semibold">{m.onHand}/{m.lowThreshold}</span></div>)}
             {low.length === 0 && <div className="text-xs text-muted py-4 text-center">All stocked ✓</div>}
+          </div>
+        </Card>
+        <Card title="Open purchase orders" actions={<button onClick={() => onOpen('inventory')} className="text-xs text-royal-700 hover:underline font-semibold">Manage</button>}>
+          <div className="space-y-1.5">
+            {openPos.slice(0, 5).map((p) => (
+              <div key={p.id} className="flex justify-between items-center text-xs border-b border-line py-1.5">
+                <span className="font-medium text-ink">{p.poNumber} <span className="text-muted">• {p.supplier}</span></span>
+                <span className="flex items-center gap-2"><span className="font-semibold text-ink">${poTotal(p).toFixed(2)}</span><StatusBadge value={p.status} /></span>
+              </div>
+            ))}
+            {openPos.length === 0 && <div className="text-xs text-muted py-4 text-center">No open POs ✓</div>}
+          </div>
+        </Card>
+        <Card title="Upcoming workshops" actions={<button onClick={() => onOpen('workshops')} className="text-xs text-royal-700 hover:underline font-semibold">View all</button>}>
+          <div className="space-y-1.5">
+            {upcoming.map((s) => (
+              <div key={s.id} className="flex justify-between items-center text-xs border-b border-line py-1.5">
+                <span className="font-medium text-ink">{s.workshop.title} <span className="text-muted">• {new Date(s.startsAt).toLocaleDateString('en-AU')} {new Date(s.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></span>
+                <span className={`font-semibold ${s.bookedCount >= s.capacity ? 'text-amber-600' : 'text-ink'}`}>{s.bookedCount}/{s.capacity}</span>
+              </div>
+            ))}
+            {upcoming.length === 0 && <div className="text-xs text-muted py-4 text-center">No upcoming sessions</div>}
           </div>
         </Card>
       </div>
@@ -1491,7 +1527,10 @@ function Workshops({ data, reload, token }) {
   const [sessionFor, setSessionFor] = useState(null);
   const [sessionEdit, setSessionEdit] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
-  const workshops = Array.isArray(data.workshops) ? data.workshops : [];
+  const [visFilter, setVisFilter] = useState('all'); // all | visible | hidden
+  const allWorkshops = Array.isArray(data.workshops) ? data.workshops : [];
+  const workshops = allWorkshops.filter((w) => visFilter === 'visible' ? w.isActive !== false : visFilter === 'hidden' ? w.isActive === false : true);
+  const hiddenCount = allWorkshops.filter((w) => w.isActive === false).length;
   async function doDelete() {
     try {
       if (confirmDel.kind === 'workshop') await adminApi.workshops.remove(confirmDel.id, token);
@@ -1502,11 +1541,21 @@ function Workshops({ data, reload, token }) {
   }
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center"><div className="text-xs text-muted">{workshops.length} workshops</div><Btn onClick={() => setCreating(true)}>+ New workshop</Btn></div>
+      <div className="flex justify-between items-center gap-3 flex-wrap">
+        <div className="text-xs text-muted">{workshops.length} workshops{hiddenCount > 0 && visFilter !== 'hidden' && <> • <span className="text-amber-600 font-semibold">{hiddenCount} hidden</span></>}</div>
+        <div className="flex gap-2 items-center flex-wrap">
+          <div className="flex rounded-xl border border-line-strong overflow-hidden text-xs font-semibold">
+            {[['all', 'All'], ['visible', 'Visible'], ['hidden', 'Hidden']].map(([k, label]) => (
+              <button key={k} onClick={() => setVisFilter(k)} className={`px-2.5 py-1.5 ${visFilter === k ? 'bg-royal-600 text-white' : 'bg-surface2 text-muted hover:bg-surface3'}`}>{label}</button>
+            ))}
+          </div>
+          <Btn onClick={() => setCreating(true)}>+ New workshop</Btn>
+        </div>
+      </div>
       {workshops.map((w) => (
-        <div key={w.id} className="border border-line rounded-xl p-4">
+        <div key={w.id} className={`border rounded-xl p-4 ${w.isActive === false ? 'border-amber-300 bg-amber-50/40' : 'border-line'}`}>
           <div className="flex justify-between items-start gap-3">
-            <div><div className="font-bold text-ink">{w.title}</div><div className="text-xs text-muted">{w.location} • {w.capacity} cap • ${Number(w.price).toFixed(2)} • {w.level}</div></div>
+            <div><div className="font-bold text-ink">{w.title} {w.isActive === false && <span className="ml-1 align-middle text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">Hidden</span>}</div><div className="text-xs text-muted">{w.location} • {w.capacity} cap • ${Number(w.price).toFixed(2)} • {w.level}</div></div>
             <div className="flex gap-1.5 shrink-0">
               <Btn small color="ghost" onClick={() => setSessionFor(w)}>+ Session</Btn>
               <Btn small color="ghost" onClick={() => setEditing(w)}>Edit</Btn>
@@ -1525,7 +1574,7 @@ function Workshops({ data, reload, token }) {
           </div>
         </div>
       ))}
-      {workshops.length === 0 && <div className="text-xs text-muted py-10 text-center">No workshops</div>}
+      {workshops.length === 0 && <div className="text-xs text-muted py-10 text-center">{allWorkshops.length === 0 ? 'No workshops' : visFilter === 'hidden' ? 'No hidden workshops' : visFilter === 'visible' ? 'No visible workshops' : 'No workshops'}</div>}
       {creating && <WorkshopModal onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast('Workshop created'); reload(); }} token={token} />}
       {editing && <WorkshopModal workshop={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast('Workshop updated'); reload(); }} token={token} />}
       {sessionFor && <SessionModal workshop={sessionFor} onClose={() => setSessionFor(null)} onSaved={() => { setSessionFor(null); toast('Session added'); reload(); }} token={token} />}

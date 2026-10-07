@@ -198,7 +198,7 @@ export const adminApi = {
     deleteRate: (id: string, token: string) => req<any>(`/api/shipping/rates/${id}`, { method: 'DELETE', token }),
   },
   workshops: {
-    list: () => req<any[]>('/api/workshops'),
+    list: (token?: string) => (token ? req<any[]>('/api/workshops?all=1', { token }) : req<any[]>('/api/workshops')),
     create: (body: any, token: string) => req<any>('/api/workshops', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/workshops/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/workshops/${id}`, { method: 'DELETE', token }),

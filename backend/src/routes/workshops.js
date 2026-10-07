@@ -12,7 +12,13 @@ const requireAuth = authenticate;
 const bookLimit = rateLimit('workshop_book', 10, 1);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const workshops = await prisma.workshop.findMany({ where: { isActive: true }, include: { sessions: { orderBy: { startsAt: 'asc' } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+  const all = req.query.all === '1' || req.query.all === 'true';
+  if (all) {
+    let authed = false;
+    try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
+    if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  }
+  const workshops = await prisma.workshop.findMany({ where: all ? {} : { isActive: true }, include: { sessions: { orderBy: { startsAt: 'asc' } } }, orderBy: { createdAt: 'desc' }, take: 100 });
   res.json(workshops);
 }));
 
@@ -137,6 +143,8 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
   const result = await prisma.$transaction(async (tx) => {
     const session = await tx.workshopSession.findUnique({ where: { id: req.params.sessionId }, include: { workshop: true } });
     if (!session) throw Object.assign(new Error('Session not found'), { status: 404, code: 'not_found' });
+    // Hidden workshops aren't bookable (existing bookings stay intact)
+    if (session.workshop.isActive === false) throw Object.assign(new Error('Session not found'), { status: 404, code: 'not_found' });
     if (minLeadHours > 0 && new Date(session.startsAt).getTime() < Date.now() + minLeadHours * 3600e3) {
       throw Object.assign(new Error(`Bookings close ${minLeadHours}h before a session starts`), { status: 409, code: 'booking_too_late' });
     }
