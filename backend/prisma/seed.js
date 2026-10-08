@@ -211,6 +211,137 @@ async function main() {
     if (resolved.length) await prisma.postProduct.createMany({ data: resolved.map((prod) => ({ postId: saved.id, productId: prod.id })) });
   }
 
+  // Procedures & specifications — demo docs (same SKIP_DEMO guard as the demo
+  // catalog: dummy records never land in the live Supabase DB).
+  if (!SKIP_DEMO) {
+    const procAuthor = await prisma.user.findFirst({ where: { email: 'krystal@flowerkreations.com.au' } });
+    const PROCEDURES = [
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        title: 'Crepe Paper Rose — Petal Assembly',
+        category: 'PAPER_FLOWER',
+        sku: null,
+        metadata: { difficulty: 'INTERMEDIATE', estimatedTimeMinutes: 45, materialGsm: 180, tools: ['Sharp scissors', 'Tacky glue (PVA)', '18ga floral wire', 'Floral tape 12mm', 'Bone folder'] },
+        contentMarkdown: [
+          '# Crepe Paper Rose — Petal Assembly',
+          '',
+          '**Bloom yield:** 1 rose · **Stock:** 180gsm crepe, deep red · **Difficulty:** INTERMEDIATE',
+          '',
+          '## Petal dimensions (per bloom)',
+          '',
+          '- **Outer petals (3):** 70mm wide × 90mm tall — cup 8mm across the grain',
+          '- **Inner petals (3):** 50mm wide × 70mm tall — cup 10mm (tighter curl)',
+          '- **Sepal (1):** 90mm × 40mm, notch 5 teeth at 18mm depth',
+          '',
+          '## Glue specs',
+          '',
+          '- Tacky glue (PVA), **~20g per bloom** — thin bead along the petal base only',
+          '- Glue gun (low temp, 120°C max) for sepal → calyx attach — 2s dwell',
+          '- Never glue the outer 15mm of a petal edge — edges must stay free for shaping',
+          '',
+          '## Assembly steps',
+          '',
+          '1. Cut petals while the crepe is folded — grain runs **bottom to top** of each petal.',
+          '2. Cup every petal: thumbs centre, pull gently outwards (outer +8mm, inner +10mm).',
+          '3. Wrap the innermost petal around the 18ga wire tip — form a tight cone, glue base only.',
+          '4. Add the 3 inner petals at 120° spacing, slightly overlapping left over right.',
+          '5. Add the 3 outer petals, offset from the inner ring, edges angled 20° outward.',
+          '6. Attach the sepal with a 2s glue-gun press, then spiral floral tape from the sepal base down 80mm.',
+          '7. Rest the bloom upside down for 10 minutes before final edge shaping.',
+          '',
+          '## QC checklist',
+          '',
+          '- No glue shine on visible petal edges',
+          '- Cone tight (no wire showing at the tip)',
+          '- Calyx flush, tape smooth with no wrinkles',
+        ].join('\n'),
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        title: 'Traditional Crane (Orizuru) — Folding Steps',
+        category: 'ORIGAMI',
+        sku: null,
+        metadata: { difficulty: 'BEGINNER', estimatedTimeMinutes: 15, foldingComplexity: 'simple', tools: ['15cm kami square', 'Bone folder (optional)'] },
+        contentMarkdown: [
+          '# Traditional Crane (Orizuru)',
+          '',
+          '**Paper:** 15cm kami square, colour side up to start · **Difficulty:** BEGINNER · **Complexity:** simple',
+          '',
+          '## Base',
+          '',
+          '1. Fold in half diagonally both ways; unfold — creases form an X.',
+          '2. Flip, fold in half edge-to-edge both ways; unfold.',
+          '3. Collapse along the creases into the **preliminary base** (square base, open end down).',
+          '',
+          '## Bird base',
+          '',
+          '4. Fold both lower edges to the centre line (open end down) — kite folds.',
+          '5. Fold the top triangle down over them, crease firmly, then unfold all three folds.',
+          '6. **Petal fold:** lift the bottom point of the top layer, reverse the side creases inward, flatten into a long diamond.',
+          '7. Turn over and repeat steps 4–6 on the back. You now have the **bird base**.',
+          '',
+          '## Shaping',
+          '',
+          '8. Fold both lower legs to the centre on each side (thin them), repeat on the back.',
+          '9. Inside-reverse fold one thin leg up for the **neck**, the other for the **tail**.',
+          '10. Inside-reverse fold the neck tip down for the **head**.',
+          '11. Pull the wings apart gently so the body inflates — do not flatten the back.',
+          '',
+          '## QC checklist',
+          '',
+          '- Wings symmetrical, body inflated evenly',
+          '- Head and tail reverse folds crisp (no torn paper at the corners)',
+          '- Stand test: the crane sits flat on its body without tipping',
+        ].join('\n'),
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000003',
+        title: 'Die-Cut Petal Standards — 120gsm Paper & Packaging',
+        category: 'MANUFACTURING_SPEC',
+        sku: 'SPEC-DIECUT-120GSM',
+        metadata: { materialGsm: 120, estimatedTimeMinutes: 5, tools: ['Die set DS-PEL-04', 'Thickness gauge', 'Carton sample'] },
+        contentMarkdown: [
+          '# Die-Cut Petal Standards — 120gsm',
+          '',
+          '**SKU:** SPEC-DIECUT-120GSM · **Stock standard:** 120gsm ±5% · **Applies to:** DS-PEL-04 die set',
+          '',
+          '## Tolerances',
+          '',
+          '- **Cut tolerance:** ±0.5mm on every edge; ±0.8mm on internal apertures',
+          '- **Registration:** max 0.4mm shift between printed and cut lines',
+          '- **Nicks:** max 0.3mm, placed only on waste-side edges — never on a visible petal curve',
+          '- **Burrs:** none permitted on the visible face (run a gloved thumb test on 1 in 20 pieces)',
+          '',
+          '## Paper weight standard',
+          '',
+          '- Incoming stock: **120gsm ±5%** (gauge 5 samples per ream — reject a ream below 114gsm or above 126gsm)',
+          '- Moisture content 4–7% — acclimatise stock 24h in the studio before cutting',
+          '',
+          '## Packaging guidelines',
+          '',
+          '- Stack max **50 pieces** per cello bag (50µm, food-grade, self-seal)',
+          '- Bag label: SKU, quantity, cut date, operator initials',
+          '- Master carton: 300gsm E-flute, max 20 bags per carton, corner protectors on the long edge',
+          '- Store flat, below 60% RH — no leaning stacks over 300mm tall',
+        ].join('\n'),
+      },
+    ];
+    for (const p of PROCEDURES) {
+      const doc = await prisma.procedureDocument.upsert({
+        where: { id: p.id },
+        update: { title: p.title, category: p.category, sku: p.sku, contentMarkdown: p.contentMarkdown, metadata: p.metadata, status: 'published', version: 'v1.0' },
+        create: { id: p.id, title: p.title, category: p.category, sku: p.sku, contentMarkdown: p.contentMarkdown, metadata: p.metadata, status: 'published', authorId: procAuthor?.id ?? null },
+      });
+      const hasRevision = await prisma.procedureRevision.findFirst({ where: { documentId: doc.id }, select: { id: true } });
+      if (!hasRevision) {
+        await prisma.procedureRevision.create({
+          data: { documentId: doc.id, version: doc.version, title: doc.title, contentMarkdown: doc.contentMarkdown, metadata: doc.metadata ?? undefined, editorId: procAuthor?.id ?? null, note: 'Initial version (seed)' },
+        });
+      }
+    }
+    console.log(`[seed] ${PROCEDURES.length} procedure documents.`);
+  }
+
   console.log('Seed complete.');
 }
 

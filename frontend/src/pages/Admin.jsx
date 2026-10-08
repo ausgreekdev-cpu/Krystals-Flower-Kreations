@@ -4,6 +4,7 @@ import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClie
 import { subscribe, nextColorMode, getColorMode, MODES } from '../lib/colorMode';
 import { applyTheme } from '../lib/theme';
 import { invalidatePublicSettings } from '../lib/publicSettings';
+import { renderMarkdown } from '../lib/markdown';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import LabelPrintModal from '../components/admin/LabelPrintModal';
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'bookings', label: 'Bookings', icon: '🎟️' },
   { id: 'reviews', label: 'Reviews', icon: '⭐' },
   { id: 'blog', label: 'Blog', icon: '📝' },
+  { id: 'procedures', label: 'Procedures', icon: '📐' },
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'meta', label: 'Meta Sync', icon: '🔗' },
   { id: 'pos', label: 'POS', icon: '💳' },
@@ -47,7 +49,7 @@ const NAV_GROUPS = [
   { label: null, tabs: ['overview'] },
   { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
   { label: 'Catalog', tabs: ['products', 'collections', 'recipes', 'inventory'] },
-  { label: 'Content', tabs: ['blog', 'reviews', 'meta', 'notebook'] },
+  { label: 'Content', tabs: ['blog', 'procedures', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers'] },
   { label: 'System', tabs: ['users', 'settings'] },
 ];
@@ -302,6 +304,7 @@ function AdminInner({ user }) {
                   {tab === 'discounts' && <Discounts data={data} reload={() => load('discounts')} token={token} />}
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
+                  {tab === 'procedures' && <Procedures token={token} role={user?.role} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
@@ -2116,6 +2119,307 @@ function PostModal({ post, onClose, onSaved, token }) {
       <div><label className={label}>Content (markdown: ## heading, **bold**, - lists)</label><textarea rows={8} className={input} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.title}>{busy ? 'Saving…' : post ? 'Save changes' : 'Create post'}</Btn></div>
+  </Modal>;
+}
+
+const PROC_CATEGORIES = [
+  { v: 'PAPER_FLOWER', l: 'Paper flower' },
+  { v: 'ORIGAMI', l: 'Origami' },
+  { v: 'MANUFACTURING_SPEC', l: 'Manufacturing spec' },
+];
+const PROC_DIFFICULTIES = ['', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
+const PROC_FOLDING = ['', 'simple', 'moderate', 'complex'];
+
+function Procedures({ token, role }) {
+  const toast = useToast();
+  const [params, setParams] = useState({ status: 'all', category: '', difficulty: '', q: '', page: 1 });
+  const [search, setSearch] = useState('');
+  const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [err, setErr] = useState('');
+  const [editing, setEditing] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const canDelete = ['admin', 'developer'].includes(role);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
+
+  useEffect(() => {
+    const t = setTimeout(() => setParams((p) => (p.q === search.trim() ? p : { ...p, q: search.trim(), page: 1 })), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    let dead = false;
+    setRows(null);
+    adminApi.procedures.list(token, params)
+      .then((r) => { if (dead) return; setRows(r.procedures); setTotal(r.total); setPages(r.pages); setErr(''); })
+      .catch((e) => { if (!dead) { setErr(e.message); setRows([]); } });
+    return () => { dead = true; };
+  }, [params, token]);
+
+  const setF = (patch) => setParams((p) => ({ ...p, ...patch, page: 1 }));
+  async function openEdit(p) {
+    // List rows omit contentMarkdown — fetch the full doc before editing.
+    try { setEditing(await adminApi.procedures.get(p.id, token)); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+  async function doDelete() {
+    try { await adminApi.procedures.remove(confirmDel.id, token); toast('Procedure deleted'); setConfirmDel(null); setParams((p) => ({ ...p })); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex-1 min-w-[180px]"><label className={label}>Search</label>
+          <input className={input} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title…" /></div>
+        <div><label className={label}>Status</label>
+          <select className={input} value={params.status} onChange={(e) => setF({ status: e.target.value })}>
+            {['all', 'draft', 'published', 'archived'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select></div>
+        <div><label className={label}>Category</label>
+          <select className={input} value={params.category} onChange={(e) => setF({ category: e.target.value })}>
+            <option value="">All</option>
+            {PROC_CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+          </select></div>
+        <div><label className={label}>Difficulty</label>
+          <select className={input} value={params.difficulty} onChange={(e) => setF({ difficulty: e.target.value })}>
+            {PROC_DIFFICULTIES.map((d) => <option key={d} value={d}>{d || 'All'}</option>)}
+          </select></div>
+        <Btn onClick={() => setEditing({})}>+ New procedure</Btn>
+      </div>
+
+      {err && <div className="text-xs text-red-600">{err}</div>}
+      {rows === null && <div className="text-xs text-muted py-6 text-center">Loading…</div>}
+      {rows?.length === 0 && <div className="text-xs text-muted py-10 text-center">No procedures match</div>}
+      {rows?.map((p) => (
+        <div key={p.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm text-ink truncate">{p.title}</div>
+            <div className="text-xs text-muted truncate">{p.version} • {PROC_CATEGORIES.find((c) => c.v === p.category)?.l || p.category}{p.sku ? ` • ${p.sku}` : ''} • {p._count?.media ?? 0} files • {new Date(p.updatedAt).toLocaleDateString('en-AU')}</div>
+          </div>
+          <StatusBadge value={p.status} />
+          <Btn small color="ghost" onClick={() => setDetailId(p.id)}>View</Btn>
+          <Btn small color="ghost" onClick={() => openEdit(p)}>Edit</Btn>
+          {canDelete && <Btn small color="red" onClick={() => setConfirmDel(p)}>Delete</Btn>}
+        </div>
+      ))}
+
+      {rows?.length > 0 && (
+        <div className="flex items-center justify-between text-xs text-muted pt-1">
+          <span>{total} total</span>
+          <div className="flex items-center gap-2">
+            <Btn small color="ghost" disabled={params.page <= 1} onClick={() => setParams((p) => ({ ...p, page: p.page - 1 }))}>Prev</Btn>
+            <span>Page {params.page} of {pages}</span>
+            <Btn small color="ghost" disabled={params.page >= pages} onClick={() => setParams((p) => ({ ...p, page: p.page + 1 }))}>Next</Btn>
+          </div>
+        </div>
+      )}
+
+      {editing && <ProcedureModal doc={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Procedure updated' : 'Procedure created'); setParams((p) => ({ ...p })); }} token={token} />}
+      {detailId && <ProcedureDetail id={detailId} onClose={() => setDetailId(null)} token={token} role={role} />}
+      {confirmDel && <ConfirmDialog title="Delete procedure" message={`Delete "${confirmDel.title}"?`} onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
+    </div>
+  );
+}
+
+function ProcedureModal({ doc, onClose, onSaved, token }) {
+  const toast = useToast();
+  const [form, setForm] = useState({
+    title: doc?.title || '',
+    category: doc?.category || 'PAPER_FLOWER',
+    sku: doc?.sku || '',
+    status: doc?.status || 'draft',
+    contentMarkdown: doc?.contentMarkdown || '',
+    difficulty: doc?.metadata?.difficulty || '',
+    estimatedTimeMinutes: doc?.metadata?.estimatedTimeMinutes || '',
+    materialGsm: doc?.metadata?.materialGsm || '',
+    foldingComplexity: doc?.metadata?.foldingComplexity || '',
+    tools: (doc?.metadata?.tools || []).join(', '),
+    notes: doc?.metadata?.notes || '',
+    revisionNote: '',
+  });
+  const [preview, setPreview] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
+
+  async function save() {
+    setBusy(true);
+    try {
+      const metadata = {};
+      if (form.difficulty) metadata.difficulty = form.difficulty;
+      if (form.estimatedTimeMinutes) metadata.estimatedTimeMinutes = Number(form.estimatedTimeMinutes);
+      if (form.materialGsm) metadata.materialGsm = Number(form.materialGsm);
+      if (form.foldingComplexity) metadata.foldingComplexity = form.foldingComplexity;
+      const tools = form.tools.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tools.length) metadata.tools = tools;
+      if (form.notes.trim()) metadata.notes = form.notes.trim();
+      const body = {
+        title: form.title.trim(),
+        category: form.category,
+        contentMarkdown: form.contentMarkdown,
+        status: form.status,
+        metadata,
+        ...(form.sku.trim() ? { sku: form.sku.trim() } : {}),
+      };
+      if (doc?.id) {
+        if (form.revisionNote.trim()) body.revisionNote = form.revisionNote.trim();
+        await adminApi.procedures.update(doc.id, body, token);
+      } else {
+        await adminApi.procedures.create(body, token);
+      }
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setBusy(false); }
+  }
+
+  return <Modal title={doc ? `Edit — ${doc.title}` : 'New procedure'} onClose={onClose} wide>
+    <div className="space-y-3">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div><label className={label}>Title</label><input className={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+        <div><label className={label}>SKU (optional, unique)</label><input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="e.g. SPEC-DIECUT-120GSM" /></div>
+      </div>
+      <div className="grid sm:grid-cols-3 gap-3">
+        <div><label className={label}>Category</label>
+          <select className={input} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            {PROC_CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+          </select></div>
+        <div><label className={label}>Status</label>
+          <select className={input} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+            {['draft', 'published', 'archived'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select></div>
+        <div><label className={label}>Difficulty</label>
+          <select className={input} value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}>
+            {PROC_DIFFICULTIES.map((d) => <option key={d} value={d}>{d || '—'}</option>)}
+          </select></div>
+      </div>
+      <div className="grid sm:grid-cols-4 gap-3">
+        <div><label className={label}>Est. minutes</label><input type="number" min="1" className={input} value={form.estimatedTimeMinutes} onChange={(e) => setForm({ ...form, estimatedTimeMinutes: e.target.value })} /></div>
+        <div><label className={label}>Material gsm</label><input type="number" min="1" className={input} value={form.materialGsm} onChange={(e) => setForm({ ...form, materialGsm: e.target.value })} /></div>
+        <div><label className={label}>Folding complexity</label>
+          <select className={input} value={form.foldingComplexity} onChange={(e) => setForm({ ...form, foldingComplexity: e.target.value })}>
+            {PROC_FOLDING.map((f) => <option key={f} value={f}>{f || '—'}</option>)}
+          </select></div>
+        <div><label className={label}>Tools (comma-separated)</label><input className={input} value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} /></div>
+      </div>
+      <div><label className={label}>Notes (metadata)</label><input className={input} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+      <div className="flex items-center justify-between">
+        <label className={label + ' mb-0'}>Content (markdown: ## heading, **bold**, 1. steps)</label>
+        <Btn small color="ghost" onClick={() => setPreview((v) => !v)}>{preview ? 'Edit' : 'Preview'}</Btn>
+      </div>
+      {preview
+        ? <div className="prose markdown-body border border-line rounded-xl p-4 max-h-[40vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: renderMarkdown(form.contentMarkdown) }} />
+        : <textarea rows={14} className={input + ' font-mono'} value={form.contentMarkdown} onChange={(e) => setForm({ ...form, contentMarkdown: e.target.value })} />}
+      {doc?.id && <div><label className={label}>Revision note (optional — bumps to {bumpVersionLabel(doc.version)})</label>
+        <input className={input} value={form.revisionNote} onChange={(e) => setForm({ ...form, revisionNote: e.target.value })} placeholder="What changed?" /></div>}
+    </div>
+    <div className="mt-5 flex justify-end gap-2">
+      <Btn color="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={busy || !form.title.trim() || !form.contentMarkdown.trim()}>{busy ? 'Saving…' : doc ? 'Save changes' : 'Create procedure'}</Btn>
+    </div>
+  </Modal>;
+}
+
+function bumpVersionLabel(v) {
+  const m = /^v(\d+)\.(\d+)$/.exec(String(v || ''));
+  return m ? `v${m[1]}.${Number(m[2]) + 1}` : 'v1.1';
+}
+
+function ProcedureDetail({ id, onClose, token, role }) {
+  const toast = useToast();
+  const [doc, setDoc] = useState(null);
+  const [revs, setRevs] = useState(null);
+  const [revView, setRevView] = useState(null);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+  const canEdit = ['staff', 'maker', 'admin', 'developer'].includes(role);
+
+  const refresh = () => adminApi.procedures.get(id, token).then(setDoc).catch((e) => setErr(e.message));
+  useEffect(() => { refresh(); adminApi.procedures.revisions(id, token).then(setRevs).catch(() => setRevs([])); }, [id, token]);
+
+  async function onPick(e) {
+    const files = e.target.files;
+    e.target.value = '';
+    if (!files?.length) return;
+    try {
+      await adminApi.procedures.uploadMedia(id, files, token);
+      toast(`Uploaded ${files.length} file${files.length > 1 ? 's' : ''}`);
+      refresh();
+    } catch (e2) { toast(e2.message, 'error'); }
+  }
+  async function move(m, dir) {
+    try { await adminApi.procedures.reorderMedia(id, m.id, Math.max(0, m.displayOrder + dir), token); refresh(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+  async function removeMedia(m) {
+    try { await adminApi.procedures.deleteMedia(id, m.id, token); toast('File removed'); refresh(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  if (err) return <Modal title="Procedure" onClose={onClose}><div className="text-sm text-red-600">{err}</div></Modal>;
+  if (!doc) return <Modal title="Procedure" onClose={onClose}><div className="text-sm text-muted">Loading…</div></Modal>;
+
+  const media = [...(doc.media || [])].sort((a, b) => a.displayOrder - b.displayOrder);
+  const shown = revView ? revView : null;
+  return <Modal title={doc.title} onClose={onClose} wide>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+        <StatusBadge value={doc.status} />
+        <span>{doc.version}</span>
+        <span>•</span>
+        <span>{PROC_CATEGORIES.find((c) => c.v === doc.category)?.l || doc.category}</span>
+        {doc.sku && <><span>•</span><span className="font-mono">{doc.sku}</span></>}
+        <span>•</span><span>by {doc.author?.name || 'unknown'}</span>
+      </div>
+
+      <div className="border border-line rounded-xl p-4 max-h-[36vh] overflow-y-auto prose markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(shown ? shown.contentMarkdown : doc.contentMarkdown) }} />
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-semibold text-muted">Media ({media.length})</div>
+          {canEdit && <>
+            <input ref={fileRef} type="file" multiple className="hidden" accept="image/*,.svg,.pdf,.zip,.stl,video/mp4,video/quicktime" onChange={onPick} />
+            <Btn small onClick={() => fileRef.current?.click()}>Upload files</Btn>
+          </>}
+        </div>
+        {media.length === 0 && <div className="text-xs text-muted">No files</div>}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {media.map((m, i) => (
+            <div key={m.id} className="border border-line rounded-lg p-2 space-y-1">
+              {m.mediaType === 'IMAGE'
+                ? <img src={m.url} alt="" className="w-full h-20 object-cover rounded bg-surface3" />
+                : <a href={m.url} target="_blank" rel="noreferrer" className="flex h-20 items-center justify-center text-2xl rounded bg-surface3" title={m.url}>📄</a>}
+              <div className="text-[10px] text-muted truncate">{m.mediaType}</div>
+              {canEdit && (
+                <div className="flex gap-1">
+                  <Btn small color="ghost" disabled={i === 0} onClick={() => move(m, -1)}>↑</Btn>
+                  <Btn small color="ghost" disabled={i === media.length - 1} onClick={() => move(m, 1)}>↓</Btn>
+                  <Btn small color="red" onClick={() => removeMedia(m)}>✕</Btn>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold text-muted mb-2">Revisions ({revs ? revs.length : '…'})</div>
+        {revs?.length === 0 && <div className="text-xs text-muted">No revisions yet</div>}
+        <div className="space-y-1 max-h-[20vh] overflow-y-auto">
+          {revs?.map((r) => (
+            <div key={r.id} className={`flex items-center gap-3 border rounded-lg px-3 py-1.5 text-xs ${shown?.id === r.id ? 'border-royal-500 bg-royal-100' : 'border-line'}`}>
+              <span className="font-bold">{r.version}</span>
+              <span className="flex-1 truncate text-muted">{r.note || '—'}</span>
+              <span className="text-muted">{new Date(r.createdAt).toLocaleDateString('en-AU')}</span>
+              <Btn small color="ghost" onClick={() => setRevView(shown?.id === r.id ? null : r)}>{shown?.id === r.id ? 'Current' : 'View'}</Btn>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   </Modal>;
 }
 

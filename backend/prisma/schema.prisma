@@ -77,6 +77,25 @@ enum PostStatus {
   archived
 }
 
+enum ProcedureCategory {
+  PAPER_FLOWER
+  ORIGAMI
+  MANUFACTURING_SPEC
+}
+
+enum ProcedureMediaType {
+  IMAGE
+  SVG_DIAGRAM
+  CAD_FILE
+  VIDEO
+}
+
+enum ProcedureStatus {
+  draft
+  published
+  archived
+}
+
 enum WorkshopStatus {
   draft
   open
@@ -116,6 +135,7 @@ model User {
   reviews        Review[]
   bookings       Booking[]
   posts          Post[]
+  procedures     ProcedureDocument[]
   posSessions    PosSession[]
   stockMovements StockMovement[]
   stocktakes     Stocktake[]
@@ -1061,4 +1081,62 @@ model EmailQueue {
 
   @@index([status, createdAt])
   @@map("email_queue")
+}
+
+// ── Procedures & specifications (assembly guides, origami steps, mfg specs) ──
+// UUID PKs per spec; authorId mirrors Post (optional FK → survives user deletes).
+model ProcedureDocument {
+  id              String          @id @default(uuid()) @db.Uuid
+  title           String
+  category        ProcedureCategory
+  version         String          @default("v1.0")
+  sku             String?         @unique // manufacturing specs; multiple NULLs allowed
+  contentMarkdown String          @db.Text
+  metadata        Json?           // difficulty, estimatedTimeMinutes, tools, GSM, foldingComplexity…
+  status          ProcedureStatus @default(draft)
+  authorId        String?
+  deletedAt       DateTime? // soft delete (task §2)
+
+  author   User?                @relation(fields: [authorId], references: [id])
+  media    DocumentMedia[]
+  revisions ProcedureRevision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, deletedAt])
+  @@index([deletedAt])
+  @@index([authorId])
+  @@map("procedure_documents")
+}
+
+model DocumentMedia {
+  id           String           @id @default(uuid()) @db.Uuid
+  documentId   String           @db.Uuid
+  mediaType    ProcedureMediaType
+  url          String
+  displayOrder Int              @default(0)
+  createdAt    DateTime         @default(now())
+
+  document ProcedureDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_media")
+}
+
+model ProcedureRevision {
+  id              String   @id @default(uuid()) @db.Uuid
+  documentId      String   @db.Uuid
+  version         String
+  title           String
+  contentMarkdown String   @db.Text
+  metadata        Json?
+  editorId        String? // plain string (audit-style) — no FK so user deletes never block
+  note            String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  document ProcedureDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("procedure_revisions")
 }

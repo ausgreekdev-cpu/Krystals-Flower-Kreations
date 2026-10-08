@@ -221,6 +221,26 @@ export const adminApi = {
     update: (id: string, body: any, token: string) => req<any>(`/api/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/posts/${id}`, { method: 'DELETE', token }),
   },
+  procedures: {
+    list: (token: string, params: Record<string, string | number | undefined> = {}) => {
+      const q = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, String(v));
+      const s = q.toString();
+      return req<any>(`/api/procedures${s ? `?${s}` : ''}`, { token });
+    },
+    get: (id: string, token: string) => req<any>(`/api/procedures/${id}`, { token }),
+    revisions: (id: string, token: string) => req<any[]>(`/api/procedures/${id}/revisions`, { token }),
+    create: (body: any, token: string) => req<any>('/api/procedures', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/procedures/${id}`, { method: 'PUT', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/procedures/${id}`, { method: 'DELETE', token }),
+    uploadMedia: async (id: string, files: FileList | File[], token: string) => {
+      const fd = new FormData();
+      for (const f of Array.from(files)) fd.append('files', f, f.name);
+      return req<any[]>(`/api/procedures/${id}/media`, { method: 'POST', body: fd, token });
+    },
+    reorderMedia: (id: string, mediaId: string, displayOrder: number, token: string) => req<any>(`/api/procedures/${id}/media/${mediaId}`, { method: 'PATCH', body: JSON.stringify({ displayOrder }), token }),
+    deleteMedia: (id: string, mediaId: string, token: string) => req<any>(`/api/procedures/${id}/media/${mediaId}`, { method: 'DELETE', token }),
+  },
   pos: {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),
     open: (body: any, token: string) => req<any>('/api/pos/session/open', { method: 'POST', body: JSON.stringify(body), token }),

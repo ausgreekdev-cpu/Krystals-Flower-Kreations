@@ -36,6 +36,7 @@ import settingsRoutes from './routes/settings.js';
 import shippingAdminRoutes from './routes/shippingAdmin.js';
 import purchaseOrderRoutes from './routes/purchaseOrders.js';
 import suppliersRoutes from './routes/suppliers.js';
+import procedureRoutes from './routes/procedures.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -171,6 +172,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/shipping', shippingAdminRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/suppliers', suppliersRoutes);
+app.use('/api/procedures', procedureRoutes);
 
 // Stripe webhook (raw body needed — keep before json parser if you re-enable, currently json-parsed; stripe disabled)
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
