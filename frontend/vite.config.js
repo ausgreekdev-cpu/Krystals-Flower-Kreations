@@ -29,7 +29,7 @@ export default defineConfig({
       ]
     }
   })],
-  server: { proxy: { '/api': 'http://localhost:3001' } },
+  server: { proxy: { '/api': 'http://localhost:3001', '/uploads': 'http://localhost:3001' } },
   build: { outDir: 'dist', sourcemap: false, cssCodeSplit: true },
   preview: { port: 5173 },
 });

@@ -2341,12 +2341,13 @@ function ProcedureDetail({ id, onClose, token, role }) {
   useEffect(() => { refresh(); adminApi.procedures.revisions(id, token).then(setRevs).catch(() => setRevs([])); }, [id, token]);
 
   async function onPick(e) {
-    const files = e.target.files;
+    // FileList is live — snapshot before clearing the input, or it empties.
+    const picked = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!files?.length) return;
+    if (!picked.length) return;
     try {
-      await adminApi.procedures.uploadMedia(id, files, token);
-      toast(`Uploaded ${files.length} file${files.length > 1 ? 's' : ''}`);
+      await adminApi.procedures.uploadMedia(id, picked, token);
+      toast(`Uploaded ${picked.length} file${picked.length > 1 ? 's' : ''}`);
       refresh();
     } catch (e2) { toast(e2.message, 'error'); }
   }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import JsBarcode from 'jsbarcode/dist/JsBarcode.all.js';
+import JsBarcode from 'jsbarcode';
 import Modal from './Modal';
 
 // Avery L7160 / J8160 / MP7160 compatible sheet: A4, 3×7 labels of 63.5×38.1 mm.
