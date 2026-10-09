@@ -38,11 +38,14 @@ export async function costForRecipe(recipe, qtyStems) {
   return { materialsCost: Math.round(materialsCost * 100) / 100, labourMinutes, withLabour: Math.round(withLabour * 100) / 100, retail, breakdown };
 }
 
-export function estimateWithAddOns(baseRetail, spec) {
+export function estimateWithAddOns(baseRetail, spec, addOns = {}) {
+  const { vase = 22, greenery = 12, dome = 45, led = 18, floor = 45, perStem = 9.5 } = addOns;
   let total = baseRetail;
-  if (spec?.vaseIncluded) total += 22;
-  if (spec?.addGreenery) total += 12;
-  return Math.max(45 + (spec?.stemCount || 7) * 9.5, total);
+  if (spec?.vaseIncluded) total += vase;
+  if (spec?.addGreenery) total += greenery;
+  if (spec?.domeIncluded) total += dome;
+  if (spec?.ledIncluded) total += led;
+  return Math.max(floor + (spec?.stemCount || 7) * perStem, total);
 }
 
 export async function findRecipeFor(prisma, { productId, variantId }) {

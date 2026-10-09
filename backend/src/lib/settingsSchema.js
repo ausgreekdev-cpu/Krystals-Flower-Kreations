@@ -87,6 +87,8 @@ export const SETTINGS = [
   { key: 'configurator_per_stem', section: 'storefront', label: 'Configurator per-stem', type: 'number', default: '9.5', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_vase', section: 'storefront', label: 'Configurator vase add-on', type: 'number', default: '22', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_greenery', section: 'storefront', label: 'Configurator greenery add-on', type: 'number', default: '12', public: true, min: 0, max: 100000, unit: '$' },
+  { key: 'configurator_dome', section: 'storefront', label: 'Configurator glass dome add-on', type: 'number', default: '45', public: true, min: 0, max: 100000, unit: '$' },
+  { key: 'configurator_led', section: 'storefront', label: 'Configurator LED fairy lights add-on', type: 'number', default: '18', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'show_workshops', section: 'storefront', label: 'Show Workshops', type: 'toggle', default: '0', public: true, description: 'Off = hides all workshop links, cards, nav and the /workshops page.' },
   { key: 'show_cricut', section: 'storefront', label: 'Show Cricut content', type: 'toggle', default: '0', public: true, description: 'Off = hides Cricut mentions in the hero, shop chips, configurator section and notebook copy.' },
   { key: 'show_kanban', section: 'storefront', label: 'Show Kanban board', type: 'toggle', default: '0', public: true, description: 'Off = hides the staff custom-order board link and route.' },

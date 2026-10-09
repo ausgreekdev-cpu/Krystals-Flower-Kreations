@@ -174,7 +174,7 @@ async function main() {
   // Studio Settings (tax, labour, ABN) — for Admin hub + notebook
   await prisma.setting.upsert({ where: { key: 'tax_gst_rate' }, update: { value: '0.10' }, create: { key: 'tax_gst_rate', value: '0.10' } });
   await prisma.setting.upsert({ where: { key: 'labour_rate_per_hour' }, update: { value: '55' }, create: { key: 'labour_rate_per_hour', value: '55' } });
-  await prisma.setting.upsert({ where: { key: 'bom_margin' }, update: { value: '0.30' }, create: { key: 'bom_margin', value: '0.30' } });
+  await prisma.setting.upsert({ where: { key: 'bom_margin' }, update: { value: '1.30' }, create: { key: 'bom_margin', value: '1.30' } });
   await prisma.setting.upsert({ where: { key: 'abn' }, update: { value: 'XX XXX XXX XXX' }, create: { key: 'abn', value: 'XX XXX XXX XXX' } });
   await prisma.setting.upsert({ where: { key: 'business_name' }, update: { value: "Krystal's Flower Kreations" }, create: { key: 'business_name', value: "Krystal's Flower Kreations" } });
   await prisma.setting.upsert({ where: { key: 'business_address' }, update: { value: 'Perth WA 6000' }, create: { key: 'business_address', value: 'Perth WA 6000' } });

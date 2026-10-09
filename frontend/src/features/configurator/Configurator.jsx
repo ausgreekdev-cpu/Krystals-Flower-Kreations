@@ -9,6 +9,12 @@ import Breadcrumbs from '../../components/layout/Breadcrumbs';
 const TEXTURES = ['textured','smooth','pearl','linen'];
 const WEIGHTS = ['65lb','80lb','110lb'];
 const COLORS = ['Blush','Sage','Ivory','Dusty Pink','Eucalyptus','Paper White'];
+// Curated presets — sets colour + texture + weight together (stored on spec.palette)
+const PALETTES = [
+  { id: 'romantic-blush', label: 'Romantic Blush', apply: { paperColor: 'Blush', paperTexture: 'pearl', weight: '80lb' } },
+  { id: 'native-australian', label: 'Native Australian', apply: { paperColor: 'Eucalyptus', paperTexture: 'linen', weight: '110lb' } },
+  { id: 'classic-ivory', label: 'Classic Ivory', apply: { paperColor: 'Ivory', paperTexture: 'smooth', weight: '65lb' } },
+];
 const TEMPLATES = [
   { id: 'wattle-sprig', label: 'Wattle Sprig' },
   { id: 'paper-rose', label: 'Paper Rose' },
@@ -23,6 +29,8 @@ export default function Configurator(){
   const num = (v, d) => (v === undefined || v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
   const greeneryPrice = num(s.configurator_greenery, 12);
   const vasePrice = num(s.configurator_vase, 22);
+  const domePrice = num(s.configurator_dome, 45);
+  const ledPrice = num(s.configurator_led, 18);
   const labourRate = num(s.labour_rate_per_hour, 55);
   const marginPct = Math.round((num(s.bom_margin, 1.3) - 1) * 100);
   const [form,setForm]=useState({ email:'', name:'', postcode:'6000' });
@@ -46,7 +54,8 @@ export default function Configurator(){
       <p className="text-sm text-muted">{s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'}</p>
       <section className="bg-surface2 p-4 rounded-2xl border">
         <h3 className="font-bold">1 · Paper Colour</h3>
-        <div className="flex flex-wrap gap-2 mt-2">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c})} className={`px-3 py-2 rounded-full text-xs border ${spec.paperColor===c?'bg-bloom-500 text-white border-bloom-500':'bg-surface2'}`}>{c}</button>)}</div>
+        <div className="flex flex-wrap gap-2 mt-2">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} className={`px-3 py-1.5 rounded-full text-[11px] border ${spec.palette===p.id?'bg-bloom-700 text-white border-bloom-700':'bg-surface border-line hover:bg-surface3'}`}>{p.label}</button>)}</div>
+        <div className="flex flex-wrap gap-2 mt-2">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} className={`px-3 py-2 rounded-full text-xs border ${spec.paperColor===c && !spec.palette?'bg-bloom-500 text-white border-bloom-500': spec.paperColor===c?'border-bloom-500 text-bloom-700':'bg-surface2'}`}>{c}</button>)}</div>
       </section>
       <section className="bg-surface2 p-4 rounded-2xl border">
         <h3 className="font-bold">2 · Texture & Weight</h3>
@@ -59,6 +68,8 @@ export default function Configurator(){
         <div className="flex items-center gap-3">Armature mm <input type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} /> {spec.armatureHeightMm}</div>
         <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+${greeneryPrice})</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+${vasePrice})</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.domeIncluded} onChange={e=>setSpec({domeIncluded:e.target.checked})} /> Glass display dome (+${domePrice})</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.ledIncluded} onChange={e=>setSpec({ledIncluded:e.target.checked})} /> Warm LED fairy lights (+${ledPrice})</label>
       </section>
       {s.show_cricut === '1' && <section className="bg-surface2 p-4 rounded-2xl border">
         <h3 className="font-bold">4 · Cricut Template — $0 Inkscape SVG</h3>

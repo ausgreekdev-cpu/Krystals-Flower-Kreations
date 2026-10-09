@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { pricingConfig } from '../services/bomPricing.js';
+import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
 const customOrderLimit = rateLimit('custom_order_create', 10, 1);
@@ -31,6 +32,9 @@ const specSchema = z.object({
   templateId: z.string().min(1).max(100),
   addGreenery: z.boolean().default(false),
   vaseIncluded: z.boolean().default(false),
+  domeIncluded: z.boolean().default(false),
+  ledIncluded: z.boolean().default(false),
+  palette: z.string().min(1).max(50).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
 });
 const createSchema = z.object({
@@ -74,13 +78,22 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
     estimatedMinutes = Math.round((recipe.labourMinutesPerUnit + recipe.cricutMinutesPerUnit) * scale);
     if (data.spec.vaseIncluded) estimatedMinutes += 8;
     if (data.spec.addGreenery) estimatedMinutes += 5;
+    if (data.spec.domeIncluded) estimatedMinutes += 10;
+    if (data.spec.ledIncluded) estimatedMinutes += 3;
   } else {
     estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.armatureHeightMm / 60));
   }
+  const addCfg = await getSettings({ onlyPublic: true }).catch(() => ({}));
+  const price = (key, d) => { const n = Number(addCfg?.[key]); return addCfg?.[key] != null && addCfg[key] !== '' && Number.isFinite(n) ? n : d; };
   const LABOUR_RATE = (await pricingConfig()).labourPerHour / 60;
   const rawPrice = costPrice + (estimatedMinutes * LABOUR_RATE);
-  const totalPrice = Math.round((rawPrice * (await pricingConfig()).margin) * 100) / 100 + (data.spec.vaseIncluded ? 22 : 0) + (data.spec.addGreenery ? 12 : 0);
-  const finalPrice = Math.max(45 + stemCount * 9.5, totalPrice);
+  const bouquetTotal = Math.round((rawPrice * (await pricingConfig()).margin) * 100) / 100;
+  // Floor prices the bouquet only; add-ons are real goods and always bill on top.
+  const addOnsTotal = (data.spec.vaseIncluded ? price('configurator_vase', 22) : 0)
+    + (data.spec.addGreenery ? price('configurator_greenery', 12) : 0)
+    + (data.spec.domeIncluded ? price('configurator_dome', 45) : 0)
+    + (data.spec.ledIncluded ? price('configurator_led', 18) : 0);
+  const finalPrice = Math.max(price('configurator_floor', 45) + stemCount * price('configurator_per_stem', 9.5), bouquetTotal) + addOnsTotal;
   const order = await prisma.customArtOrder.create({
     data: {
       orderNumber: orderNumber(),
