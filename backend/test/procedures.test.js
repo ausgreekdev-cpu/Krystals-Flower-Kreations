@@ -316,3 +316,131 @@ test('media: type inference, magic/decode validation, reorder, delete, RBAC', as
   const row = await prisma.documentMedia.findUnique({ where: { id: pngRow.id } });
   assert.equal(row, null, 'row removed');
 });
+
+// ── External source: media URL attach + markdown content import ──────────────
+// The SSRF guard resolves hostnames for real, so success-path tests use
+// example.com (always resolves publicly) and stub only the HTTP layer —
+// requests to the local test server pass through untouched.
+function mockExternal(handler) {
+  const real = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const u = String(typeof input === 'string' ? input : input?.url || '');
+    if (u.startsWith('http://127.0.0.1') || u.startsWith('http://localhost')) return real(input, init);
+    return handler(u, init);
+  };
+  return () => { globalThis.fetch = real; };
+}
+
+test('media from URL: SSRF/protocol blocked before any fetch', async () => {
+  const doc = await createDoc(makerToken, { title: `SSRF target ${runId}` });
+  const cases = [
+    ['http://127.0.0.1:9/evil.png', 'blocked_host'],
+    ['http://localhost/evil.png', 'blocked_host'],
+    ['http://169.254.169.254/latest/meta-data/', 'blocked_host'],
+    ['file:///etc/passwd', 'invalid_url'],
+  ];
+  for (const [url, code] of cases) {
+    const r = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url }),
+    });
+    assert.equal(r.status, 400, `${url} → ${r.status} ${JSON.stringify(r.body)}`);
+    assert.equal(r.body.code, code);
+  }
+});
+
+test('media from URL: fetch → sniff → sharp → stored; octet-stream ext fallback; bad content 415', async () => {
+  const doc = await createDoc(makerToken, { title: `External media ${runId}` });
+  const png = await sharp({ create: { width: 30, height: 30, channels: 3, background: '#6B8EAD' } }).png().toBuffer();
+
+  const ok = mockExternal(() => new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }));
+  try {
+    const r = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/photos/rose.png' }),
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.mediaType, 'IMAGE');
+    assert.ok(r.body.url.includes('/uploads/procedures/'), 'stored via local driver');
+  } finally { ok(); }
+
+  // Generic content-type → extension fallback keeps the attach working.
+  const octet = mockExternal(() => new Response(png, { status: 200, headers: { 'content-type': 'application/octet-stream' } }));
+  try {
+    const r = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/files/diagram.png?dl=1' }),
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.mediaType, 'IMAGE', 'extension fallback used');
+  } finally { octet(); }
+
+  // Valid content-type but corrupt bytes → sharp rejects → 415.
+  const fake = mockExternal(() => new Response(Buffer.from('not a real png body'), { status: 200, headers: { 'content-type': 'image/png' } }));
+  try {
+    const r = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/fake.png' }),
+    });
+    assert.equal(r.status, 415, JSON.stringify(r.body));
+  } finally { fake(); }
+
+  // Disallowed type + RBAC.
+  const txt = mockExternal(() => new Response('hello', { status: 200, headers: { 'content-type': 'text/plain' } }));
+  try {
+    const r = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/notes.txt' }),
+    });
+    assert.equal(r.status, 415);
+  } finally { txt(); }
+
+  const cust = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+    method: 'POST', headers: T(customerToken), body: JSON.stringify({ url: 'https://example.com/rose.png' }),
+  });
+  assert.equal(cust.status, 403);
+  const anon = await api(srv.base, `/api/procedures/${doc.id}/media/url`, {
+    method: 'POST', body: JSON.stringify({ url: 'https://example.com/rose.png' }),
+  });
+  assert.equal(anon.status, 401);
+});
+
+test('import-content: markdown returns body + suggested title; html/binary rejected', async () => {
+  const md = '# Imported Assembly Guide\n\n- step 1\n- step 2\n';
+  const ok = mockExternal(() => new Response(md, { status: 200, headers: { 'content-type': 'text/markdown; charset=utf-8' } }));
+  try {
+    const r = await api(srv.base, '/api/procedures/import-content', {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/guides/rose.md' }),
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.suggestedTitle, 'Imported Assembly Guide');
+    assert.ok(r.body.contentMarkdown.includes('- step 1'));
+    assert.equal(r.body.sourceUrl, 'https://example.com/guides/rose.md');
+  } finally { ok(); }
+
+  const html = mockExternal(() => new Response('<html><body>page</body></html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+  try {
+    const r = await api(srv.base, '/api/procedures/import-content', {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/page.html' }),
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.code, 'unsupported_content_type');
+  } finally { html(); }
+
+  const bin = mockExternal(() => new Response(Buffer.from([0x00, 0x01, 0x02, 0x00, 0xff]), { status: 200, headers: { 'content-type': 'application/octet-stream' } }));
+  try {
+    const r = await api(srv.base, '/api/procedures/import-content', {
+      method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'https://example.com/blob.bin' }),
+    });
+    assert.equal(r.status, 415);
+  } finally { bin(); }
+
+  const cust = await api(srv.base, '/api/procedures/import-content', {
+    method: 'POST', headers: T(customerToken), body: JSON.stringify({ url: 'https://example.com/guide.md' }),
+  });
+  assert.equal(cust.status, 403);
+  const anon = await api(srv.base, '/api/procedures/import-content', {
+    method: 'POST', body: JSON.stringify({ url: 'https://example.com/guide.md' }),
+  });
+  assert.equal(anon.status, 401);
+
+  const badUrl = await api(srv.base, '/api/procedures/import-content', {
+    method: 'POST', headers: T(makerToken), body: JSON.stringify({ url: 'not-a-url' }),
+  });
+  assert.ok([400, 422].includes(badUrl.status), `bad url → ${badUrl.status}`);
+});
