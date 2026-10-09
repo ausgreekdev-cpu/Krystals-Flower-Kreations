@@ -133,6 +133,19 @@ export default function Product(){
         <h1 className="text-3xl font-black text-ink">{p.title}</h1>
         <div className="text-2xl font-bold text-highlight mt-2">${Number(p.price).toFixed(2)} AUD</div>
         <p className="mt-4 text-ink">{p.description}</p>
+        {(p.flowerType || p.colourFamily || p.stemLengthMm || (p.occasions||[]).length > 0 || p.careInstructions) && (
+          <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3 space-y-1">
+            {(p.flowerType || p.colourFamily || p.stemLengthMm) && (
+              <div className="flex flex-wrap gap-2">
+                {p.flowerType && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize">{p.flowerType}</span>}
+                {p.colourFamily && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize">{p.colourFamily.replace(/-/g,' ')}</span>}
+                {p.stemLengthMm && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold">{p.stemLengthMm} mm stems</span>}
+              </div>
+            )}
+            {(p.occasions||[]).length>0 && <div className="text-xs text-muted">Perfect for: {p.occasions.join(', ')}</div>}
+            {p.careInstructions && <div className="text-xs text-muted">Care: {p.careInstructions}</div>}
+          </div>
+        )}
         {s.show_cricut === '1' && p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Cricut-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
         {p.madeToOrderDays && <div className="mt-2 text-sm text-muted">Made to order — {p.madeToOrderDays} days • Perth studio</div>}
         {customRows.length>0 && (

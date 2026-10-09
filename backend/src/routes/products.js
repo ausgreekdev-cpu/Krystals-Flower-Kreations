@@ -32,6 +32,12 @@ const productSchema = z.object({
   paperStock: z.string().max(200).optional().nullable(),
   cricutCompatible: z.boolean().default(false),
   madeToOrderDays: z.number().int().finite().min(0).max(90).optional().nullable(),
+  careInstructions: z.string().max(2000).optional().nullable(),
+  // Florist specifics
+  flowerType: z.string().max(50).optional().nullable(),
+  colourFamily: z.string().max(50).optional().nullable(),
+  stemLengthMm: z.number().int().finite().min(0).max(2000).optional().nullable(),
+  occasions: z.array(z.string().max(50)).max(10).default([]),
   // Admin-defined custom fields — every key/type is checked against ProductField
   customFields: z.record(z.union([z.string().max(500), z.number().finite(), z.boolean()])).nullable().optional(),
 }).strict();
@@ -41,7 +47,7 @@ const productPatchSchema = productSchema.partial().strict();
 router.get('/', asyncHandler(async (req, res) => {
   const raw = querySchemas.products.safeParse(req.query);
   if (!raw.success) return res.status(400).json({ error: 'Invalid query', code: 'invalid_query', details: raw.error.flatten() });
-  const { q, collection, featured, type, limit, cursor, all } = raw.data;
+  const { q, collection, featured, type, flowerType, colourFamily, occasion, limit, cursor, all } = raw.data;
   const take = limit;
   const where = {};
   if (all === '1' || all === 'true') {
@@ -57,6 +63,9 @@ router.get('/', asyncHandler(async (req, res) => {
   }
   if (featured === 'true') where.isFeatured = true;
   if (type) where.type = type;
+  if (flowerType) where.flowerType = flowerType.slice(0, 50);
+  if (colourFamily) where.colourFamily = colourFamily.slice(0, 50);
+  if (occasion) where.occasions = { has: occasion.slice(0, 50) };
   if (q) {
     const qq = q.slice(0,200);
     where.OR = [{ title: { contains: qq, mode: 'insensitive' } }, { description: { contains: qq, mode: 'insensitive' } }, { sku: { contains: qq, mode: 'insensitive' } }, { barcode: { contains: qq, mode: 'insensitive' } }];

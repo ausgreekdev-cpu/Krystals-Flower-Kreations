@@ -146,3 +146,34 @@ test('deleting a definition hides it publicly but keeps stored values', async ()
   const again = await api(srv.base, `/api/products/fields/${material.id}`, { method: 'DELETE', headers: auth() });
   assert.equal(again.status, 404, 'double delete → 404');
 });
+
+test('florist attributes — create/PATCH round-trip; public flowerType & occasion filters', async () => {
+  const slug = `florist-${uniq}`;
+  const create = await api(srv.base, '/api/products', {
+    method: 'POST',
+    headers: auth(),
+    body: JSON.stringify({
+      title: `Florist attrs ${uniq}`, slug, price: 50, stockMode: 'made_to_order',
+      flowerType: 'rose', colourFamily: 'blush', stemLengthMm: 420,
+      occasions: ['birthday'], careInstructions: 'Keep dry.',
+    }),
+  });
+  assert.equal(create.status, 201, JSON.stringify(create.body));
+  assert.equal(create.body.flowerType, 'rose');
+  assert.deepEqual(create.body.occasions, ['birthday']);
+  const id = create.body.id;
+  const patch = await api(srv.base, `/api/products/${id}`, {
+    method: 'PATCH', headers: auth(),
+    body: JSON.stringify({ occasions: ['birthday', 'wedding'], flowerType: 'peony' }),
+  });
+  assert.equal(patch.status, 200, JSON.stringify(patch.body));
+  assert.deepEqual([...patch.body.occasions].sort(), ['birthday', 'wedding']);
+  assert.equal(patch.body.flowerType, 'peony');
+  const byType = await api(srv.base, '/api/products?flowerType=peony&limit=100');
+  assert.equal(byType.status, 200);
+  assert.ok(byType.body.products.some(p => p.id === id), 'flowerType filter finds patched product');
+  const byOccasion = await api(srv.base, '/api/products?occasion=wedding&limit=100');
+  assert.equal(byOccasion.status, 200);
+  assert.ok(byOccasion.body.products.some(p => p.id === id), 'occasion has-filter finds product');
+  await prisma.product.delete({ where: { id } }).catch(() => {});
+});

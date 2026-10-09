@@ -16,7 +16,7 @@ Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mob
 
 ```bash
 # backend (workdir = backend)
-npm test            # integration suite (138 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
+npm test            # integration suite (142 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
 npm run seed        # idempotent seed (loads backend/.env itself)
 npm run dev         # :3001
 
@@ -71,6 +71,8 @@ npm run build       # Vite build + PWA
 - **Settings enforcement points**: `checkout_payment_methods` + `min_order_amount` + `terms_required` + `enable_order_notes` (orders checkout), `shipping_free_over` (services/shipping.js), `maintenance_mode` (app.js gate — 503 on public GETs, staff JWT bypass, `/api/{health,settings,auth}` always open), `workshop_bookings_enabled`/`workshop_waitlist_enabled` (book route), `loyalty_signup_bonus`/`loyalty_min_redeem_points` (auth register / loyalty redeem), `admin_order_alert_*` + `customer_status_emails_enabled` + `email_signature` + `invoice_footer` (services/email.js).
 - **Dark mode**: `html.dark` flips semantic Tailwind tokens (`bg-surface/surface2/surface3`, `text-ink`, `text-muted`, `border-line/line-strong`, `text-highlight`) defined in `frontend/src/index.css` + `tailwind.config.js`. New UI must use these tokens, not `bg-white`/`text-gray-*` (which don't flip). Colour mode state: `frontend/src/lib/colorMode.js` (`kfk_color_mode` in localStorage; no-flash script in `index.html`).
 - **Cart stock enforcement**: `POST /api/cart/add|update` (backend/src/routes/cart.js) stock-check tracked products — variant `inventoryQuantity`, else the default-location `InventoryLevel`; overstock → 422 `out_of_stock`. Line qty clamped 0–99. `GET /api/products/:slug` returns `availableQty` (use it for page stock display, not variant-only fields). Storefront cart state and totals live in `frontend/src/lib/cartClient.js` (`fetchCart`/`addToCart`/`updateCartItem`/`computeCartTotals` — totals derive from public settings: GST/loyalty/shipping_free_over). Don't hand-roll totals or clear the cart with bare localStorage logic.
+- **Configurator pricing**: floor (`configurator_floor` + `configurator_per_stem`×stems) prices the BOUQUET only; add-ons (vase/greenery/dome/led — `configurator_*` settings) always bill on top of the floor. Custom-order spec includes `domeIncluded`/`ledIncluded`/`palette`. Seed sets `bom_margin='1.30'` (a stale `0.30` in a DB makes every order clamp to the floor — reset the key if seen).
+- **Product florist fields**: `flowerType`, `colourFamily`, `stemLengthMm`, `occasions[]`, `careInstructions` (Prisma `@@map("products")` — raw SQL must use snake_case table + quoted camelCase columns). Public list filters: `?flowerType=rose|lily|…`, `?colourFamily=`, `?occasion=` (has-filter). Admin ProductModal edits them; Product page renders a florist info box when present.
 
 ## Storefront UI kit
 

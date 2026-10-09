@@ -52,14 +52,14 @@ async function main() {
   }
 
   const products = [
-    { title: 'Eucalyptus Paper Rose Bouquet — Blush', slug: 'eucalyptus-paper-rose-bouquet-blush', description: '12-stem blush paper roses with eucalyptus, 250gsm textured cardstock. Made to order 3-5 days. Cricut-compatible petals.', price: 89, sku: 'KFK-ROSE-BLUSH-12', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 5, paperStock: '250gsm Canson blush + sage', cricutCompatible: true, isFeatured: true, weightGrams: 450 },
-    { title: 'Banksia Armature — Large', slug: 'banksia-armature-large', description: 'Sculptural banksia on wire armature, 45cm. Each piece unique — armature art workshop technique.', price: 195, sku: 'KFK-ARM-BANKSIA-L', type: 'physical', stockMode: 'tracked', isFeatured: true, weightGrams: 800 },
-    { title: 'Cricut SVG — Wattle Sprig (Digital)', slug: 'cricut-svg-wattle-sprig', description: 'Instant download — layered SVG + PNG for Cricut Maker. Includes 3 sizes + assembly guide PDF. For personal use.', price: 14.95, sku: 'KFK-SVG-WATTLE-01', type: 'digital_template', stockMode: 'digital', cricutCompatible: true, weightGrams: 0 },
+    { title: 'Eucalyptus Paper Rose Bouquet — Blush', slug: 'eucalyptus-paper-rose-bouquet-blush', description: '12-stem blush paper roses with eucalyptus, 250gsm textured cardstock. Made to order 3-5 days. Cricut-compatible petals.', price: 89, sku: 'KFK-ROSE-BLUSH-12', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 5, paperStock: '250gsm Canson blush + sage', cricutCompatible: true, isFeatured: true, weightGrams: 450, flowerType: 'rose', colourFamily: 'blush', stemLengthMm: 400, occasions: ['birthday', 'anniversary', 'mothers-day'], careInstructions: 'Keep dry and away from direct sun; dust gently with a soft brush.' },
+    { title: 'Banksia Armature — Large', slug: 'banksia-armature-large', description: 'Sculptural banksia on wire armature, 45cm. Each piece unique — armature art workshop technique.', price: 195, sku: 'KFK-ARM-BANKSIA-L', type: 'physical', stockMode: 'tracked', isFeatured: true, weightGrams: 800, flowerType: 'banksia', colourFamily: 'mixed', stemLengthMm: 450, occasions: ['wedding', 'anniversary'], careInstructions: 'Dust gently; keep indoors away from moisture.' },
+    { title: 'Cricut SVG — Wattle Sprig (Digital)', slug: 'cricut-svg-wattle-sprig', description: 'Instant download — layered SVG + PNG for Cricut Maker. Includes 3 sizes + assembly guide PDF. For personal use.', price: 14.95, sku: 'KFK-SVG-WATTLE-01', type: 'digital_template', stockMode: 'digital', cricutCompatible: true, weightGrams: 0, flowerType: 'wattle', colourFamily: 'mixed' },
     { title: 'Origami Crane Mobile — Pastel', slug: 'origami-crane-mobile-pastel', description: '25 hand-folded cranes on driftwood, pastel palette. Nursery-ready.', price: 65, sku: 'KFK-ORIGAMI-CRANE-MOB', type: 'physical', stockMode: 'tracked', weightGrams: 320 },
-    { title: 'Paper Peony — Single Stem (Ivory)', slug: 'paper-peony-ivory-single', description: 'Single peony stem, ivory 220gsm + wire. Perfect for adding to bouquets.', price: 18, sku: 'KFK-PEONY-IVORY-1', type: 'physical', stockMode: 'tracked', weightGrams: 40 },
+    { title: 'Paper Peony — Single Stem (Ivory)', slug: 'paper-peony-ivory-single', description: 'Single peony stem, ivory 220gsm + wire. Perfect for adding to bouquets.', price: 18, sku: 'KFK-PEONY-IVORY-1', type: 'physical', stockMode: 'tracked', weightGrams: 40, flowerType: 'peony', colourFamily: 'ivory', stemLengthMm: 300, occasions: ['wedding', 'mothers-day'], careInstructions: 'Keep dry; store upright in a vase without water.' },
     { title: 'Workshop Ticket — Cricut Blooms 101 (Perth)', slug: 'workshop-cricut-blooms-101', description: '3hr beginner workshop — Perth Studio. Make a 7-stem bouquet to take home. All materials included. Max 12. Next: see sessions.', price: 135, sku: 'KFK-WS-CRICUT-101', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
     { title: 'Workshop Ticket — Origami Bouquet Masterclass', slug: 'workshop-origami-bouquet-masterclass', description: '4hr intermediate — folded roses + lilies + assembly. Kit posted if you join online.', price: 165, sku: 'KFK-WS-ORIGAMI-MAST', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
-    { title: 'Everlasting Native Bundle — Table Centre', slug: 'native-bundle-table-centre', description: 'Low centrepiece — paper natives + dried eucalyptus on armature base. 30cm wide.', price: 125, sku: 'KFK-NATIVE-CENTRE-30', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 7, isFeatured: true, weightGrams: 600 },
+    { title: 'Everlasting Native Bundle — Table Centre', slug: 'native-bundle-table-centre', description: 'Low centrepiece — paper natives + dried eucalyptus on armature base. 30cm wide.', price: 125, sku: 'KFK-NATIVE-CENTRE-30', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 7, isFeatured: true, weightGrams: 600, flowerType: 'mixed', colourFamily: 'eucalyptus', stemLengthMm: 300, occasions: ['wedding', 'sympathy'], careInstructions: 'Dust gently; keep away from moisture and direct sun.' },
   ];
   // Test barcodes (UPC-A style) so the USB scanner works out of the box —
   // real-world labels are editable in Admin → Catalog → Products.
@@ -75,7 +75,12 @@ async function main() {
   };
   if (!SKIP_DEMO) for (const p of products) {
     const barcode = TEST_BARCODES[p.slug] || null;
-    const prod = await prisma.product.upsert({ where: { slug: p.slug }, update: barcode ? { barcode } : {}, create: { ...p, barcode } });
+    // Re-seed must refresh demo attrs (florist fields, paper stock…) on existing rows
+    const update = { ...(barcode ? { barcode } : {}) };
+    for (const k of ['flowerType', 'colourFamily', 'stemLengthMm', 'occasions', 'careInstructions', 'paperStock', 'cricutCompatible', 'madeToOrderDays']) {
+      if (p[k] !== undefined) update[k] = p[k];
+    }
+    const prod = await prisma.product.upsert({ where: { slug: p.slug }, update, create: { ...p, barcode } });
     // Local placeholder image (no external picsum — $0, offline, no 404)
     const hasImage = await prisma.productImage.findFirst({ where: { productId: prod.id } });
     if (!hasImage) {

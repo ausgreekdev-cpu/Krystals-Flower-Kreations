@@ -203,6 +203,11 @@ model Product {
   svgUrl           String? // digital template file
   careInstructions String?     @db.Text
   madeToOrderDays  Int? // e.g., 5
+  // Florist specifics
+  flowerType       String? // rose, lily, wattle, banksia, peony, mixed
+  colourFamily     String? // blush, sage, ivory, dusty-pink, eucalyptus, white, mixed
+  stemLengthMm     Int?
+  occasions        String[] @default([]) // birthday, wedding, anniversary, sympathy, valentines, mothers-day
   // SEO + social
   ogImageUrl       String?
   // Admin-defined custom fields: { [fieldKey]: string | number | boolean }

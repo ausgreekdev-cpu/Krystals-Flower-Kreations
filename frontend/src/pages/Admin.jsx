@@ -1345,6 +1345,10 @@ function Products({ data, reload, token }) {
   );
 }
 
+const FLOWER_TYPES = ['rose','lily','wattle','banksia','peony','mixed'];
+const COLOUR_FAMILIES = ['blush','sage','ivory','dusty-pink','eucalyptus','white','mixed'];
+const OCCASIONS = ['birthday','wedding','anniversary','sympathy','valentines','mothers-day'];
+
 function ProductModal({ product, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
@@ -1354,6 +1358,9 @@ function ProductModal({ product, onClose, onSaved, token }) {
     stockMode: product?.stockMode || 'made_to_order', type: product?.type || 'physical',
     isFeatured: !!product?.isFeatured, isActive: product ? !!product.isActive : true,
     madeToOrderDays: product?.madeToOrderDays || 5,
+    flowerType: product?.flowerType || '', colourFamily: product?.colourFamily || '',
+    stemLengthMm: product?.stemLengthMm ?? '', careInstructions: product?.careInstructions || '',
+    occasions: Array.isArray(product?.occasions) ? product.occasions : [],
   }));
   const [variants, setVariants] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -1378,6 +1385,11 @@ function ProductModal({ product, onClose, onSaved, token }) {
         else if (v !== undefined && String(v).trim() !== '') cf[d.key] = String(v).trim();
       }
       const body = { ...form, barcode: form.barcode?.trim() || null, price: Number(form.price), madeToOrderDays: form.madeToOrderDays ? Number(form.madeToOrderDays) : undefined,
+        flowerType: form.flowerType?.trim() || null,
+        colourFamily: form.colourFamily?.trim() || null,
+        stemLengthMm: form.stemLengthMm === '' || form.stemLengthMm == null ? null : Number(form.stemLengthMm),
+        careInstructions: form.careInstructions?.trim() || null,
+        occasions: Array.isArray(form.occasions) ? form.occasions : [],
         // Updates always send customFields (even {}) so cleared values actually clear.
         ...(product ? { customFields: cf } : (Object.keys(cf).length ? { customFields: cf } : {})) };
       if (product) await adminApi.products.update(product.id, body, token);
@@ -1450,6 +1462,25 @@ function ProductModal({ product, onClose, onSaved, token }) {
           </select>
         </div>
         <div><label className={label}>Made-to-order days</label><input type="number" className={input} value={form.madeToOrderDays} onChange={(e) => set('madeToOrderDays', e.target.value)} /></div>
+        <div><label className={label}>Flower type</label>
+          <select className={input} value={form.flowerType} onChange={(e) => set('flowerType', e.target.value)}>
+            <option value="">—</option>{FLOWER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><label className={label}>Colour family</label>
+          <select className={input} value={form.colourFamily} onChange={(e) => set('colourFamily', e.target.value)}>
+            <option value="">—</option>{COLOUR_FAMILIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div><label className={label}>Stem length (mm)</label><input type="number" className={input} value={form.stemLengthMm} onChange={(e) => set('stemLengthMm', e.target.value)} /></div>
+        <div className="sm:col-span-2"><label className={label}>Occasions</label>
+          <div className="flex flex-wrap gap-2 mt-1">{OCCASIONS.map(o => (
+            <label key={o} className="flex items-center gap-1 text-xs border border-line rounded-full px-2 py-1">
+              <input type="checkbox" checked={form.occasions.includes(o)} onChange={(e) => set('occasions', e.target.checked ? [...form.occasions, o] : form.occasions.filter(x => x !== o))} /> {o}
+            </label>
+          ))}</div>
+        </div>
+        <div className="sm:col-span-2"><label className={label}>Care instructions</label><textarea rows={2} className={input} value={form.careInstructions} onChange={(e) => set('careInstructions', e.target.value)} placeholder="Keep dry, dust with a soft brush…" /></div>
         <div className="sm:col-span-2"><label className={label}>Description</label><textarea rows={3} className={input} value={form.description} onChange={(e) => set('description', e.target.value)} /></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} /> Featured</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active (visible in shop)</label>
