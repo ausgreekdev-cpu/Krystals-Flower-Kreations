@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { cartApi } from '../lib/api/customClient';
+import { addToCart as addToCartApi } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
 
@@ -26,10 +26,7 @@ export default function Product(){
     setErr(''); setMsg('');
     if(p.stockMode==='tracked' && stock!==999 && qty>stock){ setErr(`Only ${stock} in stock`); return; }
     try{
-      const cartId = localStorage.getItem('cartId') || null;
-      const res = await cartApi.add({ productId: p.id, variantId, quantity: qty, cartId });
-      if(res.cartId) localStorage.setItem('cartId', res.cartId);
-      window.dispatchEvent(new CustomEvent('cart:updated'));
+      const res = await addToCartApi({ productId: p.id, variantId, quantity: qty });
       setMsg(`Added ${qty} × ${p.title} to cart — ${res.cart?.items?.length||''} items`);
       setTimeout(()=> nav('/cart'), 600);
     }catch(e){ setErr(e.message || 'Failed to add'); }
@@ -56,7 +53,12 @@ export default function Product(){
   const variantsArr = Array.isArray(p.variants) ? p.variants : [];
   const imagesArr = Array.isArray(p.images) ? p.images : [];
   const activePrice = Number(variantId? variantsArr.find(v=>v.id===variantId)?.price : p.price);
-  const stock = variantsArr.find(v=>v.id===variantId)?.inventoryQuantity ?? (p.stockMode==='tracked' ? 0 : 999);
+  // Variantless tracked products hold stock server-side (availableQty from the
+  // default InventoryLevel) — without it every tracked product showed 0 and
+  // disabled Add to Cart. Untracked stays at the 999 sentinel (no limit).
+  const stock = (p.stockMode==='tracked' && variantsArr.length===0 && !variantId)
+    ? Number(p.availableQty ?? 0)
+    : (variantsArr.find(v=>v.id===variantId)?.inventoryQuantity ?? (p.stockMode==='tracked' ? 0 : 999));
   const lowStock = p.stockMode==='tracked' && stock!==999 && stock < 5;
   // Custom fields — only show active definitions with a non-empty value (booleans are presence-only)
   const cf = (p.customFields && typeof p.customFields === 'object') ? p.customFields : {};

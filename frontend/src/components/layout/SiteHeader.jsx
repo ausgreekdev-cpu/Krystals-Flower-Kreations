@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession } from '../../lib/api/customClient';
+import { fetchCart, cartItems, subscribeCart } from '../../lib/cartClient';
 import { subscribe, nextColorMode, getColorMode } from '../../lib/colorMode';
 import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole, currentUser } from '../../lib/session';
@@ -38,14 +39,12 @@ export default function SiteHeader() {
   useEffect(() => {
     const off = subscribe((mode) => setColorModeState(mode));
     function refresh() {
-      const id = localStorage.getItem('cartId');
-      if (!id) { setCartCount(0); return; }
-      fetch(`/api/cart`, { headers: { 'x-cart-id': id } }).then(r => r.json()).then(d => setCartCount(d?.cart?.items?.length || d?.items?.length || 0)).catch(() => {});
+      fetchCart().then(c => setCartCount(cartItems(c).length)).catch(() => {});
     }
     refresh();
-    window.addEventListener('cart:updated', refresh);
+    const unsubCart = subscribeCart(refresh);
     window.addEventListener('storage', refresh);
-    return () => { off(); window.removeEventListener('cart:updated', refresh); window.removeEventListener('storage', refresh); };
+    return () => { off(); unsubCart(); window.removeEventListener('storage', refresh); };
   }, []);
 
   // Close the mobile menu / search row whenever the route changes.

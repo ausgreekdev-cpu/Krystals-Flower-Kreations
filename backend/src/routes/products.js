@@ -83,6 +83,13 @@ router.get('/:slug', asyncHandler(async (req, res) => {
     include: { images: { orderBy: { sortOrder: 'asc' } }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
   });
   if (!product) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  // Tracked products without variants hold stock in the default-location
+  // InventoryLevel — expose it so the storefront can show/enable Add to Cart.
+  if (product.stockMode === 'tracked' && product.variants.length === 0) {
+    const loc = await prisma.inventoryLocation.findFirst({ where: { isDefault: true } }) || await prisma.inventoryLocation.findFirst();
+    const level = loc ? await prisma.inventoryLevel.findFirst({ where: { productId: product.id, variantId: null, locationId: loc.id } }) : null;
+    return res.json({ ...product, availableQty: level ? level.onHand : 0 });
+  }
   res.json(product);
 }));
 

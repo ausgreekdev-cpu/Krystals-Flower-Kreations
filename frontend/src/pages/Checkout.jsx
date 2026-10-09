@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { ordersApi, cartApi } from '../lib/api/customClient';
+import { ordersApi } from '../lib/api/customClient';
+import { fetchCart, cartItems, getCartId, clearCart, clearCartId, dispatchCartChanged } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import { loadPayPalScript } from '../lib/paypalLoader';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
@@ -46,10 +47,9 @@ export default function Checkout(){
       const code=form.discountCode.trim().toUpperCase();
       if(!code) return setDiscountMsg('');
       // Estimate subtotal for minSpend check via cart
-      const cartId=localStorage.getItem('cartId');
-      if(cartId) fetch(`/api/cart`, { headers:{ 'x-cart-id': cartId } }).then(r=>r.json()).then(d=>{
-        const items=d?.cart?.items||d?.items||[];
-        const subtotal=items.reduce((a,it)=>a+Number(it.priceSnapshot||0)*it.quantity,0);
+      const cartId=getCartId();
+      if(cartId) fetchCart().then(d=>{
+        const subtotal=cartItems(d).reduce((a,it)=>a+Number(it.priceSnapshot||0)*it.quantity,0);
         return fetch(`/api/discounts/validate?code=${encodeURIComponent(code)}&subtotal=${subtotal}`).then(r=>r.json());
       }).then(j=> setDiscountMsg(j.valid?`✓ ${j.discount.code}: ${j.discount.description} — ${j.discount.type==='percent'?j.discount.value+'%':`$${j.discount.value}`} off` : `✗ ${j.error}`)).catch(()=> setDiscountMsg(''));
       else fetch(`/api/discounts/validate?code=${encodeURIComponent(code)}`).then(r=>r.json()).then(j=> setDiscountMsg(j.valid?`✓ ${j.discount.code} valid`:`✗ ${j.error}`)).catch(()=>{});
@@ -57,8 +57,7 @@ export default function Checkout(){
     return ()=>clearTimeout(id);
   }, [form.discountCode]);
   async function finishPayPal(order){
-    const cartId = localStorage.getItem('cartId');
-    if (cartId) { await cartApi.clear(cartId).catch(()=>{}); localStorage.removeItem('cartId'); }
+    await clearCart({ bestEffort: true });
     setResult({
       order,
       gst: { gst: Number(order.taxTotal) },
@@ -69,7 +68,7 @@ export default function Checkout(){
   }
   async function submit(e){
     e.preventDefault(); setLoading(true); setErr('');
-    const cartId = localStorage.getItem('cartId');
+    const cartId = getCartId();
     if(!cartId){ setErr('No cart — add items first'); setLoading(false); return; }
     try{
       if (form.paymentMethod === 'paypal') {
@@ -83,7 +82,10 @@ export default function Checkout(){
         const res = await ordersApi.checkout({ cartId, ...form });
         setResult(res);
         setErr(`Order ${res.order.orderNumber} created — ${res.paymentInstructions} Total $${Number(res.order.total).toFixed(2)} (GST $${Number(res.gst.gst).toFixed(2)} incl.)`);
-        localStorage.removeItem('cartId');
+        // Server already emptied the cart items in the checkout transaction —
+        // only the local id (and the header badge) needs resetting.
+        clearCartId();
+        dispatchCartChanged();
       }
     }catch(e2){ setErr(e2.message); }
     setLoading(false);
