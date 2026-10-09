@@ -22,6 +22,7 @@ export default defineConfig({
     workbox: {
       globPatterns: ['**/*.{js,css,html,png,svg,jpg}'],
       runtimeCaching: [
+        { urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@google\/model-viewer\/.*/i, handler: 'CacheFirst', options: { cacheName: 'model-viewer-lib', expiration: { maxEntries: 4, maxAgeSeconds: 30*24*60*60 } } },
         { urlPattern: /^https:\/\/picsum\.photos\/.*/i, handler: 'CacheFirst', options: { cacheName: 'picsum-images', expiration: { maxEntries: 100, maxAgeSeconds: 30*24*60*60 } } },
         { urlPattern: /\/api\/products.*/i, handler: 'NetworkFirst', options: { cacheName: 'api-products', networkTimeoutSeconds: 4, expiration: { maxEntries: 50, maxAgeSeconds: 5*60 } } },
         { urlPattern: /\/3d\/.*/i, handler: 'CacheFirst', options: { cacheName: 'bouquet-glbs', expiration: { maxEntries: 20, maxAgeSeconds: 30*24*60*60 } } },
