@@ -19,7 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # pull-through mirror — Docker Hub unauthenticated rate limits kill CI on shared runner IPs
+        image: mirror.gcr.io/library/postgres:16
         env:
           POSTGRES_USER: krystal
           POSTGRES_PASSWORD: krystal_dev_password
