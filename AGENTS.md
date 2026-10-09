@@ -16,7 +16,7 @@ Vite React web (`frontend/`) + Express/Prisma 5 Postgres (`backend/`) + Expo mob
 
 ```bash
 # backend (workdir = backend)
-npm test            # integration suite (93 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
+npm test            # integration suite (133 tests), needs DATABASE_URL set — runs files serially (--test-concurrency=1)
 npm run seed        # idempotent seed (loads backend/.env itself)
 npm run dev         # :3001
 
@@ -76,6 +76,17 @@ npm run build       # Vite build + PWA
 - `services/storage.js`: Supabase Storage (prod, bucket `product-images`) or local disk (dev). Requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (service_role key is server-side only — never expose to the frontend).
 - Browser downscales images before upload; one file per request (Netlify ~6 MB payload limit).
 - SVG/PDF rejected; images decoded by sharp then re-encoded to JPEG.
+
+## Procedures (specs & guides module)
+
+- Routes `backend/src/routes/procedures.js` mounted at `/api/procedures` (after suppliers in app.js). Tables/enums pushed to prod; re-`db push` only if schema changes again.
+- RBAC: Editor = maker/staff/admin/developer (create/edit/upload/import); delete = admin/developer only; draft detail read = any authenticated; published = public. List filter `?status=draft|archived|all` staff-gated; list is envelope `{procedures,total,page,pages,limit}` (default limit 20, `orderBy updatedAt desc`).
+- `authenticate` never calls next() on failure → procedures uses a response-free `optionalAuth(req)` helper (checks `Bearer ` header first) instead of awaiting `authenticate` inline (blog's pattern hangs).
+- Uploads: `uploadDocs` (25MB ×8, middleware/upload.js) + MIME sniff (`docMimeLooksReal`); sharp for raster. Bucket `procedure-media` via `putObject(key, buf, mime, { bucket })`; local driver writes `backend/uploads` and vite dev proxies **both** `/api` and `/uploads` to :3001.
+- **External source** (`services/external-fetch.js`): SSRF-hardened `fetchExternal` — http(s)-only, no embedded credentials, private/loopback/link-local/metadata ranges blocked by resolved DNS answer, redirects re-screened per hop (≤3), streamed size cap, `AbortSignal.timeout`. `POST /:id/media/url` (Editor+, 25MB) reuses the sniff→sharp→store pipeline (octet-stream falls back to URL-extension). `POST /import-content` (Editor+, 2MB, text only; HTML/binary → 4xx) returns `{contentMarkdown, suggestedTitle, …}` for the editor import row. Both rate-limited 30/min (`procedures_external`).
+- Seed = 3 docs behind `SKIP_DEMO` guard (prod tab starts empty by design), fixed UUIDs, initial revisions created server-side. Version bumps are `x.y+1` string increments with an automatic revision snapshot on PUT.
+- Admin UI is inline in `frontend/src/pages/Admin.jsx` (house convention — Procedures/ProcedureModal/ProcedureDetail as local components, no separate files). Self-fetching (component loads its own data; the top-level `load(tab)` branch no-ops harmlessly). FileList is live — snapshot `Array.from(e.target.files)` BEFORE clearing `input.value` or the upload silently sends nothing.
+- Importing from a URL that returns HTML surfaces the server's "unsupported_content_type" message; external-fetch test helper in `test/procedures.test.js` (`mockExternal`) stubs non-test-server URLs — success paths must use `https://example.com/...` since DNS resolution is real.
 
 ## Netlify
 
