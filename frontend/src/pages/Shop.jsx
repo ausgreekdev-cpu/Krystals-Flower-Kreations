@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../lib/publicSettings';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import Btn from '../components/ui/Btn';
+import ProductCard from '../components/ProductCard';
 
 export default function Shop(){
   const [q,setQ]=useState(new URLSearchParams(window.location.search).get('q') || ''); const [products,setProducts]=useState([]); const [filter,setFilter]=useState('all'); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
@@ -42,7 +43,7 @@ export default function Shop(){
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex gap-3 flex-1 min-w-0 sm:max-w-md">
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder={s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…'} aria-label="Search products" className="flex-1 min-w-0 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
-          <button onClick={()=>setQ('')} className="hidden sm:block border rounded-xl px-4 text-sm hover:bg-surface3">Clear</button>
+          <Btn variant="outline" size="inline" className="hidden sm:block" onClick={()=>setQ('')}>Clear</Btn>
         </div>
         <div className="flex gap-2 flex-wrap sm:ml-auto">
           {['all','made_to_order','digital','physical'].map(f=> <button key={f} onClick={()=>setFilter(f)} className={`px-3 py-1.5 rounded-full text-xs border ${filter===f?'bg-bloom-500 text-white border-bloom-500':'bg-surface2 hover:bg-surface3'}`}>{f==='all'?'All': f==='made_to_order'?'Made to order': f==='digital'?'SVG': f}</button>)}
@@ -55,14 +56,7 @@ export default function Shop(){
       ) : (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {shown.map(p=> (
-            <Link key={p.id} to={`/product/${p.slug}`} className="bg-surface2 rounded-2xl overflow-hidden border hover:shadow-lg hover:border-bloom-100 transition group">
-              <div className="relative overflow-hidden"><img loading="lazy" decoding="async" src={p.images?.[0]?.url || `/placeholder-bloom.jpg`} alt={p.title} width="400" height="400" className="h-44 md:h-52 w-full object-cover group-hover:scale-105 transition duration-300" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} /><span className="absolute top-2 left-2 bg-surface2/90 backdrop-blur text-[10px] font-bold px-2 py-1 rounded-full">{p.stockMode==='made_to_order'?'Made to order': p.type==='digital_template'?'SVG • Instant':'In stock'}</span></div>
-              <div className="p-3">
-                <div className="font-bold text-ink line-clamp-2 text-sm md:text-[15px] leading-tight">{p.title}</div>
-                <div className="text-highlight font-bold mt-1.5">${Number(p.price).toFixed(2)} <span className="text-xs font-normal text-muted">AUD</span></div>
-                <div className="text-xs text-muted mt-1">{p.paperStock || 'Canson 65lb'} {s.show_cricut === '1' && p.cricutCompatible && '• Cricut'}</div>
-              </div>
-            </Link>
+            <ProductCard key={p.id} p={p} showCricut={s.show_cricut === '1'} />
           ))}
         </div>
       )}

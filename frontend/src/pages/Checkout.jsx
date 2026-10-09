@@ -4,6 +4,8 @@ import { fetchCart, cartItems, getCartId, clearCart, clearCartId, dispatchCartCh
 import { usePublicSettings } from '../lib/publicSettings';
 import { loadPayPalScript } from '../lib/paypalLoader';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import Btn from '../components/ui/Btn';
+import { Input, Select, TextArea } from '../components/ui/Field';
 
 const PAY_LABELS = {
   paypal: 'PayPal — pay now',
@@ -130,35 +132,34 @@ export default function Checkout(){
       <p className="text-sm text-muted mt-2">{s.shipping_note || 'GST inclusive • Perth metro (12) / WA regional (18) / national (22) • free over $150 • PayPal at checkout • Click & collect Perth'}</p>
       {minOrder > 0 && <p className="text-xs text-muted mt-1">Minimum order ${minOrder.toFixed(2)}</p>}
       <form className="mt-6 grid gap-4 bg-surface2 p-6 rounded-2xl border" onSubmit={submit}>
-        <input required placeholder="Email*" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="border rounded-xl px-3 py-2" />
-        <input required placeholder="Full name*" value={form.shippingName} onChange={e=>setForm({...form,shippingName:e.target.value})} className="border rounded-xl px-3 py-2" />
-        <input required placeholder="Address*" value={form.shippingAddress} onChange={e=>setForm({...form,shippingAddress:e.target.value})} className="border rounded-xl px-3 py-2" />
-        <div className="grid grid-cols-3 gap-4"><input required placeholder="Suburb*" value={form.shippingSuburb} onChange={e=>setForm({...form,shippingSuburb:e.target.value})} className="border rounded-xl px-3 py-2" /><input placeholder="State" value={form.shippingState} onChange={e=>setForm({...form,shippingState:e.target.value})} className="border rounded-xl px-3 py-2" /><input required placeholder="Postcode*" value={form.shippingPostcode} onChange={e=>setForm({...form,shippingPostcode:e.target.value})} className="border rounded-xl px-3 py-2" /></div>
-        {methods.length > 1 && <select value={form.paymentMethod} onChange={e=>setForm({...form,paymentMethod:e.target.value})} className="border rounded-xl px-3 py-2 bg-surface2">{methods.map(m=> <option key={m.value} value={m.value}>{m.label}</option>)}</select>}
-        <input placeholder="Discount code (BLOOM10, PERTHFREE)" value={form.discountCode} onChange={e=>setForm({...form,discountCode:e.target.value})} className="border rounded-xl px-3 py-2" />
+        <Input required label="Email" placeholder="Email*" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
+        <Input required label="Full name" placeholder="Full name*" value={form.shippingName} onChange={e=>setForm({...form,shippingName:e.target.value})} />
+        <Input required label="Address" placeholder="Address*" value={form.shippingAddress} onChange={e=>setForm({...form,shippingAddress:e.target.value})} />
+        <div className="grid grid-cols-3 gap-4"><Input required label="Suburb" placeholder="Suburb*" value={form.shippingSuburb} onChange={e=>setForm({...form,shippingSuburb:e.target.value})} /><Input label="State" placeholder="State" value={form.shippingState} onChange={e=>setForm({...form,shippingState:e.target.value})} /><Input required label="Postcode" placeholder="Postcode*" value={form.shippingPostcode} onChange={e=>setForm({...form,shippingPostcode:e.target.value})} /></div>
+        {methods.length > 1 && <Select label="Payment method" value={form.paymentMethod} onChange={e=>setForm({...form,paymentMethod:e.target.value})} className="bg-surface2">{methods.map(m=> <option key={m.value} value={m.value}>{m.label}</option>)}</Select>}
+        <Input label="Discount code" placeholder="Discount code (BLOOM10, PERTHFREE)" value={form.discountCode} onChange={e=>setForm({...form,discountCode:e.target.value})} />
         {discountMsg && <div className={`text-xs rounded-xl px-3 py-2 ${discountMsg.startsWith('✓')?'bg-green-50 border border-green-200 text-green-700':'bg-red-50 border border-red-200 text-red-700'}`}>{discountMsg}</div>}
         {loyalty && <div className="bg-surface border border-bloom-100 rounded-xl p-3 flex justify-between items-center">
           <span className="text-sm font-bold text-ink">Bloom Points: {loyalty.points} ({loyalty.tier})</span>
           <div className="flex gap-2 items-center">
             <input type="number" min={minRedeem} max={Math.floor(loyalty.points/minRedeem)*minRedeem} step={minRedeem} value={redeemPts} onChange={e=>setRedeemPts(Math.min(parseInt(e.target.value)||0, loyalty.points))} className="w-20 border rounded-lg px-2 py-1 text-sm" placeholder={String(minRedeem)} />
-            <button type="button" onClick={async()=>{
+            <Btn type="button" variant="soft" size="pill" className="text-xs font-bold" onClick={async()=>{
               if(redeemPts<minRedeem) return setErr(`Min ${minRedeem} pts = $${redeemValue(minRedeem).toFixed(2)} off`);
               const token=localStorage.getItem('token'); if(!token) return setErr('Login to redeem');
               const res=await fetch('/api/loyalty/redeem', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify({ points: redeemPts, reason:'checkout redeem' }) });
               const j=await res.json().catch(()=>({}));
               if(!res.ok) return setErr(j.error||'Redeem failed');
-              setLoyalty(j); setErr(`Redeemed ${redeemPts} pts — $ ${redeemValue(redeemPts).toFixed(2)} off on next order (ask at till)`);
-            }} className="bg-surface2 border rounded-full px-3 py-1 text-xs font-bold hover:bg-surface3">Redeem {minRedeem} = ${redeemValue(minRedeem).toFixed(2)}</button>
+            }}>Redeem {minRedeem} = ${redeemValue(minRedeem).toFixed(2)}</Btn>
           </div>
         </div>}
-        {notesEnabled && <textarea placeholder={s.order_notes_placeholder || 'Note (delivery instructions)'} value={form.customerNote} onChange={e=>setForm({...form,customerNote:e.target.value})} className="border rounded-xl px-3 py-2" rows={2} />}
+        {notesEnabled && <TextArea label={s.order_notes_placeholder || 'Note (delivery instructions)'} placeholder={s.order_notes_placeholder || 'Note (delivery instructions)'} value={form.customerNote} onChange={e=>setForm({...form,customerNote:e.target.value})} rows={2} />}
         {termsRequired && (
           <label className="flex items-start gap-2 text-xs text-muted">
             <input type="checkbox" className="mt-0.5" checked={Boolean(form.acceptTerms)} onChange={e=>setForm({...form,acceptTerms:e.target.checked})} required />
             <span>I have read and accept the <a href={s.terms_url} target="_blank" rel="noreferrer" className="underline text-highlight">terms & conditions</a>.</span>
           </label>
         )}
-        <button disabled={loading || ppBusy} className="bg-bloom-500 text-white py-3 rounded-xl font-bold disabled:opacity-50">{loading? 'Processing…' : form.paymentMethod === 'paypal' ? 'Continue — reserve & pay with PayPal' : 'Place Order — Pay Later (manual)'}</button>
+        <Btn size="lg" disabled={loading || ppBusy}>{loading? 'Processing…' : form.paymentMethod === 'paypal' ? 'Continue — reserve & pay with PayPal' : 'Place Order — Pay Later (manual)'}</Btn>
         {form.paymentMethod === 'paypal' && pp.paypalOrderId && !result && (
           <div className="border border-line rounded-xl p-3 bg-surface space-y-2">
             <div className="text-xs text-muted">Order reserved — approve the payment in the PayPal window to confirm it.</div>

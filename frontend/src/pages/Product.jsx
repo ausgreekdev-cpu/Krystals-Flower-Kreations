@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { addToCart as addToCartApi } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import Btn from '../components/ui/Btn';
+import { Input, Select, TextArea } from '../components/ui/Field';
 
 const ORG = "Krystals Flower Creations";
 const stars = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
@@ -143,9 +145,9 @@ export default function Product(){
             ))}
           </div>
         )}
-        {variantsArr.length>0 && <div className="mt-4"><label className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>{stock} left</span>}</label><select value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full border rounded-xl px-3 py-2"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</select></div>}
-        <div className="mt-4 flex items-center gap-3"><button onClick={()=>setQty(Math.max(1,qty-1))} className="w-10 h-10 rounded-full border bg-surface2 hover:bg-surface3">−</button><span className="font-bold w-8 text-center">{qty}</span><button onClick={()=>setQty(Math.min(99,qty+1))} className="w-10 h-10 rounded-full bg-bloom-500 text-white hover:bg-bloom-700">+</button><span className={`text-sm ${lowStock?'text-amber-600':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
-        <button onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0} className="mt-6 w-full bg-bloom-500 text-white py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bloom-700 transition">Add to Cart — ${ (activePrice*qty).toFixed(2)}</button>
+        {variantsArr.length>0 && <div className="mt-4"><label className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>{stock} left</span>}</label><Select value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
+        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`text-sm ${lowStock?'text-amber-600':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
+        <Btn size="lg" className="mt-6 w-full transition" onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0}>Add to Cart — ${ (activePrice*qty).toFixed(2)}</Btn>
         {err && <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{err}</div>}
         {msg && <div className="mt-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">{msg}</div>}
         <div className="mt-3 flex gap-2 text-xs">
@@ -193,11 +195,11 @@ export default function Product(){
                   </button>
                 ))}
               </div>
-              <input required placeholder="Your name*" value={rvForm.name} onChange={e=>setRvForm(f=>({...f, name:e.target.value}))} minLength={2} maxLength={100} className="w-full border rounded-xl px-3 py-2 text-sm" />
-              <input placeholder="Title (optional)" value={rvForm.title} onChange={e=>setRvForm(f=>({...f, title:e.target.value}))} maxLength={200} className="w-full border rounded-xl px-3 py-2 text-sm" />
-              <textarea placeholder="What did you think? (optional)" value={rvForm.body} onChange={e=>setRvForm(f=>({...f, body:e.target.value}))} maxLength={2000} rows={3} className="w-full border rounded-xl px-3 py-2 text-sm" />
+              <Input required label="Your name" placeholder="Your name*" value={rvForm.name} onChange={e=>setRvForm(f=>({...f, name:e.target.value}))} minLength={2} maxLength={100} size="sm" className="w-full" />
+              <Input label="Review title" placeholder="Title (optional)" value={rvForm.title} onChange={e=>setRvForm(f=>({...f, title:e.target.value}))} maxLength={200} size="sm" className="w-full" />
+              <TextArea label="Review text" placeholder="What did you think? (optional)" value={rvForm.body} onChange={e=>setRvForm(f=>({...f, body:e.target.value}))} maxLength={2000} rows={3} size="sm" className="w-full" />
               <input type="text" value={rvForm.website} onChange={e=>setRvForm(f=>({...f, website:e.target.value}))} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
-              <button disabled={rvBusy} className="bg-bloom-500 text-white px-5 py-2 rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-bloom-700">{rvBusy?'Sending…':'Submit review'}</button>
+              <Btn size="sm" disabled={rvBusy}>{rvBusy?'Sending…':'Submit review'}</Btn>
               <p className="text-[11px] text-muted">Reviews are checked by the studio before they appear.</p>
             </form>
           )}

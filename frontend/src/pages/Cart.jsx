@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { fetchCart, cartItems, updateCartItem, clearCart, computeCartTotals } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import Btn from '../components/ui/Btn';
 
 export default function Cart(){
   const nav=useNavigate();
@@ -30,11 +31,11 @@ export default function Cart(){
   if(loading) return <div className="p-8 text-center"><div className="animate-pulse bg-surface2 border rounded-2xl p-6">Loading cart…</div></div>;
   const items = cartItems(cart);
   const { subtotal, gst, youEarn, loyaltyEnabled, freeOver } = computeCartTotals(items, s);
-  if(items.length===0) return <div className="max-w-3xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Cart'}]} /><h1 className="text-2xl font-black text-ink">Your cart is empty</h1><p className="text-muted mt-2">Browse paper bouquets or design a custom bloom.</p><div className="mt-4 flex gap-3 justify-center"><Link to="/shop" className="bg-bloom-500 text-white px-6 py-2 rounded-full">Shop</Link><Link to="/configurator" className="border px-6 py-2 rounded-full">Configurator</Link></div></div>;
+  if(items.length===0) return <div className="max-w-3xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Cart'}]} /><h1 className="text-2xl font-black text-ink">Your cart is empty</h1><p className="text-muted mt-2">Browse paper bouquets or design a custom bloom.</p><div className="mt-4 flex gap-3 justify-center"><Btn to="/shop" size="pillLg">Shop</Btn><Btn to="/configurator" variant="outline" size="pillLg">Configurator</Btn></div></div>;
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <Breadcrumbs items={[{label:'Cart'}]} />
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-black text-ink">Cart — {items.length} item(s)</h1><button onClick={clearAll} className="text-xs border rounded-full px-3 py-1 hover:bg-red-50 hover:text-red-600">Clear</button></div>
+      <div className="flex justify-between items-center"><h1 className="text-2xl font-black text-ink">Cart — {items.length} item(s)</h1><Btn variant="dangerOutline" size="pill" className="text-xs" onClick={clearAll}>Clear</Btn></div>
       {err && <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{err} {err.includes('stock') && <span>— try lowering qty</span>}</div>}
       <div className="mt-6 space-y-3">
         {items.map(it=> (
@@ -43,7 +44,7 @@ export default function Cart(){
             <div className="flex-1">
               <div className="font-bold text-ink text-sm">{it.product?.title || it.title} {it.variant? `— ${it.variant.title}`:''}</div>
               <div className="text-sm text-muted">${Number(it.priceSnapshot).toFixed(2)} × {it.quantity} = <span className="font-bold">${ (Number(it.priceSnapshot)*it.quantity).toFixed(2) }</span></div>
-              <div className="mt-2 flex gap-2 items-center"><button onClick={()=>updateQty(it.id, it.quantity-1)} disabled={it.quantity<=1} aria-label="Decrease quantity" className="px-3 py-1 border rounded-full hover:bg-surface3 disabled:opacity-40 disabled:cursor-not-allowed">−</button><span className="px-2 py-1 text-sm font-bold">{it.quantity}</span><button onClick={()=>updateQty(it.id, Math.min(99,it.quantity+1))} disabled={it.quantity>=99} aria-label="Increase quantity" className="px-3 py-1 bg-bloom-500 text-white rounded-full hover:bg-bloom-700 disabled:opacity-40 disabled:cursor-not-allowed">+</button><button onClick={()=>updateQty(it.id,0)} className="ml-auto text-xs text-red-600 hover:underline">Remove</button></div>
+              <div className="mt-2 flex gap-2 items-center"><Btn variant="outline" size="pill" onClick={()=>updateQty(it.id, it.quantity-1)} disabled={it.quantity<=1} aria-label="Decrease quantity">−</Btn><span className="px-2 py-1 text-sm font-bold">{it.quantity}</span><Btn size="pill" onClick={()=>updateQty(it.id, Math.min(99,it.quantity+1))} disabled={it.quantity>=99} aria-label="Increase quantity">+</Btn><Btn variant="danger" size="bare" className="ml-auto text-xs" onClick={()=>updateQty(it.id,0)}>Remove</Btn></div>
             </div>
           </div>
         ))}
@@ -53,7 +54,7 @@ export default function Cart(){
         <div className="flex justify-between text-xs text-muted mt-1"><span>GST incl.</span><span>${gst.toFixed(2)}</span></div>
         {loyaltyEnabled && <div className="flex justify-between text-xs text-ink mt-2 font-bold"><span>You’ll earn</span><span>{youEarn} Bloom pts</span></div>}
         <div className="text-xs text-muted mt-3">Shipping at checkout — Perth metro $12 (free over ${freeOver}). Pickup 6000 free.</div>
-        <button onClick={()=>nav('/checkout')} className="w-full mt-4 bg-bloom-500 text-white py-3 rounded-xl font-bold hover:bg-bloom-700">Checkout — Perth WA</button>
+        <Btn size="lg" className="w-full mt-4" onClick={()=>nav('/checkout')}>Checkout — Perth WA</Btn>
         <Link to="/shop" className="block text-center text-xs text-muted mt-3 hover:text-highlight">← Continue shopping</Link>
       </div>
       {loyaltyEnabled && <div className="mt-6 bg-bloom-700 text-white rounded-2xl p-4 text-xs flex gap-3">

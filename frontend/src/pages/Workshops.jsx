@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import NotebookPanel from '../components/NotebookPanel';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
+import Btn from '../components/ui/Btn';
+import { Input, Select } from '../components/ui/Field';
 import { usePublicSettings } from '../lib/publicSettings';
 export default function Workshops(){
   const [items,setItems]=useState([]);
@@ -35,7 +37,7 @@ export default function Workshops(){
   if (settings.show_workshops !== '1') return <Navigate to="/" replace />;
   if(loading) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="animate-pulse bg-surface2 border rounded-2xl p-6 h-32">Loading workshops…</div></div>;
   if(err) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">Failed to load workshops: {err} <button onClick={()=>window.location.reload()} className="ml-2 underline">Retry</button></div></div>;
-  if(!loading && items.length===0) return <div className="max-w-4xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Workshops'}]} /><h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1><p className="text-muted mt-2">No workshops yet — check back or design via Configurator.</p><Link to="/configurator" className="mt-4 inline-block bg-bloom-500 text-white px-6 py-3 rounded-xl">Design Custom Bouquet</Link></div>;
+  if(!loading && items.length===0) return <div className="max-w-4xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Workshops'}]} /><h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1><p className="text-muted mt-2">No workshops yet — check back or design via Configurator.</p><Btn to="/configurator" size="lg" className="mt-4 inline-block">Design Custom Bouquet</Btn></div>;
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <Breadcrumbs items={[{label:'Workshops'}]} />
@@ -43,22 +45,22 @@ export default function Workshops(){
       <p className="text-muted mt-2">Cricut Blooms 101, Origami Bouquet & Armature Art. Max 12, kits included.</p>
       <div className="mt-4 bg-surface border border-bloom-100 rounded-xl px-4 py-3 flex justify-between items-center">
         <span className="text-sm text-ink">Before you book, explore Notebook guide — supplies & folding previews</span>
-        <Link to="/notebook?workshop=cricut-blooms-101" className="text-xs bg-surface2 border rounded-full px-3 py-1 hover:bg-surface3">Notebook →</Link>
+        <Btn to="/notebook?workshop=cricut-blooms-101" variant="soft" size="pill" className="text-xs">Notebook →</Btn>
       </div>
       <div className="mt-6 bg-surface2 border rounded-2xl p-4">
         <h3 className="font-bold text-sm">Book a session</h3>
         <div className="mt-3 grid md:grid-cols-2 gap-3">
-          <select value={booking.sessionId} onChange={e=>setBooking({...booking, sessionId:e.target.value})} className="border rounded-xl px-3 py-2 text-sm">
+          <Select size="sm" label="Session" value={booking.sessionId} onChange={e=>setBooking({...booking, sessionId:e.target.value})}>
             <option value="">Select session</option>
             {items.flatMap(w=> (w.sessions||[]).map(s=> <option key={s.id} value={s.id}>{w.title} — {new Date(s.startsAt).toLocaleString('en-AU', { timeZone:'Australia/Perth', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})} — {Math.max(0,s.capacity - s.bookedCount)} left</option>))}
-          </select>
-          <input value={booking.name} onChange={e=>setBooking({...booking,name:e.target.value})} placeholder="Full name*" className="border rounded-xl px-3 py-2 text-sm" />
-          <input value={booking.email} onChange={e=>setBooking({...booking,email:e.target.value})} placeholder="Email*" type="email" className="border rounded-xl px-3 py-2 text-sm" />
-          <input value={booking.phone} onChange={e=>setBooking({...booking,phone:e.target.value})} placeholder="Phone" className="border rounded-xl px-3 py-2 text-sm" />
-          <label className="flex items-center gap-2 text-sm"><input type="number" min={1} max={10} value={booking.quantity} onChange={e=>setBooking({...booking,quantity: parseInt(e.target.value)||1})} className="border rounded-xl px-3 py-2 w-20" /> spots</label>
+          </Select>
+          <Input size="sm" label="Full name" placeholder="Full name*" value={booking.name} onChange={e=>setBooking({...booking,name:e.target.value})} />
+          <Input size="sm" label="Email" placeholder="Email*" type="email" value={booking.email} onChange={e=>setBooking({...booking,email:e.target.value})} />
+          <Input size="sm" label="Phone" placeholder="Phone" value={booking.phone} onChange={e=>setBooking({...booking,phone:e.target.value})} />
+          <label className="flex items-center gap-2 text-sm"><Input type="number" min={1} max={10} value={booking.quantity} onChange={e=>setBooking({...booking,quantity: parseInt(e.target.value)||1})} className="w-20" /> spots</label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={booking.kitAddOn} onChange={e=>setBooking({...booking,kitAddOn:e.target.checked})} /> Kit add-on (+$25)</label>
         </div>
-        <button onClick={book} className="mt-3 bg-bloom-500 text-white px-6 py-2 rounded-xl font-bold hover:bg-bloom-700">Book — Pay later (manual)</button>
+        <Btn size="md" className="mt-3" onClick={book}>Book — Pay later (manual)</Btn>
         {bookErr && <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{bookErr}</div>}
         {bookMsg && <div className="mt-3 bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs">{bookMsg}</div>}
         {qr && <div className="mt-3 text-center"><img src={qr.qrUrl} alt={qr.qrPayload} className="mx-auto w-48 h-48 border rounded-xl" /><div className="text-[11px] font-mono bg-surface3 rounded px-2 py-1 mt-2 break-all">{qr.qrPayload}</div><div className="text-xs text-muted mt-1">Show at POS — /pos check-in or workshop door</div></div>}
