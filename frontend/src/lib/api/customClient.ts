@@ -238,6 +238,8 @@ export const adminApi = {
       for (const f of Array.from(files)) fd.append('files', f, f.name);
       return req<any[]>(`/api/procedures/${id}/media`, { method: 'POST', body: fd, token });
     },
+    addMediaUrl: (id: string, url: string, token: string) => req<any>(`/api/procedures/${id}/media/url`, { method: 'POST', body: JSON.stringify({ url }), token }),
+    importContent: (url: string, token: string) => req<any>('/api/procedures/import-content', { method: 'POST', body: JSON.stringify({ url }), token }),
     reorderMedia: (id: string, mediaId: string, displayOrder: number, token: string) => req<any>(`/api/procedures/${id}/media/${mediaId}`, { method: 'PATCH', body: JSON.stringify({ displayOrder }), token }),
     deleteMedia: (id: string, mediaId: string, token: string) => req<any>(`/api/procedures/${id}/media/${mediaId}`, { method: 'DELETE', token }),
   },

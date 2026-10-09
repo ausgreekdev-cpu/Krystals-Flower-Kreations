@@ -2243,6 +2243,8 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
   });
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
 
@@ -2276,6 +2278,23 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
     finally { setBusy(false); }
   }
 
+  async function importFromUrl() {
+    const u = importUrl.trim();
+    if (!u) return;
+    setImporting(true);
+    try {
+      const r = await adminApi.procedures.importContent(u, token);
+      if (form.contentMarkdown.trim()) {
+        toast('Editor not empty — clear the content first, then import', 'error');
+        return;
+      }
+      setForm((f) => ({ ...f, contentMarkdown: r.contentMarkdown, title: f.title.trim() ? f.title : (r.suggestedTitle || f.title) }));
+      toast(r.suggestedTitle ? `Imported — title set to "${r.suggestedTitle}"` : 'Imported content');
+      setImportUrl('');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setImporting(false); }
+  }
+
   return <Modal title={doc ? `Edit — ${doc.title}` : 'New procedure'} onClose={onClose} wide>
     <div className="space-y-3">
       <div className="grid sm:grid-cols-2 gap-3">
@@ -2306,6 +2325,13 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
         <div><label className={label}>Tools (comma-separated)</label><input className={input} value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} /></div>
       </div>
       <div><label className={label}>Notes (metadata)</label><input className={input} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+      <div className="flex items-end gap-2">
+        <div className="flex-1"><label className={label}>Import content from URL (.md / .txt)</label>
+          <input className={input} value={importUrl} onChange={(e) => setImportUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') importFromUrl(); }}
+            placeholder="https://…/assembly-guide.md" /></div>
+        <Btn small color="ghost" onClick={importFromUrl} disabled={importing || !importUrl.trim()}>{importing ? 'Fetching…' : 'Import'}</Btn>
+      </div>
       <div className="flex items-center justify-between">
         <label className={label + ' mb-0'}>Content (markdown: ## heading, **bold**, 1. steps)</label>
         <Btn small color="ghost" onClick={() => setPreview((v) => !v)}>{preview ? 'Edit' : 'Preview'}</Btn>
@@ -2334,6 +2360,9 @@ function ProcedureDetail({ id, onClose, token, role }) {
   const [revs, setRevs] = useState(null);
   const [revView, setRevView] = useState(null);
   const [err, setErr] = useState('');
+  const [urlModal, setUrlModal] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [urlBusy, setUrlBusy] = useState(false);
   const fileRef = useRef(null);
   const canEdit = ['staff', 'maker', 'admin', 'developer'].includes(role);
 
@@ -2359,13 +2388,27 @@ function ProcedureDetail({ id, onClose, token, role }) {
     try { await adminApi.procedures.deleteMedia(id, m.id, token); toast('File removed'); refresh(); }
     catch (e) { toast(e.message, 'error'); }
   }
+  async function attachFromUrl() {
+    const u = mediaUrl.trim();
+    if (!u) return;
+    setUrlBusy(true);
+    try {
+      await adminApi.procedures.addMediaUrl(id, u, token);
+      toast('Attached from URL');
+      setMediaUrl('');
+      setUrlModal(false);
+      refresh();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setUrlBusy(false); }
+  }
 
   if (err) return <Modal title="Procedure" onClose={onClose}><div className="text-sm text-red-600">{err}</div></Modal>;
   if (!doc) return <Modal title="Procedure" onClose={onClose}><div className="text-sm text-muted">Loading…</div></Modal>;
 
   const media = [...(doc.media || [])].sort((a, b) => a.displayOrder - b.displayOrder);
   const shown = revView ? revView : null;
-  return <Modal title={doc.title} onClose={onClose} wide>
+  return <>
+    <Modal title={doc.title} onClose={onClose} wide>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <StatusBadge value={doc.status} />
@@ -2383,7 +2426,10 @@ function ProcedureDetail({ id, onClose, token, role }) {
           <div className="text-xs font-semibold text-muted">Media ({media.length})</div>
           {canEdit && <>
             <input ref={fileRef} type="file" multiple className="hidden" accept="image/*,.svg,.pdf,.zip,.stl,video/mp4,video/quicktime" onChange={onPick} />
-            <Btn small onClick={() => fileRef.current?.click()}>Upload files</Btn>
+            <div className="flex gap-2">
+              <Btn small onClick={() => fileRef.current?.click()}>Upload files</Btn>
+              <Btn small color="ghost" onClick={() => setUrlModal(true)}>Add from URL</Btn>
+            </div>
           </>}
         </div>
         {media.length === 0 && <div className="text-xs text-muted">No files</div>}
@@ -2421,7 +2467,25 @@ function ProcedureDetail({ id, onClose, token, role }) {
         </div>
       </div>
     </div>
-  </Modal>;
+    </Modal>
+
+    {urlModal && <Modal title="Add media from URL" onClose={() => setUrlModal(false)}>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-semibold text-muted mb-1">Public file URL (image, SVG, PDF, ZIP, STL, MP4)</label>
+          <input className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500"
+            value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') attachFromUrl(); }}
+            placeholder="https://…/diagram.svg" autoFocus />
+        </div>
+        <div className="text-[11px] text-muted">Fetched server-side and stored with the procedure. Private/network addresses are blocked.</div>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Btn color="ghost" onClick={() => setUrlModal(false)}>Cancel</Btn>
+        <Btn onClick={attachFromUrl} disabled={urlBusy || !mediaUrl.trim()}>{urlBusy ? 'Fetching…' : 'Fetch & attach'}</Btn>
+      </div>
+    </Modal>}
+  </>;
 }
 
 function POS({ data, reload, token }) {

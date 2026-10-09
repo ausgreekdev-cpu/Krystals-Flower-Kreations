@@ -17,7 +17,7 @@ export const upload = multer({
 // short demo videos. Bigger cap (25MB) than product photos; the client-supplied
 // mimetype is only a hint, so callers MUST also pass the buffer through
 // docMimeLooksReal() before storing (mirrors the sharp-decode rule for images).
-const ALLOWED_DOC_MIME = new Set([
+export const ALLOWED_DOC_MIME = new Set([
   'image/jpeg', 'image/png', 'image/webp', 'image/gif',
   'image/svg+xml',
   'application/pdf', 'application/zip', 'model/stl',

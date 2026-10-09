@@ -4,8 +4,10 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole, verifyToken } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { uploadDocs, docMimeLooksReal } from '../middleware/upload.js';
+import { uploadDocs, docMimeLooksReal, ALLOWED_DOC_MIME } from '../middleware/upload.js';
 import { putObject, deleteObjectByUrl } from '../services/storage.js';
+import { fetchExternal } from '../services/external-fetch.js';
+import { rateLimit } from '../middleware/rate-limit.js';
 import { audit } from '../lib/audit.js';
 import sharp from 'sharp';
 
@@ -91,6 +93,23 @@ const updateSchema = createSchema.partial().extend({
 });
 
 const reorderSchema = z.object({ displayOrder: z.number().int().min(0).max(999) }).strict();
+
+const sourceUrlSchema = z.object({ url: z.string().min(8).max(2048) }).strict();
+
+// Remote servers often send application/octet-stream (or nothing) for files —
+// fall back to the URL extension when the header isn't one of ours.
+const EXT_MIME = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+  svg: 'image/svg+xml', pdf: 'application/pdf', zip: 'application/zip', stl: 'model/stl',
+  mp4: 'video/mp4', mov: 'video/quicktime',
+};
+function guessMimeFromUrl(u) {
+  try {
+    const seg = new URL(u).pathname.toLowerCase().split('/').pop() || '';
+    const ext = seg.includes('.') ? seg.split('.').pop() : '';
+    return EXT_MIME[ext] || '';
+  } catch { return ''; }
+}
 
 // ── List (public; drafts/archived/all are staff-gated) ───────────────────────
 router.get('/', asyncHandler(async (req, res) => {
@@ -309,6 +328,68 @@ router.delete('/:id/media/:mediaId', authenticate, requireRole(...EDITOR_ROLES),
   await prisma.documentMedia.delete({ where: { id: mediaId } });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'procedure_media_delete', entityType: 'procedure', entityId: id, details: { mediaId, mediaType: media.mediaType } });
   res.json({ id: mediaId, deleted: true });
+}));
+
+// ── Attach media from an external URL (Editor+) ──────────────────────────────
+// Server-side fetch with SSRF/size guards (services/external-fetch.js), then
+// the same sniff → resize → store pipeline as a direct upload.
+router.post('/:id/media/url', authenticate, requireRole(...EDITOR_ROLES), rateLimit('procedures_external', 30, 1), validate(sourceUrlSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.procedureDocument.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+
+  const { buffer, contentType, finalUrl } = await fetchExternal(req.validated.url, { maxBytes: 25 * 1024 * 1024 });
+  let mime = contentType;
+  if (!ALLOWED_DOC_MIME.has(mime)) {
+    const guessed = guessMimeFromUrl(finalUrl);
+    if (guessed && ALLOWED_DOC_MIME.has(guessed)) mime = guessed;
+  }
+  if (!ALLOWED_DOC_MIME.has(mime) || !docMimeLooksReal(buffer, mime)) {
+    return res.status(415).json({ error: 'URL did not return a supported image, SVG, PDF, ZIP, STL or MP4/MOV file', code: 'unsupported_media_type' });
+  }
+  let buf = buffer;
+  let outMime = mime;
+  let ext = extFor(mime);
+  if (['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
+    const processed = await processRaster({ buffer, mimetype: mime }); // throws 415 on decode failure
+    buf = processed.buf; outMime = processed.contentType; ext = processed.ext;
+  }
+  const agg = await prisma.documentMedia.aggregate({ where: { documentId: id }, _max: { displayOrder: true } });
+  const key = `procedures/${doc.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const url = await putObject(key, buf, outMime, { bucket: 'procedure-media' });
+  const row = await prisma.documentMedia.create({
+    data: { documentId: doc.id, mediaType: mediaTypeFor(mime), url, displayOrder: (agg._max.displayOrder ?? -1) + 1 },
+  });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'procedure_media_add_url', entityType: 'procedure', entityId: id, details: { source: finalUrl, mediaType: row.mediaType } });
+  res.status(201).json(row);
+}));
+
+// ── Import markdown/plain-text content from a URL (Editor+) ──────────────────
+// Returns { contentMarkdown, suggestedTitle } — the editor applies it; nothing
+// is persisted here so title/category stay under the author's control.
+router.post('/import-content', authenticate, requireRole(...EDITOR_ROLES), rateLimit('procedures_external', 30, 1), validate(sourceUrlSchema), asyncHandler(async (req, res) => {
+  const { buffer, contentType, finalUrl } = await fetchExternal(req.validated.url, { maxBytes: 2 * 1024 * 1024, timeoutMs: 10000 });
+  if (contentType === 'text/html' || contentType === 'application/xhtml+xml') {
+    return res.status(400).json({ error: 'URL returned HTML — use a direct .md or .txt link', code: 'unsupported_content_type' });
+  }
+  const texty = ['', 'text/plain', 'text/markdown', 'text/x-markdown', 'text/x-log', 'application/octet-stream', 'application/x-download'].includes(contentType);
+  if (!texty) {
+    return res.status(415).json({ error: 'Only markdown/plain-text URLs can be imported', code: 'unsupported_media_type' });
+  }
+  if (buffer.subarray(0, 4096).includes(0)) {
+    return res.status(415).json({ error: 'That file is not text (binary content)', code: 'unsupported_media_type' });
+  }
+  const contentMarkdown = buffer.toString('utf8').replace(/^\uFEFF/, '').trim();
+  if (!contentMarkdown) return res.status(422).json({ error: 'Remote file is empty', code: 'fetch_failed' });
+  const heading = /^#\s+(.+)$/m.exec(contentMarkdown);
+  res.json({
+    contentMarkdown,
+    suggestedTitle: heading ? heading[1].trim().slice(0, 200) : null,
+    contentType: contentType || 'text/plain',
+    bytes: buffer.length,
+    sourceUrl: finalUrl,
+  });
 }));
 
 export default router;
