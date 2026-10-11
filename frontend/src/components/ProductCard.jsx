@@ -13,6 +13,12 @@ export default function ProductCard({ p, showCricut = false }) {
         <div className="font-bold text-ink line-clamp-2 text-sm md:text-[15px] leading-tight">{p.title}</div>
         <div className="text-highlight font-bold mt-1.5">${Number(p.price).toFixed(2)} <span className="text-xs font-normal text-muted">AUD</span></div>
         <div className="text-xs text-muted mt-1">{p.paperStock || 'Canson 65lb'} {showCricut && p.cricutCompatible && '• Cricut'}</div>
+        {(p.flowerType || p.colourFamily) && (
+          <div className="flex gap-1 mt-1.5 flex-wrap">
+            {p.flowerType && <span className="text-[10px] font-semibold capitalize bg-bloom-50 text-bloom-700 border border-bloom-100 px-1.5 py-0.5 rounded-full">{p.flowerType}</span>}
+            {p.colourFamily && <span className="text-[10px] font-semibold capitalize bg-surface text-muted border px-1.5 py-0.5 rounded-full">{p.colourFamily.replace(/-/g,' ')}</span>}
+          </div>
+        )}
       </div>
     </Link>
   );
