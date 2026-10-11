@@ -32,7 +32,7 @@ npm run build       # Vite build + PWA
 
 ## Databases
 
-- **Local dev**: Postgres at `postgresql://krystal:krystal_dev_password@localhost:5432/krystals_flower_kreations?schema=public` (via `docker compose up -d db`, or the sandbox's embedded postgres at `~/.cache/opencode/pg-embed/start.js` — NOT under `/tmp`, which sandbox recycles wipe).
+- **Local dev**: Postgres at `postgresql://krystal:krystal_dev_password@localhost:5432/krystals_flower_kreations?schema=public` (via `docker compose up -d db`, or the sandbox's embedded postgres at `~/.cache/opencode/pg-embed/start.js` — NOT under `/tmp`, which sandbox recycles wipe). If 5432 is down: `node ~/.cache/opencode/pg-embed/start.js &`, then `npm run db:push && npm run seed`.
 - **Prod (Supabase)**: project `tyyqnlfzhgxvnqmicgfr`, ap-southeast-2.
   - Runtime `DATABASE_URL`: `postgresql://postgres.tyyqnlfzhgxvnqmicgfr:!Krystalsflowercreations123@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`
   - DDL `DIRECT_URL`: same host but `:5432` and **no** `pgbouncer=true` — the 6543 pooler can't run DDL (hangs `db push`).
@@ -72,7 +72,8 @@ npm run build       # Vite build + PWA
 - **Dark mode**: `html.dark` flips semantic Tailwind tokens (`bg-surface/surface2/surface3`, `text-ink`, `text-muted`, `border-line/line-strong`, `text-highlight`) defined in `frontend/src/index.css` + `tailwind.config.js`. New UI must use these tokens, not `bg-white`/`text-gray-*` (which don't flip). Colour mode state: `frontend/src/lib/colorMode.js` (`kfk_color_mode` in localStorage; no-flash script in `index.html`).
 - **Cart stock enforcement**: `POST /api/cart/add|update` (backend/src/routes/cart.js) stock-check tracked products — variant `inventoryQuantity`, else the default-location `InventoryLevel`; overstock → 422 `out_of_stock`. Line qty clamped 0–99. `GET /api/products/:slug` returns `availableQty` (use it for page stock display, not variant-only fields). Storefront cart state and totals live in `frontend/src/lib/cartClient.js` (`fetchCart`/`addToCart`/`updateCartItem`/`computeCartTotals` — totals derive from public settings: GST/loyalty/shipping_free_over). Don't hand-roll totals or clear the cart with bare localStorage logic.
 - **Configurator pricing**: floor (`configurator_floor` + `configurator_per_stem`×stems) prices the BOUQUET only; add-ons (vase/greenery/dome/led — `configurator_*` settings) always bill on top of the floor. Custom-order spec includes `domeIncluded`/`ledIncluded`/`palette`. Seed sets `bom_margin='1.30'` (a stale `0.30` in a DB makes every order clamp to the floor — reset the key if seen).
-- **Product florist fields**: `flowerType`, `colourFamily`, `stemLengthMm`, `occasions[]`, `careInstructions` (Prisma `@@map("products")` — raw SQL must use snake_case table + quoted camelCase columns). Public list filters: `?flowerType=rose|lily|…`, `?colourFamily=`, `?occasion=` (has-filter). Admin ProductModal edits them; Product page renders a florist info box when present.
+- **Product florist fields**: `flowerType`, `colourFamily`, `stemLengthMm`, `occasions[]`, `careInstructions` (Prisma `@@map("products")` — raw SQL must use snake_case table + quoted camelCase columns). Public list filters: `?flowerType=rose|lily|…`, `?colourFamily=`, `?occasion=` (has-filter). Admin ProductModal edits them; Product page renders a florist info box when present. Shop page has URL-synced bloom/colour/occasion chips (client-side over the fetched catalog; `Reset filters` clears — distinct from the search `Clear`).
+- **PayPal mock E2E**: `node scripts/e2e-paypal-mock.mjs` (BASE env to override :3001). Requires `PAYPAL_MODE=mock` in `backend/.env` AND the `checkout_payment_methods` setting to include `paypal` (else 422 `payment_method_disabled`). Unit suite (`test/paypalCheckout.test.js`) covers the same flow in-process with NODE_ENV=test auto-mock. Real sandbox: `PAYPAL_MODE=sandbox` + `PAYPAL_CLIENT_SECRET` env + client id via Admin → Settings → Payments (`paypal_client_id`).
 
 ## Storefront UI kit
 
@@ -98,9 +99,16 @@ npm run build       # Vite build + PWA
 - Admin UI is inline in `frontend/src/pages/Admin.jsx` (house convention — Procedures/ProcedureModal/ProcedureDetail as local components, no separate files). Self-fetching (component loads its own data; the top-level `load(tab)` branch no-ops harmlessly). FileList is live — snapshot `Array.from(e.target.files)` BEFORE clearing `input.value` or the upload silently sends nothing.
 - Importing from a URL that returns HTML surfaces the server's "unsupported_content_type" message; external-fetch test helper in `test/procedures.test.js` (`mockExternal`) stubs non-test-server URLs — success paths must use `https://example.com/...` since DNS resolution is real.
 
+## AR / 3D
+
+- `model-viewer@4.4.0` loads once from **jsDelivr** in `frontend/index.html` (ajax.googleapis.com only hosts model-viewer ≤4.1.0 — the 4.4.0 googleapis URL 404s). Workbox caches the lib 30d.
+- `ARViewer` (configurator) probes `/3d/<templateId>.glb` with a Range GET — rejects `text/html` (Vite SPA-fallback 200s for missing files) and ≤1KB bodies (12-byte placeholders). Vite HEAD omits content-length — never probe with HEAD alone.
+- `frontend/public/3d/*.glb` = CC0 Poly Haven scans, cropped to largest clump + bottom-centred + Draco (199–404KB). Replace with Blender exports when ready (see `public/3d/README.md`); viewer activates automatically.
+
 ## Netlify
 
 - Site exists with **Base directory `mobile`** (works via `mobile/frontend` + `mobile/netlify` symlinks, but publishing/bundling that way is fragile — recommended: clear Base directory to repo root).
 - Site env sets `NODE_ENV=production` → `netlify-build.sh` unsets it for the build, else npm skips devDependencies (`vite: not found`, exit 127). Install runs once at the root (`--workspace=backend --workspace=frontend --include=dev`).
 - `netlify/functions/api.js` wraps Express via `serverless-http`; `scheduled.js` runs hourly (`0 * * * *`) for cart cleanup, rate-limit purge, reminders, low-stock, and email drain; `health.js` probes the DB.
 - `netlify.toml` external_node_modules must stay in sync with backend deps.
+- **Push-triggered deploys ERROR** (since ~Oct 9; site id `9cb46734-6ab9-446b-892b-7cca70d5e1a2`, name `krystalflowercreations`) — production is kept current via **manual UI publishes** instead. Netlify build logs need a personal access token (app.netlify.com/user/applications#personal-access-tokens); anonymous `api.netlify.com/api/v1/sites/krystalsflowercreations.com.au/deploys` shows states/titles. Custom domain `krystalsflowercreations.com.au` now serves 200 (team protection lifted).
