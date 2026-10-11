@@ -5,6 +5,7 @@ import { usePublicSettings } from '../lib/publicSettings';
 import Breadcrumbs from '../components/layout/Breadcrumbs';
 import Btn from '../components/ui/Btn';
 import { Input, Select, TextArea } from '../components/ui/Field';
+import ProductCard from '../components/ProductCard';
 
 const ORG = "Krystals Flower Creations";
 const stars = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
@@ -13,6 +14,7 @@ export default function Product(){
   const s = usePublicSettings();
   const {slug}=useParams(); const nav=useNavigate(); const [p,setP]=useState(null); const [variantId,setVariantId]=useState(null); const [qty,setQty]=useState(1); const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
   const [reviews,setReviews]=useState([]);
+  const [related,setRelated]=useState([]);
   const [fieldDefs,setFieldDefs]=useState([]);
   const [rvForm,setRvForm]=useState({ name:'', rating:5, title:'', body:'', website:'' });
   const [rvSent,setRvSent]=useState(false); const [rvErr,setRvErr]=useState(''); const [rvBusy,setRvBusy]=useState(false);
@@ -23,6 +25,28 @@ export default function Product(){
   useEffect(()=>{
     fetch('/api/products/fields').then(r=> r.ok? r.json(): []).then(d=> setFieldDefs(Array.isArray(d)?d:[])).catch(()=> setFieldDefs([]));
   }, []);
+  // Related blooms — same flower, else same occasion, else same colour; hides when nothing matches
+  useEffect(()=>{
+    if(!p || p.error){ setRelated([]); return; }
+    let alive = true;
+    (async ()=>{
+      const tries = [];
+      if(p.flowerType) tries.push(`flowerType=${encodeURIComponent(p.flowerType)}`);
+      (Array.isArray(p.occasions)?p.occasions:[]).slice(0,2).forEach(o=> tries.push(`occasion=${encodeURIComponent(o)}`));
+      if(p.colourFamily) tries.push(`colourFamily=${encodeURIComponent(p.colourFamily)}`);
+      for(const q of tries){
+        try{
+          const r = await fetch(`/api/products?${q}&limit=8`);
+          if(!r.ok) continue;
+          const d = await r.json();
+          const arr = (Array.isArray(d)?d:(Array.isArray(d.products)?d.products:[])).filter(x=> x.id!==p.id && x.slug!==p.slug);
+          if(arr.length){ if(alive) setRelated(arr.slice(0,4)); return; }
+        }catch{ /* try next dimension */ }
+      }
+      if(alive) setRelated([]);
+    })();
+    return ()=>{ alive=false; };
+  }, [p]);
   async function addToCart(){
     if(!p || p.error) return;
     setErr(''); setMsg('');
@@ -137,12 +161,16 @@ export default function Product(){
           <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3 space-y-1">
             {(p.flowerType || p.colourFamily || p.stemLengthMm) && (
               <div className="flex flex-wrap gap-2">
-                {p.flowerType && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize">{p.flowerType}</span>}
-                {p.colourFamily && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize">{p.colourFamily.replace(/-/g,' ')}</span>}
+                {p.flowerType && <Link to={`/shop?flowerType=${encodeURIComponent(p.flowerType)}`} className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize hover:border-bloom-500 hover:text-bloom-700">{p.flowerType}</Link>}
+                {p.colourFamily && <Link to={`/shop?colourFamily=${encodeURIComponent(p.colourFamily)}`} className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize hover:border-bloom-500 hover:text-bloom-700">{p.colourFamily.replace(/-/g,' ')}</Link>}
                 {p.stemLengthMm && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold">{p.stemLengthMm} mm stems</span>}
               </div>
             )}
-            {(p.occasions||[]).length>0 && <div className="text-xs text-muted">Perfect for: {p.occasions.join(', ')}</div>}
+            {(p.occasions||[]).length>0 && (
+              <div className="text-xs text-muted">Perfect for: {(p.occasions||[]).map((o,i)=> (
+                <span key={o}>{i>0 && ', '}<Link to={`/shop?occasion=${encodeURIComponent(o)}`} className="underline font-medium hover:text-bloom-700">{o.replace(/-/g,' ')}</Link></span>
+              ))}</div>
+            )}
             {p.careInstructions && <div className="text-xs text-muted">Care: {p.careInstructions}</div>}
           </div>
         )}
@@ -171,6 +199,16 @@ export default function Product(){
         <div className="mt-4 text-xs text-muted border-t pt-3">{`Earn ${s.loyalty_earn_rate || 1} Bloom pt per $1 • Blossom at ${s.loyalty_blossom_threshold || 100} pts • Free Perth delivery over $${Number(s.shipping_free_over) || 150}`}</div>
       </div>
       </div>
+
+      {/* Related blooms — florist cross-sell; links back into filtered Shop */}
+      {related.length>0 && (
+        <section className="mt-10 border-t pt-8" aria-label="Related blooms">
+          <h2 className="text-xl font-black text-ink">More like this</h2>
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {related.map(r=> <ProductCard key={r.id} p={r} showCricut={s.show_cricut==='1'} />)}
+          </div>
+        </section>
+      )}
 
       {/* Reviews — social proof (approved reviews; new ones await admin approval) */}
       <section className="mt-10 border-t pt-8" aria-label="Reviews">
