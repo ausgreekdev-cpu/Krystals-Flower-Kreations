@@ -107,7 +107,7 @@ npm run build       # Vite build + PWA
 
 ## Netlify
 
-- **Base directory was `mobile`** — wedged Netlify's "no content change" check (it diffs only the base dir; commits touching `frontend/`/`backend/` only were skipped, so every push "errored" while manual UI publishes kept prod alive). Fixed 2026-10-11: base dir cleared to repo root via API PATCH (`build_settings.dir=""`), full build green, build hook created (site → Build hooks, name `main-rebuild`) for forced rebuilds. If pushes stop deploying again, check the deploy error_message for "no content change" first.
+- **Base directory was `mobile`** — wedged Netlify's "no content change" check (it diffs only the base dir; commits touching `frontend/`/`backend/` only were skipped, so every push "errored" while manual UI publishes kept prod alive). Fixed 2026-10-11 via API PATCH: the active fields are `build_settings.base` AND `package_path` (clearing legacy `dir` alone is NOT enough) — set both to `""`. Push-to-deploy verified green; build hook `main-rebuild` exists for forced rebuilds. If pushes stop deploying again, check the deploy error_message for "no content change" and re-check these fields.
 - Site env sets `NODE_ENV=production` → `netlify-build.sh` unsets it for the build, else npm skips devDependencies (`vite: not found`, exit 127). Install runs once at the root (`--workspace=backend --workspace=frontend --include=dev`).
 - `netlify/functions/api.js` wraps Express via `serverless-http`; `scheduled.js` runs hourly (`0 * * * *`) for cart cleanup, rate-limit purge, reminders, low-stock, and email drain; `health.js` probes the DB.
 - `netlify.toml` external_node_modules must stay in sync with backend deps.
