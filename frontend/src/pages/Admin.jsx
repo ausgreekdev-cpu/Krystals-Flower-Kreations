@@ -1283,6 +1283,8 @@ function Products({ data, reload, token }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [uploading, setUploading] = useState('');
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [retry, setRetry] = useState(null); // { id, files } — failed files kept for one-click retry
   const [labels, setLabels] = useState(false);
   const [q, setQ] = useState('');
   const products = Array.isArray(data.products) ? data.products : [];
@@ -1298,10 +1300,32 @@ function Products({ data, reload, token }) {
     catch (e) { toast(e.message, 'error'); }
   }
   async function upload(id, files) {
+    const list = Array.from(files);
+    // Match the server's MIME allowlist so bad picks fail instantly, not after a full upload
+    const okTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+    const bad = list.filter((f) => !okTypes.includes(String(f.type).toLowerCase()));
+    const good = list.filter((f) => okTypes.includes(String(f.type).toLowerCase()));
+    if (bad.length) toast(`Not a supported image type (JPG/PNG/WebP/GIF/AVIF): ${bad.map((f) => f.name).join(', ')}`, 'error');
+    if (!good.length) return;
     setUploading(id);
-    try { await adminApi.products.uploadImages(id, files, token); toast('Images uploaded'); reload(); }
-    catch (e) { toast(e.message, 'error'); }
-    finally { setUploading(''); }
+    setUploadProgress(`0/${good.length}`);
+    try {
+      const { created, failures } = await adminApi.products.uploadImages(id, good, token, (d, t) => setUploadProgress(`${d}/${t}`));
+      if (failures.length) {
+        setRetry({ id, files: good.filter((f) => failures.some((x) => x.name === f.name)) });
+        toast(`${created.length} uploaded, ${failures.length} failed — ${failures.map((f) => `${f.name}: ${f.error}`).join('; ')}`, 'error');
+      } else {
+        setRetry(null);
+        toast(`${created.length} image${created.length === 1 ? '' : 's'} uploaded`);
+      }
+      if (created.length) reload();
+    } catch (e) {
+      setRetry({ id, files: good });
+      toast(e.message, 'error');
+    } finally {
+      setUploading('');
+      setUploadProgress('');
+    }
   }
   return (
     <div className="space-y-3">
@@ -1334,16 +1358,21 @@ function Products({ data, reload, token }) {
               <Btn small color="ghost" onClick={() => toggle(p, 'isActive')}>{p.isActive ? 'Deactivate' : 'Activate'}</Btn>
               <Btn small color="ghost" onClick={() => toggle(p, 'isFeatured')}>{p.isFeatured ? 'Unfeature' : 'Feature'}</Btn>
               <label className={`inline-flex items-center px-2.5 py-1 text-xs rounded-xl border border-line-strong text-ink hover:bg-surface3 cursor-pointer font-semibold ${uploading === p.id ? 'opacity-50' : ''}`}>
-                {uploading === p.id ? 'Uploading…' : 'Upload'}
-                <input type="file" accept="image/*" multiple className="hidden" disabled={uploading === p.id} onChange={(e) => e.target.files?.length && upload(p.id, e.target.files)} />
+                {uploading === p.id ? `Uploading ${uploadProgress}` : 'Upload'}
+                <input type="file" accept="image/*" multiple className="hidden" disabled={uploading === p.id}
+                  onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; if (files.length) upload(p.id, files); }} />
               </label>
+              {retry?.id === p.id && uploading !== p.id && (
+                <button onClick={() => upload(retry.id, retry.files)}
+                  className="px-2.5 py-1 text-xs rounded-xl border border-red-300 text-red-700 font-semibold hover:bg-red-50">Retry {retry.files.length} failed</button>
+              )}
               <Btn small color="red" onClick={() => setConfirmDel(p)}>Delete</Btn>
             </div>
           </div>
         ))}
       </div>
       {filteredProducts.length === 0 && <div className="text-xs text-muted py-10 text-center">{nq ? 'No products match your search' : 'No products'}</div>}
-      {editing && <ProductModal product={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Product updated' : 'Product created'); reload(); }} token={token} />}
+      {editing && <ProductModal product={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast(editing.id ? 'Product updated' : 'Product created'); reload(); }} onChanged={reload} token={token} />}
       {confirmDel && <ConfirmDialog title="Delete product" message={`Delete "${confirmDel.title}"? This cannot be undone.`} confirmLabel="Delete" onConfirm={doDelete} onClose={() => setConfirmDel(null)} />}
       {labels && <LabelPrintModal title="Print product labels" items={filteredProducts.map((p) => ({ id: p.id, name: p.title, value: p.barcode || p.sku || '' }))} onClose={() => setLabels(false)} />}
     </div>
@@ -1354,7 +1383,7 @@ const FLOWER_TYPES = ['rose','lily','wattle','banksia','peony','mixed'];
 const COLOUR_FAMILIES = ['blush','sage','ivory','dusty-pink','eucalyptus','white','mixed'];
 const OCCASIONS = ['birthday','wedding','anniversary','sympathy','valentines','mothers-day'];
 
-function ProductModal({ product, onClose, onSaved, token }) {
+function ProductModal({ product, onClose, onSaved, onChanged, token }) {
   const toast = useToast();
   const [form, setForm] = useState(() => ({
     title: product?.title || '', slug: product?.slug || '', sku: product?.sku || '',
@@ -1373,7 +1402,33 @@ function ProductModal({ product, onClose, onSaved, token }) {
   const [custom, setCustom] = useState(() => ({ ...(product?.customFields || {}) }));
   const [manageFields, setManageFields] = useState(false);
   const [newField, setNewField] = useState({ label: '', type: 'text' });
+  const [images, setImages] = useState(() => product?.images || []);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  async function saveAlt(img, alt) {
+    try {
+      const updated = await adminApi.products.patchImage(product.id, img.id, { alt }, token);
+      setImages((prev) => prev.map((x) => (x.id === img.id ? { ...x, ...updated } : x)));
+      onChanged?.();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function moveImage(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= images.length) return;
+    const order = images.map((x) => x.id);
+    [order[i], order[j]] = [order[j], order[i]];
+    try {
+      await adminApi.products.reorderImages(product.id, order, token);
+      setImages(order.map((id) => images.find((x) => x.id === id)));
+      onChanged?.();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function removeImage(img) {
+    try {
+      await adminApi.products.deleteImage(product.id, img.id, token);
+      setImages((prev) => prev.filter((x) => x.id !== img.id));
+      onChanged?.();
+    } catch (e) { toast(e.message, 'error'); }
+  }
   useEffect(() => {
     if (product?.id) adminApi.variants.list(product.id, token).then(setVariants).catch(() => {});
     adminApi.productFields.list().then(setFieldDefs).catch(() => {});
@@ -1550,16 +1605,24 @@ function ProductModal({ product, onClose, onSaved, token }) {
           </div>
         </div>
       )}
-      {product && (product.images || []).length > 0 && (
+      {product && images.length > 0 && (
         <div className="mt-4">
-          <label className="block text-xs font-semibold text-muted mb-1">Images</label>
-          <div className="flex flex-wrap gap-2">
-            {(product.images || []).map((img) => (
-              <div key={img.id} className="relative group">
-                <img src={img.url} alt={img.alt || product.title} className="w-16 h-16 rounded-lg object-cover border border-line" loading="lazy" />
-                <button type="button" title="Delete image"
-                  onClick={async () => { try { await adminApi.products.deleteImage(product.id, img.id, token); onSaved(); } catch (e) { toast(e.message, 'error'); } }}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+          <label className="block text-xs font-semibold text-muted mb-1">Images — alt text saves on blur</label>
+          <div className="flex flex-wrap gap-3">
+            {images.map((img, i) => (
+              <div key={img.id} className="relative group w-24">
+                <img src={img.url} alt={img.alt || product.title} className="w-24 h-24 rounded-lg object-cover border border-line" loading="lazy" />
+                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button type="button" title="Move earlier" disabled={i === 0} onClick={() => moveImage(i, -1)}
+                    className="w-5 h-5 rounded bg-black/70 text-white text-[10px] leading-none disabled:opacity-30">↑</button>
+                  <button type="button" title="Move later" disabled={i === images.length - 1} onClick={() => moveImage(i, 1)}
+                    className="w-5 h-5 rounded bg-black/70 text-white text-[10px] leading-none disabled:opacity-30">↓</button>
+                  <button type="button" title="Delete image" onClick={() => removeImage(img)}
+                    className="w-5 h-5 rounded bg-red-600 text-white text-[10px] leading-none">✕</button>
+                </div>
+                <input defaultValue={img.alt || ''} placeholder="alt text" aria-label="Image alt text"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (img.alt || '')) saveAlt(img, v); }}
+                  className="mt-1 w-24 border border-line rounded px-1 py-0.5 text-[10px]" />
               </div>
             ))}
           </div>
@@ -2410,9 +2473,15 @@ function ProcedureDetail({ id, onClose, token, role }) {
     const picked = Array.from(e.target.files || []);
     e.target.value = '';
     if (!picked.length) return;
+    // Mirror the server limits so bad picks fail instantly, not after a full upload
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf', 'application/zip', 'model/stl', 'video/mp4', 'video/quicktime'];
+    const rejected = picked.filter((f) => f.size > 25 * 1024 * 1024 || (f.type && !allowed.includes(String(f.type).toLowerCase())));
+    const good = picked.filter((f) => !rejected.includes(f));
+    if (rejected.length) toast(`Rejected (max 25MB; images/SVG/PDF/ZIP/STL/MP4/MOV only): ${rejected.map((f) => f.name).join(', ')}`, 'error');
+    if (!good.length) return;
     try {
-      await adminApi.procedures.uploadMedia(id, picked, token);
-      toast(`Uploaded ${picked.length} file${picked.length > 1 ? 's' : ''}`);
+      await adminApi.procedures.uploadMedia(id, good, token);
+      toast(`Uploaded ${good.length} file${good.length > 1 ? 's' : ''}`);
       refresh();
     } catch (e2) { toast(e2.message, 'error'); }
   }

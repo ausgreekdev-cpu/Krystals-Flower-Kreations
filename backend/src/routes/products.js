@@ -6,6 +6,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate, querySchemas } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { upload } from '../middleware/upload.js';
+import { rateLimit } from '../middleware/rate-limit.js';
 import sharp from 'sharp';
 import crypto from 'crypto';
 import { putObject, deleteObjectByUrl } from '../services/storage.js';
@@ -74,7 +75,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const products = await prisma.product.findMany({
     where, take, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
-    include: { images: { orderBy: { sortOrder: 'asc' } }, variants: true, collections: { include: { collection: true } } },
+    include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, collections: { include: { collection: true } } },
   });
   res.json({ products, nextCursor: products.length === take ? products[products.length - 1].id : null });
 }));
@@ -89,7 +90,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
   const product = await prisma.product.findUnique({
     where: { slug, deletedAt: null },
-    include: { images: { orderBy: { sortOrder: 'asc' } }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
+    include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
   });
   if (!product) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   // Tracked products without variants hold stock in the default-location
@@ -150,11 +151,18 @@ router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandle
 }));
 
 // Product images upload — sharp resize 800x800 → Supabase Storage (prod) or backend/uploads (dev)
-router.post('/:id/images', requireAuth, requireRole('admin','developer','maker','staff'), upload.array('images', 5), asyncHandler(async (req, res) => {
+const IMAGE_CAP = 12; // per product
+const imageUploadLimit = rateLimit('product_images', 60, 5);
+const imagePatchSchema = z.object({ alt: z.string().max(200).optional() }).strict();
+const imageOrderSchema = z.object({ order: z.array(z.string().min(1).max(100)).min(1).max(50) }).strict();
+
+router.post('/:id/images', requireAuth, requireRole('admin','developer','maker','staff'), imageUploadLimit, upload.array('images', 5), asyncHandler(async (req, res) => {
   const productId = String(req.params.id).slice(0,100);
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
   if (!req.files || req.files.length===0) return res.status(400).json({ error: 'No images', code: 'validation_failed' });
+  const existingCount = await prisma.productImage.count({ where: { productId } });
+  if (existingCount + req.files.length > IMAGE_CAP) return res.status(409).json({ error: `Image limit reached (${IMAGE_CAP} per product)`, code: 'image_limit' });
   // Decode everything first so one bad file doesn't leave a half-saved batch
   const processed = [];
   for (const file of req.files) {
@@ -164,14 +172,46 @@ router.post('/:id/images', requireAuth, requireRole('admin','developer','maker',
       return res.status(400).json({ error: `"${file.originalname}" is not a readable image`, code: 'invalid_image' });
     }
   }
+  const agg = await prisma.productImage.aggregate({ where: { productId }, _max: { sortOrder: true } });
+  let seq = (agg._max.sortOrder ?? -1) + 1;
   const created = [];
   for (const { file, buf: resized } of processed) {
     const key = `products/${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.jpg`;
     const url = await putObject(key, resized, 'image/jpeg');
-    const img = await prisma.productImage.create({ data: { productId, url, alt: file.originalname.slice(0,200), sortOrder: 0 } });
+    let img;
+    try {
+      img = await prisma.productImage.create({ data: { productId, url, alt: file.originalname.slice(0,200), sortOrder: seq } });
+    } catch (e) {
+      await deleteObjectByUrl(url); // don't leak the object if the row write failed
+      throw e;
+    }
     created.push(img);
+    seq++;
   }
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_images_upload', entityType: 'product', entityId: productId, details: { count: created.length, title: product.title } });
   res.status(201).json(created);
+}));
+
+// Update a product image (alt text edit from the admin gallery)
+router.patch('/:productId/images/:imageId', requireAuth, requireRole('admin','developer','maker','staff'), validate(imagePatchSchema), asyncHandler(async (req, res) => {
+  const image = await prisma.productImage.findUnique({ where: { id: String(req.params.imageId).slice(0,100) } });
+  if (!image) return res.status(404).json({ error: 'Image not found', code: 'not_found' });
+  if (image.productId !== req.params.productId) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  const updated = await prisma.productImage.update({ where: { id: image.id }, data: { alt: req.validated.alt } });
+  res.json(updated);
+}));
+
+// Reorder gallery — full id list in display order; normalises legacy ties (all sortOrder 0)
+router.put('/:productId/images/order', requireAuth, requireRole('admin','developer','maker','staff'), validate(imageOrderSchema), asyncHandler(async (req, res) => {
+  const productId = String(req.params.productId).slice(0,100);
+  const images = await prisma.productImage.findMany({ where: { productId } });
+  const valid = new Set(images.map((i) => i.id));
+  const order = req.validated.order;
+  if (order.length !== images.length || order.some((id) => !valid.has(id))) {
+    return res.status(400).json({ error: 'Order must list every image id of this product exactly once', code: 'invalid_order' });
+  }
+  await prisma.$transaction(order.map((id, i) => prisma.productImage.update({ where: { id }, data: { sortOrder: i } })));
+  res.json({ ok: true });
 }));
 
 // Delete a product image (removes file + DB row)
@@ -181,6 +221,7 @@ router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','d
   if (image.productId !== req.params.productId) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   await prisma.productImage.delete({ where: { id: image.id } });
   await deleteObjectByUrl(image.url);
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_image_delete', entityType: 'product', entityId: req.params.productId, details: { imageId: image.id } });
   res.json({ ok: true });
 }));
 

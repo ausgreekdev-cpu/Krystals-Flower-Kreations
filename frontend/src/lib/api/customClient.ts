@@ -124,16 +124,29 @@ export const adminApi = {
     remove: (id: string, token: string) => req<any>(`/api/products/${id}`, { method: 'DELETE', token }),
     // One request per image, downscaled in the browser first — keeps each request
     // well under Netlify's ~6 MB function payload limit (phone photos are often 5–12 MB).
-    uploadImages: async (id: string, files: FileList, token: string) => {
+    // Per-file results: a failing file no longer aborts the rest of the batch.
+    uploadImages: async (id: string, files: FileList | File[], token: string, onProgress?: (done: number, total: number) => void) => {
       const created: any[] = [];
-      for (const f of Array.from(files)) {
-        const fd = new FormData();
-        fd.append('images', await downscaleImage(f), f.name.replace(/\.[^.]+$/, '') + '.jpg');
-        created.push(...(await req<any[]>(`/api/products/${id}/images`, { method: 'POST', body: fd, token })));
+      const failures: { name: string; error: string }[] = [];
+      const list = Array.from(files);
+      let done = 0;
+      for (const f of list) {
+        try {
+          const fd = new FormData();
+          fd.append('images', await downscaleImage(f), f.name.replace(/\.[^.]+$/, '') + '.jpg');
+          created.push(...(await req<any[]>(`/api/products/${id}/images`, { method: 'POST', body: fd, token })));
+        } catch (e: any) {
+          failures.push({ name: f.name, error: e?.message || 'Upload failed' });
+        } finally {
+          done++;
+          onProgress?.(done, list.length);
+        }
       }
-      return created;
+      return { created, failures };
     },
     deleteImage: (productId: string, imageId: string, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'DELETE', token }),
+    patchImage: (productId: string, imageId: string, body: { alt?: string }, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    reorderImages: (productId: string, order: string[], token: string) => req<any>(`/api/products/${productId}/images/order`, { method: 'PUT', body: JSON.stringify({ order }), token }),
   },
   inventory: {
     levels: (token: string) => req<any[]>('/api/inventory/levels', { token }),
