@@ -22,11 +22,13 @@ echo "=== Workspace deps (backend + frontend, single root lock) ==="
 # for backend/frontend (member dirs must not have their own — a second lock forks
 # a divergent node_modules). Mobile is skipped: Expo never runs on Netlify.
 # --include=dev keeps prisma CLI + vite regardless of NODE_ENV.
+# --include-workspace-root installs root deps too (turndown — the markdown edge
+# function resolves it from root node_modules during Edge Functions bundling).
 if [ -f package-lock.json ]; then
-  npm ci --workspace=backend --workspace=frontend --include=dev --prefer-offline --no-audit 2>&1 \
-    || npm install --workspace=backend --workspace=frontend --include=dev --no-audit 2>&1
+  npm ci --workspace=backend --workspace=frontend --include-workspace-root --include=dev --prefer-offline --no-audit 2>&1 \
+    || npm install --workspace=backend --workspace=frontend --include-workspace-root --include=dev --no-audit 2>&1
 else
-  npm install --workspace=backend --workspace=frontend --include=dev --no-audit 2>&1
+  npm install --workspace=backend --workspace=frontend --include-workspace-root --include=dev --no-audit 2>&1
 fi
 
 echo ">>> Prisma generate"

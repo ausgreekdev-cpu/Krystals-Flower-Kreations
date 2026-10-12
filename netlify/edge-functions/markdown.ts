@@ -24,11 +24,12 @@
 // Accept check → origin HTML (context.next()) → strip chrome (scripts, styles,
 // nav/header/footer/aside) → API enrichment for client-rendered routes (this
 // site is a React SPA, so the origin HTML is a shell; real content comes from
-// /api/posts and /api/products) → Turndown (npm:turndown) → Markdown response
+// /api/posts and /api/products) → Turndown (npm turndown, installed at repo root
+// by netlify-build.sh via --include-workspace-root) → Markdown response
 // with X-Markdown-Tokens + Content-Signal headers. ANY failure falls back to
 // the original HTML response untouched.
 
-import TurndownService from "npm:turndown@7";
+import TurndownService from "turndown";
 
 type EdgeContext = { next(): Promise<Response> };
 type Enriched = { html?: string; markdown?: string };
