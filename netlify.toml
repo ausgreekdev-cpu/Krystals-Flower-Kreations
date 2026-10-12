@@ -55,3 +55,51 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ── AI-agent Markdown edge function (netlify/edge-functions/markdown.ts) ──
+# Serves text/markdown only when Accept: text/markdown is sent; everyone else
+# passes through unchanged. Scope = content pages (blog, shop, product,
+# occasions, workshop/about/privacy/loyalty landing copy). Utility routes are
+# excluded by omission: cart, checkout, login, configurator, notebook, admin,
+# pos, kanban, /api/*, /assets/*.
+# Add a path: add another [[edge_functions]] block below (or a new path entry).
+# Remove: delete its block. Then redeploy — no code changes needed.
+[[edge_functions]]
+  path = "/"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/shop"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/blog"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/blog/*"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/product/*"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/occasions/*"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/workshops"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/about"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/privacy"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/loyalty"
+  function = "markdown"
