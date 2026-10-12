@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useConfiguratorStore, estimateLocalPrice } from './useConfiguratorStore';
 import { ordersApi } from '../../lib/api/customClient';
+import { addToCart } from '../../lib/cartClient';
 import { usePublicSettings } from '../../lib/publicSettings';
 import ARViewer from '../../components/ARViewer';
 import NotebookPanel from '../../components/NotebookPanel';
@@ -16,10 +18,10 @@ const PALETTES = [
   { id: 'classic-ivory', label: 'Classic Ivory', apply: { paperColor: 'Ivory', paperTexture: 'smooth', weight: '65lb' } },
 ];
 const TEMPLATES = [
-  { id: 'wattle-sprig', label: 'Wattle Sprig' },
-  { id: 'paper-rose', label: 'Paper Rose' },
-  { id: 'banksia-petal', label: 'Banksia Petal' },
-  { id: 'origami-lily', label: 'Origami Lily' },
+  { id: 'wattle-sprig', label: 'Wattle Sprig', flowerType: 'wattle' },
+  { id: 'paper-rose', label: 'Paper Rose', flowerType: 'rose' },
+  { id: 'banksia-petal', label: 'Banksia Petal', flowerType: 'banksia' },
+  { id: 'origami-lily', label: 'Origami Lily', flowerType: 'lily' },
 ];
 
 export default function Configurator(){
@@ -35,6 +37,28 @@ export default function Configurator(){
   const marginPct = Math.round((num(s.bom_margin, 1.3) - 1) * 100);
   const [form,setForm]=useState({ email:'', name:'', postcode:'6000' });
   const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
+  // Ready-made stems matching the chosen template's flower — cross-sell into the catalog
+  const [pairs,setPairs]=useState([]); const [pairBusy,setPairBusy]=useState(''); const [pairMsg,setPairMsg]=useState('');
+  const activeTemplate = TEMPLATES.find(t=>t.id===spec.templateId);
+  useEffect(()=>{
+    setPairs([]); setPairMsg('');
+    const ft = activeTemplate?.flowerType;
+    if(!ft) return;
+    let alive = true;
+    fetch(`/api/products?flowerType=${encodeURIComponent(ft)}&limit=6`)
+      .then(r=> r.ok? r.json(): null)
+      .then(d=>{ const arr=(Array.isArray(d)?d:(Array.isArray(d?.products)?d.products:[])); if(alive) setPairs(arr.slice(0,3)); })
+      .catch(()=>{});
+    return ()=>{ alive=false; };
+  }, [spec.templateId, activeTemplate]);
+  async function addPair(p){
+    setPairBusy(p.id); setPairMsg('');
+    try{
+      await addToCart({ productId: p.id, quantity: 1 });
+      setPairMsg(`${p.title} added to cart`);
+    }catch(e){ setPairMsg(e.message || 'Could not add — try the product page'); }
+    finally{ setPairBusy(''); }
+  }
   useEffect(()=>{ /* pricing derived */ }, [spec]);
   async function submit(){
     setErr(''); setMsg('');
@@ -81,6 +105,23 @@ export default function Configurator(){
         <div className="text-[11px] text-muted mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>. No VectoSolve fees.</div>
       </section>}
       <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
+      {pairs.length>0 && (
+        <section className="bg-surface2 p-4 rounded-2xl border">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms</h3>
+            {pairMsg && <span className="text-[11px] text-green-700">{pairMsg} — <Link to="/cart" className="underline font-semibold">view cart</Link></span>}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+            {pairs.map(p=> (
+              <div key={p.id} className="bg-surface border rounded-xl p-3 flex flex-col">
+                <Link to={`/product/${p.slug}`} className="text-sm font-semibold text-ink hover:underline line-clamp-2">{p.title}</Link>
+                <span className="text-sm text-highlight font-bold mt-1">${Number(p.price).toFixed(2)} <span className="text-[10px] font-normal text-muted">AUD</span></span>
+                <button onClick={()=>addPair(p)} disabled={pairBusy===p.id} className="mt-2 text-xs bg-bloom-500 text-white rounded-full py-1.5 font-bold disabled:opacity-60">{pairBusy===p.id?'Adding…':'Add to cart'}</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
       <div className="bg-surface2 border rounded-2xl p-4 space-y-3">
         <h3 className="font-bold">Your details — for custom order</h3>
