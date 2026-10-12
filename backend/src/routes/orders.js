@@ -348,7 +348,7 @@ router.get('/:orderNumber', authenticate, asyncHandler(async (req, res) => {
 
 router.get('/', authenticate, asyncHandler(async (req, res) => {
   if (!['admin','developer','maker','staff'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
-  const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' }, take: 100, include: { lines: true } });
+  const orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' }, take: 100, include: { lines: { include: { product: { select: { careInstructions: true, occasions: true, flowerType: true } } } } } });
   res.json(orders);
 }));
 

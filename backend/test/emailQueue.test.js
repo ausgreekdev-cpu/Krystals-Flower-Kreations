@@ -30,10 +30,16 @@ test('checkout enqueues an order confirmation email', async () => {
   const productId = products.products.find((p) => p.slug === 'eucalyptus-paper-rose-bouquet-blush').id;
   const { body: cartRes } = await api(srv.base, '/api/cart/add', { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) });
   const cartId = cartRes.cartId || cartRes.cart?.id;
-  await api(srv.base, '/api/orders/checkout', {
+  const { body: checkout } = await api(srv.base, '/api/orders/checkout', {
     method: 'POST',
     body: JSON.stringify({ cartId, email: `queue_${Date.now()}@test.com`, shippingName: 'Q Buyer', shippingAddress: '1 Test St', shippingSuburb: 'Perth', shippingState: 'WA', shippingPostcode: '6000', paymentMethod: 'bank_transfer' }),
   });
   const after = await prisma.emailQueue.count({ where: { template: 'order_confirmation' } });
   assert.ok(after > before, 'an order_confirmation row was enqueued');
+  // Florist enrichment: the seeded rose bouquet carries care + occasions
+  const confirm = await prisma.emailQueue.findFirst({ where: { template: 'order_confirmation', payload: { path: ['orderNumber'], equals: checkout.order.orderNumber } } });
+  assert.ok(confirm, 'confirmation row for this order');
+  assert.match(confirm.text, /Care & occasions:/);
+  assert.match(confirm.text, /Care: Keep dry and away from direct sun/);
+  assert.match(confirm.text, /Perfect for: birthday, anniversary, mothers-day/);
 });

@@ -106,8 +106,26 @@ export async function sendOrderConfirmation(order) {
   // from settings — previously the email promised details that never appeared).
   const paymentBlock = ['bank_transfer', 'pickup'].includes(order.paymentMethod)
     ? `\n\nPayment:\n${paymentInstructionsFor(order.paymentMethod, s)}\n` : '';
+  // Florist enrichment — best-effort: care instructions + occasions per line
+  let careBlock = '';
+  try {
+    const ids = [...new Set((order.lines || []).map(l => l.productId).filter(Boolean))];
+    if (ids.length) {
+      const prods = await prisma.product.findMany({ where: { id: { in: ids } }, select: { id: true, careInstructions: true, occasions: true } });
+      const byId = new Map(prods.map(p => [p.id, p]));
+      const rows = (order.lines || []).map(l => {
+        const pr = byId.get(l.productId);
+        if (!pr) return null;
+        const bits = [];
+        if (pr.careInstructions) bits.push(`Care: ${pr.careInstructions}`);
+        if ((pr.occasions || []).length) bits.push(`Perfect for: ${pr.occasions.join(', ')}`);
+        return bits.length ? `  • ${l.title}: ${bits.join(' — ')}` : null;
+      }).filter(Boolean);
+      if (rows.length) careBlock = `\n\nCare & occasions:\n${rows.join('\n')}\n`;
+    }
+  } catch { /* enrichment must never block the confirmation */ }
   const footer = s.invoice_footer ? `\n${String(s.invoice_footer).trim()}\n` : '';
-  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystals Flower Creations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}\nWe will notify you when it's ready for pickup/dispatch.\n${footer}\n${await signatureBlock(s)}`;
+  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystals Flower Creations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}${careBlock}\nWe will notify you when it's ready for pickup/dispatch.\n${footer}\n${await signatureBlock(s)}`;
   const row = await enqueueEmail({ to: order.email, subject, text, template: 'order_confirmation', payload: { orderNumber: order.orderNumber } });
   sendFromQueue(row).catch(()=>{});
   return row;

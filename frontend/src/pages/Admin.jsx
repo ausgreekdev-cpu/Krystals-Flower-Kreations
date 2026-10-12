@@ -8,6 +8,7 @@ import { renderMarkdown } from '../lib/markdown';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
 import LabelPrintModal from '../components/admin/LabelPrintModal';
+import PackingSlipModal from '../components/admin/PackingSlipModal';
 import InventoryDetail from '../components/admin/InventoryDetail';
 import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -442,6 +443,7 @@ function Orders({ data, reload, token }) {
   const [expanded, setExpanded] = useState(null);
   const [busy, setBusy] = useState('');
   const [confirmRefund, setConfirmRefund] = useState(null);
+  const [slip, setSlip] = useState(null);
   const orders = Array.isArray(data.orders) ? data.orders : [];
   async function move(o, status) {
     setBusy(`${o.id}-${status}`);
@@ -480,6 +482,8 @@ function Orders({ data, reload, token }) {
                   <button disabled={busy === `${o.id}-refund`} onClick={() => setConfirmRefund(o)}
                     className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-600 text-white disabled:opacity-50 hover:bg-red-700">refund via PayPal</button>
                 )}
+                <button onClick={() => setSlip(o)}
+                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface2 border border-line-strong text-ink hover:bg-royal-50">🖨 packing slip</button>
               </div>
               <div className="grid sm:grid-cols-2 gap-4 text-xs">
                 <div>
@@ -502,6 +506,7 @@ function Orders({ data, reload, token }) {
       ))}
       {orders.length === 0 && <div className="text-xs text-muted py-10 text-center">No orders — login as admin@krystal.local (maker+ token required)</div>}
       {confirmRefund && <ConfirmDialog title="Refund via PayPal" message={`Refund PayPal order ${confirmRefund.orderNumber} ($${Number(confirmRefund.total).toFixed(2)})? The money goes back to the buyer and the stock is returned.`} confirmLabel="Refund" onConfirm={doRefund} onClose={() => setConfirmRefund(null)} />}
+      {slip && <PackingSlipModal order={slip} onClose={() => setSlip(null)} />}
     </div>
   );
 }
