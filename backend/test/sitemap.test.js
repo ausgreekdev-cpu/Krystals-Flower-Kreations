@@ -13,16 +13,26 @@ async function fetchSitemap() {
 }
 
 test('GET /api/sitemap.xml includes static pages, products and published posts', async () => {
-  const origin = process.env.FRONTEND_URL?.split(',')[0] || 'https://krystalsflowercreations.com.au';
   const { status, contentType, xml } = await fetchSitemap();
   assert.equal(status, 200);
   assert.match(contentType, /xml/);
   assert.ok(xml.includes('<urlset'), 'valid urlset root');
-  assert.ok(xml.includes(`<loc>${origin}/</loc>`), 'home present');
-  assert.ok(xml.includes(`<loc>${origin}/shop</loc>`), 'shop present');
-  assert.ok(xml.includes(`<loc>${origin}/privacy</loc>`), 'privacy present');
+  // Origin is derived from the request host, not a hardcoded/env URL
+  assert.ok(xml.includes(`<loc>${srv.base}/</loc>`), 'home present');
+  assert.ok(xml.includes(`<loc>${srv.base}/shop</loc>`), 'shop present');
+  assert.ok(xml.includes(`<loc>${srv.base}/privacy</loc>`), 'privacy present');
   assert.ok(xml.includes('/product/'), 'at least one product URL (seeded catalog)');
   assert.ok(xml.includes('/blog/'), 'at least one published post URL (seeded posts)');
+});
+
+test('sitemap honours x-forwarded-host and x-forwarded-proto (custom domain behind proxy)', async () => {
+  const res = await fetch(`${srv.base}/api/sitemap.xml`, {
+    headers: { 'x-forwarded-host': 'krystalsflowercreations.com.au', 'x-forwarded-proto': 'https' },
+  });
+  const xml = await res.text();
+  assert.ok(xml.includes('<loc>https://krystalsflowercreations.com.au/</loc>'), 'custom domain origin');
+  assert.ok(!xml.includes('netlify.app'), 'no netlify.app URLs');
+  assert.ok(!xml.includes(`<loc>${srv.base}/</loc>`), 'request host not used when forwarded host present');
 });
 
 test('draft posts are excluded from the sitemap', async () => {

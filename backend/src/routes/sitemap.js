@@ -6,7 +6,11 @@ const router = Router();
 
 // Dynamic sitemap from products + published posts (robots.txt → /sitemap.xml → this route)
 router.get('/sitemap.xml', asyncHandler(async (req, res) => {
-  const origin = process.env.FRONTEND_URL?.split(',')[0] || 'https://krystalsflowercreations.com.au';
+  // Derive origin from the request so the custom domain never emits
+  // *.netlify.app URLs (FRONTEND_URL on Netlify points at the subdomain).
+  const host = req.get('x-forwarded-host')?.split(',')[0].trim() || req.get('host');
+  const proto = req.get('x-forwarded-proto')?.split(',')[0].trim() || req.protocol;
+  const origin = host ? `${proto}://${host}` : (process.env.FRONTEND_URL?.split(',')[0] || 'https://krystalsflowercreations.com.au');
   const [products, posts, withOccasions] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, select: { slug: true, updatedAt: true }, take: 500, orderBy: { updatedAt: 'desc' } }),
     prisma.post.findMany({ where: { status: 'published' }, select: { slug: true, publishedAt: true, updatedAt: true }, take: 200, orderBy: { publishedAt: 'desc' } }),
