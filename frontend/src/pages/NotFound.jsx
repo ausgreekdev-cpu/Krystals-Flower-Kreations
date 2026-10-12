@@ -1,19 +1,23 @@
-import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../lib/publicSettings';
+import { Page } from '../components/ui/Page';
+import Btn from '../components/ui/Btn';
+
 export default function NotFound(){
   const s = usePublicSettings();
   const email = s.contact_email || 'krystal@krystalsflowerkreations.com.au';
   return (
-    <div className="max-w-3xl mx-auto p-12 text-center">
-      <div className="text-6xl">✿</div>
-      <h1 className="text-3xl font-black text-ink mt-4">404 — Bloom not found</h1>
-      <p className="text-muted mt-2">The page you wilted to doesn't exist. Try our everlasting bouquets instead.</p>
-      <div className="mt-6 flex gap-3 justify-center">
-        <Link to="/" className="bg-bloom-500 text-white px-6 py-3 rounded-xl font-bold">Home</Link>
-        <Link to="/shop" className="border px-6 py-3 rounded-xl font-bold hover:bg-surface3">Shop</Link>
-        <Link to="/configurator" className="border px-6 py-3 rounded-xl font-bold hover:bg-surface3">Configurator</Link>
+    <Page>
+      <div className="p-12 text-center">
+        <div className="text-6xl">✿</div>
+        <h1 className="text-2xl md:text-3xl font-black text-ink mt-4">404 — Bloom not found</h1>
+        <p className="text-muted mt-2">The page you wilted to doesn't exist. Try our everlasting bouquets instead.</p>
+        <div className="mt-6 flex flex-wrap gap-3 justify-center">
+          <Btn to="/" variant="primary" size="md">Home</Btn>
+          <Btn to="/shop" variant="outline" size="md">Shop</Btn>
+          <Btn to="/configurator" variant="outline" size="md">Configurator</Btn>
+        </div>
+        <p className="text-xs text-muted mt-6">If you followed a QR ticket, check the code or contact <a href={`mailto:${email}`} className="underline hover:text-highlight">{email}</a></p>
       </div>
-      <p className="text-xs text-muted mt-6">If you followed a QR ticket, check the code or contact <a href={`mailto:${email}`} className="underline hover:text-highlight">{email}</a></p>
-    </div>
+    </Page>
   );
 }

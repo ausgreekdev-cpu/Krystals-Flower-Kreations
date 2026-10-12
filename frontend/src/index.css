@@ -42,6 +42,17 @@
   --line: 226 232 240;
   --line-strong: 203 213 225;
   --highlight: var(--bloom-500);
+
+  /* Semantic status tokens (50=bg, 200=border, 800=text) — flipped by html.dark */
+  --success-50: 240 253 244;
+  --success-200: 187 247 208;
+  --success-800: 21 128 61;
+  --warning-50: 255 251 235;
+  --warning-200: 253 230 138;
+  --warning-800: 180 83 9;
+  --danger-50: 254 242 242;
+  --danger-200: 254 202 202;
+  --danger-800: 185 28 28;
 }
 
 .dark {
@@ -53,7 +64,21 @@
   --line: 51 65 85;
   --line-strong: 71 85 105;
   --highlight: 226 194 246;
+
+  --success-50: 20 45 28;
+  --success-200: 34 84 48;
+  --success-800: 134 239 172;
+  --warning-50: 45 37 16;
+  --warning-200: 92 73 18;
+  --warning-800: 252 211 77;
+  --danger-50: 45 18 18;
+  --danger-200: 95 32 32;
+  --danger-800: 252 165 165;
 }
+
+/* Native controls (Configurator sliders/checkboxes) follow the brand accent */
+input[type="range"] { accent-color: rgb(var(--bloom-500)); }
+input[type="checkbox"] { accent-color: rgb(var(--bloom-500)); }
 
 * { font-family: var(--font-sans); }
 

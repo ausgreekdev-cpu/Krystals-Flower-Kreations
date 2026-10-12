@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { usePublicSettings } from '../lib/publicSettings';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
+import Alert from '../components/ui/Alert';
 import Btn from '../components/ui/Btn';
+import { EmptyState, Skeleton } from '../components/ui/State';
 import ProductCard from '../components/ProductCard';
 
 const KNOWN = {
@@ -14,6 +16,10 @@ const KNOWN = {
   graduation: { title: 'Graduation Flowers', blurb: 'Celebrate the milestone with a bouquet that lasts past the photos — perfect keepsakes for Perth grads.' },
   housewarming: { title: 'Housewarming Flowers', blurb: 'A housewarming bloom with no water needed — set it up on day one and it stays fresh for years.' },
 };
+
+const CHIP = 'px-3 py-1.5 rounded-full text-xs border transition';
+const CHIP_ON = 'bg-bloom-500 text-white border-bloom-500';
+const CHIP_OFF = 'bg-surface2 hover:bg-surface3';
 
 const slugifyLabel = (s) => s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -55,39 +61,32 @@ export default function Occasion(){
   } : null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <Page width="wide">
       {itemListLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(itemListLd)}} />}
-      <Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:title}]} />
       <div className="max-w-3xl">
-        <h1 className="text-2xl md:text-3xl font-black text-ink">{title} — handmade paper flowers</h1>
-        <p className="text-sm text-muted mt-2">{known?.blurb || 'Handmade everlasting paper blooms from our Perth studio — made to order, GST inclusive, free Perth delivery over $150.'}</p>
+        <PageHeader crumbs={<Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:title}]} />} title={`${title} — handmade paper flowers`} lede={known?.blurb || 'Handmade everlasting paper blooms from our Perth studio — made to order, GST inclusive, free Perth delivery over $150.'} />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {Object.entries(KNOWN).map(([k, v]) => (
-          <Link key={k} to={`/occasions/${k}`} className={`px-3 py-1.5 rounded-full text-xs border ${k===slug?'bg-bloom-500 text-white border-bloom-500':'bg-surface2 hover:bg-surface3'}`}>{v.title}</Link>
+          <Link key={k} to={`/occasions/${k}`} className={`${CHIP} ${k===slug?CHIP_ON:CHIP_OFF}`}>{v.title}</Link>
         ))}
       </div>
       {products === null ? (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {Array.from({length:8}).map((_,i)=><div key={i} className="bg-surface2 rounded-2xl overflow-hidden border animate-pulse"><div className="h-44 md:h-52 bg-surface"/><div className="p-3 space-y-2"><div className="h-4 bg-surface rounded"/><div className="h-3 bg-surface rounded w-2/3"/></div></div>)}
+          {Array.from({length:8}).map((_,i)=><Skeleton key={i} className="h-44 md:h-52" />)}
         </div>
       ) : error ? (
-        <div className="mt-6 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">Failed to load blooms: {error}</div>
+        <Alert tone="danger" className="mt-6">Failed to load blooms: {error}</Alert>
       ) : arr.length ? (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {arr.map(p => <ProductCard key={p.id} p={p} showCricut={s.show_cricut === '1'} />)}
         </div>
       ) : (
-        <div className="mt-6 bg-surface2 border rounded-2xl p-8 text-center">
-          <p className="text-muted">Nothing listed for this occasion right now — but almost any bloom can be made for it.</p>
-          <div className="mt-4 flex gap-3 justify-center">
-            <Btn to="/shop" variant="primary" size="md">Browse all blooms</Btn>
-            <Btn to="/configurator" variant="outline" size="md">Build a custom bouquet</Btn>
-          </div>
-        </div>
+        <EmptyState className="mt-6" title="Nothing listed yet" body="Almost any bloom can be made for this occasion — browse the shop or design a custom bouquet."
+          action={<div className="flex gap-3 justify-center"><Btn to="/shop" variant="primary" size="md">Browse all blooms</Btn><Btn to="/configurator" variant="outline" size="md">Build a custom bouquet</Btn></div>} />
       )}
       {arr.length > 0 && (
-        <div className="mt-8 bg-surface border border-bloom-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="mt-8 bg-surface border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1">
             <div className="font-bold text-ink">Want something one-of-a-kind?</div>
             <div className="text-sm text-muted">The configurator lets you pick stems, palette, vase and more — made to order for your {title.replace(' Flowers','').toLowerCase()}.</div>
@@ -95,6 +94,6 @@ export default function Occasion(){
           <Btn to="/configurator" variant="primary" size="md" className="shrink-0">Open configurator</Btn>
         </div>
       )}
-    </div>
+    </Page>
   );
 }

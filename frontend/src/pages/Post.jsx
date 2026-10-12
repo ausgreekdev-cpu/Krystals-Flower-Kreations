@@ -1,11 +1,13 @@
 import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, Breadcrumbs } from '../components/ui/Page';
+import { CardSkeleton, ErrorState } from '../components/ui/State';
 import { renderMarkdown } from '../lib/markdown';
 import { usePublicSettings } from '../lib/publicSettings';
 
 const ORG = "Krystals Flower Creations";
 const DEFAULT_TITLE = "Krystals Flower Creations — Paper Florist Perth WA";
+const PLACEHOLDER = '/placeholder-bloom.jpg';
 
 export default function Post(){
   const {slug}=useParams(); const [p,setP]=useState(null); const [err,setErr]=useState('');
@@ -23,8 +25,13 @@ export default function Post(){
     if (meta && desc) meta.setAttribute('content', desc);
     return () => { document.title = DEFAULT_TITLE; };
   }, [p]);
-  if(err) return <div className="max-w-3xl mx-auto px-4 py-8 text-center text-red-600">{err} — <Link to="/blog" className="underline font-bold">Back to Journal</Link></div>;
-  if(!p) return <div className="max-w-3xl mx-auto px-4 py-8 text-center">Loading...</div>;
+  if(err) return (
+    <Page>
+      <Breadcrumbs items={[{label:'Journal', to:'/blog'}, {label:'Post'}]} />
+      <ErrorState className="mt-4">{err} — <Link to="/blog" className="underline font-bold">Back to Journal</Link></ErrorState>
+    </Page>
+  );
+  if(!p) return <Page><Breadcrumbs items={[{label:'Journal', to:'/blog'}]} /><CardSkeleton lines={8} className="mt-4" /></Page>;
   const origin = window.location.origin;
   const postLd = {
     '@context': 'https://schema.org',
@@ -42,10 +49,11 @@ export default function Post(){
   const shareText = encodeURIComponent(p.title);
   const shareCls = "border rounded-full px-3 py-1.5 hover:bg-surface3";
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <Page>
       <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(postLd)}} />
       <Breadcrumbs items={[{label:'Journal', to:'/blog'}, {label:p.title}]} />
-      <h1 className="text-3xl font-black text-ink">{p.title}</h1>
+      {p.coverImageUrl && <img src={p.coverImageUrl} alt="" className="w-full h-56 md:h-72 object-cover rounded-2xl mb-6" onError={(e)=>{ e.currentTarget.src = PLACEHOLDER; }} />}
+      <h1 className="text-2xl md:text-3xl font-black text-ink">{p.title}</h1>
       <p className="text-muted mt-2">{p.excerpt}</p>
       <div className="flex flex-wrap gap-2 text-xs mt-3">
         <a href={`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`} target="_blank" rel="noreferrer" className={shareCls}>Share FB</a>
@@ -54,9 +62,9 @@ export default function Post(){
         <a href={`mailto:?subject=${shareText}&body=${shareUrl}`} className={shareCls}>Email</a>
         <button onClick={()=>navigator.clipboard.writeText(window.location.href)} className={shareCls}>Copy link</button>
       </div>
-      <div className="prose markdown-body mt-6" dangerouslySetInnerHTML={{__html: renderMarkdown(p.content || '')}} />
+      <div className="markdown-body mt-6" dangerouslySetInnerHTML={{__html: renderMarkdown(p.content || '')}} />
       <section className="mt-8 border-t pt-6" aria-label="Related products">
-        <h2 className="font-black text-ink text-lg">Related products</h2>
+        <h2 className="text-xl font-black text-ink">Related products</h2>
         {Array.isArray(p.products) && p.products.length > 0 ? (
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {p.products.map(rp => rp.product && (
@@ -71,6 +79,6 @@ export default function Post(){
           <p className="text-sm text-muted mt-2">{s.show_workshops === '1' ? 'Fresh blooms, SVG templates & workshop tickets' : 'Fresh blooms & custom commissions'} — <Link to="/shop" className="underline">browse the shop →</Link></p>
         )}
       </section>
-    </div>
+    </Page>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePublicSettings } from './lib/publicSettings';
 import { currentStaffRole } from './lib/session';
+import Btn from './components/ui/Btn';
 
 const FALLBACK_SHIPPING_NOTE = 'Metro $12, WA regional $18, national $22 — free over $150. Click & collect 6000.';
 const PLACEHOLDER_IMG = '/placeholder-bloom.jpg';
@@ -55,14 +56,13 @@ export default function App(){
             <h1 className="text-4xl md:text-5xl font-black leading-tight max-w-2xl">{showCricut ? 'Paper florist & armature art — Cricut + origami blooms that last forever' : 'Handcrafted paper flowers — Perth, WA'}</h1>
             <p className="mt-4 max-w-2xl text-white/90 text-base md:text-lg">Perth, Western Australia. {heroCopy.join(', ')}. Perth delivery & click & collect.</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link to="/shop" className="bg-surface2 text-ink px-6 py-3 rounded-xl font-bold shadow hover:shadow-lg">Shop Bouquets</Link>
-              <Link to="/configurator" className="bg-surface text-ink px-6 py-3 rounded-xl font-bold hover:bg-surface2">Design Custom Bouquet</Link>
-              <Link to="/notebook" className="bg-white/15 border border-white text-white px-6 py-3 rounded-xl font-bold hover:bg-white/25">Notebook Research</Link>
-              {showWorkshops && <Link to="/workshops" className="bg-transparent border border-white text-white px-6 py-3 rounded-xl font-bold hover:bg-white/10">Book Workshop</Link>}
+              <Btn to="/shop" variant="light">Shop Bouquets</Btn>
+              <Btn to="/configurator" variant="onDark">Design Custom Bouquet</Btn>
+              <Btn to="/notebook" variant="onDark">Notebook Research</Btn>
+              {showWorkshops && <Btn to="/workshops" variant="onDark">Book Workshop</Btn>}
             </div>
-            <p className="mt-6 text-xs md:text-sm text-white/80">Meta Catalog → Facebook & Instagram Shopping • POS studio & markets{showCricut ? ' • Blog Cricut settings' : ''} • Inventory + kits</p>
           </div>
-          <div className="hidden lg:block">
+          <div>
             <div className="bg-surface2 rounded-3xl p-6 shadow-2xl">
               <div className="text-ink font-black text-lg">Featured — Perth studio</div>
               <div className="mt-4 grid grid-cols-3 gap-3">
@@ -79,7 +79,7 @@ export default function App(){
           </div>
         </div>
       </section>
-      <section className="max-w-7xl mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-5 gap-6">
+      <section className="max-w-7xl mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <Card title="Shop" desc={showCricut ? 'Paper bouquets, armatures, origami, Cricut SVGs + custom commissions. Made-to-order from Perth studio.' : 'Paper bouquets, armatures, origami + custom commissions. Made-to-order from Perth studio.'} to="/shop" />
         <Card title="Configurator" desc={showCricut ? 'Design your bloom — colour/texture/stems/armature + Cricut template with live AUD price + ETA.' : 'Design your bloom — colour/texture/stems/armature with live AUD price + ETA.'} to="/configurator" />
         {showWorkshops && <Card title="Workshops" desc="Small groups, all materials included. Take home your bloom. Perth studio + online kits." to="/workshops" />}
@@ -89,14 +89,14 @@ export default function App(){
       </section>
       <section className="max-w-7xl mx-auto px-4 pb-10">
         <div className={`bg-surface2 border rounded-3xl p-6 md:p-8 grid gap-6 ${showWorkshops ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-          <div><div className="font-bold text-ink">Why everlasting?</div><p className="text-sm text-muted mt-2">No wilting, no water, hypoallergenic. Perfect for Perth heat and FIFO homes.</p></div>
-          <div><div className="font-bold text-ink">Perth delivery</div><p className="text-sm text-muted mt-2">{s.shipping_note || FALLBACK_SHIPPING_NOTE}</p></div>
-          {showWorkshops && <div><div className="font-bold text-ink">Workshops</div><p className="text-sm text-muted mt-2">Max 12, kits included, QR ticket. Beginner Cricut to advanced origami.</p></div>}
+          <div><div className="font-bold text-base text-ink">Why everlasting?</div><p className="text-sm text-muted mt-2">No wilting, no water, hypoallergenic. Perfect for Perth heat and FIFO homes.</p></div>
+          <div><div className="font-bold text-base text-ink">Perth delivery</div><p className="text-sm text-muted mt-2">{s.shipping_note || FALLBACK_SHIPPING_NOTE}</p></div>
+          {showWorkshops && <div><div className="font-bold text-base text-ink">Workshops</div><p className="text-sm text-muted mt-2">Max 12, kits included, QR ticket. Beginner Cricut to advanced origami.</p></div>}
         </div>
       </section>
     </>
   );
 }
 function Card({title, desc, to}){
-  return <Link to={to} className="bg-surface2 rounded-2xl p-6 border hover:shadow-md hover:border-bloom-100 transition"><h3 className="font-bold text-ink">{title}</h3><p className="mt-2 text-sm text-muted">{desc}</p><span className="mt-4 inline-block text-xs font-bold text-highlight">Explore →</span></Link>;
+  return <Link to={to} className="bg-surface2 rounded-2xl p-6 border hover:shadow-lg hover:border-bloom-100 transition"><h3 className="font-bold text-base text-ink">{title}</h3><p className="mt-2 text-sm text-muted">{desc}</p><span className="mt-4 inline-block text-xs font-bold text-highlight">Explore →</span></Link>;
 }

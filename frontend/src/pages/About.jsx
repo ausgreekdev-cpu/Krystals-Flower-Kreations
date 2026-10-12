@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../lib/publicSettings';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
+import Btn from '../components/ui/Btn';
 
 const FALLBACK_STORY = 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural armature art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.';
 
@@ -15,9 +15,8 @@ export default function About() {
     { label: 'WhatsApp', url: s.whatsapp_url },
   ].filter((x) => x.url);
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <Breadcrumbs items={[{ label: 'About' }]} />
-      <h1 className="text-2xl md:text-3xl font-black text-ink">About {name}</h1>
+    <Page>
+      <PageHeader crumbs={<Breadcrumbs items={[{ label: 'About' }]} />} title={`About ${name}`} />
       {s.logo_url && <img src={s.logo_url} alt={name} className="mt-4 h-24 w-24 rounded-2xl object-cover border" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
       <p className="mt-5 text-ink leading-relaxed whitespace-pre-line">{s.about_story || FALLBACK_STORY}</p>
       <div className="mt-6 grid sm:grid-cols-2 gap-4">
@@ -43,9 +42,9 @@ export default function About() {
         </div>
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
-        <Link to="/shop" className="bg-bloom-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-bloom-700">Shop the blooms</Link>
-        <Link to="/configurator" className="border px-6 py-3 rounded-xl font-bold hover:bg-surface3">Design a custom bouquet</Link>
+        <Btn to="/shop" variant="primary" size="md">Shop the blooms</Btn>
+        <Btn to="/configurator" variant="outline" size="md">Design a custom bouquet</Btn>
       </div>
-    </div>
+    </Page>
   );
 }

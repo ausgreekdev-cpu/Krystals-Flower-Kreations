@@ -6,7 +6,10 @@ import { addToCart } from '../../lib/cartClient';
 import { usePublicSettings } from '../../lib/publicSettings';
 import ARViewer from '../../components/ARViewer';
 import NotebookPanel from '../../components/NotebookPanel';
-import Breadcrumbs from '../../components/layout/Breadcrumbs';
+import { Page, PageHeader, Breadcrumbs } from '../../components/ui/Page';
+import Alert from '../../components/ui/Alert';
+import Btn from '../../components/ui/Btn';
+import { Input } from '../../components/ui/Field';
 
 const TEXTURES = ['textured','smooth','pearl','linen'];
 const WEIGHTS = ['65lb','80lb','110lb'];
@@ -23,6 +26,9 @@ const TEMPLATES = [
   { id: 'banksia-petal', label: 'Banksia Petal', flowerType: 'banksia' },
   { id: 'origami-lily', label: 'Origami Lily', flowerType: 'lily' },
 ];
+const CHIP = 'px-3 py-1.5 rounded-full text-xs border transition';
+const CHIP_ON = 'bg-bloom-500 text-white border-bloom-500';
+const CHIP_OFF = 'bg-surface2 hover:bg-surface3';
 
 export default function Configurator(){
   const { spec, setSpec } = useConfiguratorStore();
@@ -33,8 +39,6 @@ export default function Configurator(){
   const vasePrice = num(s.configurator_vase, 22);
   const domePrice = num(s.configurator_dome, 45);
   const ledPrice = num(s.configurator_led, 18);
-  const labourRate = num(s.labour_rate_per_hour, 55);
-  const marginPct = Math.round((num(s.bom_margin, 1.3) - 1) * 100);
   const [form,setForm]=useState({ email:'', name:'', postcode:'6000' });
   const [msg,setMsg]=useState(''); const [err,setErr]=useState('');
   // Ready-made stems matching the chosen template's flower — cross-sell into the catalog
@@ -69,75 +73,76 @@ export default function Configurator(){
     try{
       const order = await ordersApi.customCreate({ customerEmail: email, customerName: name, spec, shippingPostcode: postcode });
       setMsg(`Created ${order.orderNumber} — ${order.state} — $${Number(order.totalPrice).toFixed(2)} — ${order.estimatedMinutes}m — QR: ${order.ticket?.qrPayload || ''}${s.show_kanban === '1' ? ' — View Kanban → /kanban' : ''}`);
-    }catch(e){ setErr(e.message || 'Failed — is backend running?'); }
+    }catch(e){ setErr(e.message || 'Failed — please try again'); }
   }
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <Breadcrumbs items={[{label:'Configurator'}]} />
-      <h1 className="text-2xl font-black text-ink">Custom Bouquet Configurator</h1>
-      <p className="text-sm text-muted">{s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'}</p>
-      <section className="bg-surface2 p-4 rounded-2xl border">
-        <h3 className="font-bold">1 · Paper Colour</h3>
-        <div className="flex flex-wrap gap-2 mt-2">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} className={`px-3 py-1.5 rounded-full text-[11px] border ${spec.palette===p.id?'bg-bloom-700 text-white border-bloom-700':'bg-surface border-line hover:bg-surface3'}`}>{p.label}</button>)}</div>
-        <div className="flex flex-wrap gap-2 mt-2">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} className={`px-3 py-2 rounded-full text-xs border ${spec.paperColor===c && !spec.palette?'bg-bloom-500 text-white border-bloom-500': spec.paperColor===c?'border-bloom-500 text-bloom-700':'bg-surface2'}`}>{c}</button>)}</div>
-      </section>
-      <section className="bg-surface2 p-4 rounded-2xl border">
-        <h3 className="font-bold">2 · Texture & Weight</h3>
-        <div className="flex gap-2 mt-2">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} className={`px-3 py-1 rounded-full text-xs border ${spec.paperTexture===t?'bg-bloom-500 text-white':'bg-surface2'}`}>{t}</button>)}</div>
-        <div className="flex gap-2 mt-2">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} className={`px-3 py-1 rounded-full text-xs border ${spec.weight===w?'bg-bloom-500 text-white':'bg-surface2'}`}>{w}</button>)}</div>
-      </section>
-      <section className="bg-surface2 p-4 rounded-2xl border space-y-3">
-        <h3 className="font-bold">3 · Stems & Armature</h3>
-        <div className="flex items-center gap-3">Stems <input type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} /> {spec.stemCount}</div>
-        <div className="flex items-center gap-3">Armature mm <input type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} /> {spec.armatureHeightMm}</div>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+${greeneryPrice})</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+${vasePrice})</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.domeIncluded} onChange={e=>setSpec({domeIncluded:e.target.checked})} /> Glass display dome (+${domePrice})</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={spec.ledIncluded} onChange={e=>setSpec({ledIncluded:e.target.checked})} /> Warm LED fairy lights (+${ledPrice})</label>
-      </section>
-      {s.show_cricut === '1' && <section className="bg-surface2 p-4 rounded-2xl border">
-        <h3 className="font-bold">4 · Cricut Template — $0 Inkscape SVG</h3>
-        <div className="flex flex-wrap gap-2 mt-2">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} className={`px-3 py-2 rounded-full text-xs border ${spec.templateId===t.id?'bg-bloom-500 text-white':'bg-surface2'}`}>{t.label}</button>)}</div>
-        <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
-          <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
-          <div style={{display:'none'}} className="bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label} (add /public/svg/{spec.templateId}.svg via Inkscape potrace, free)</div>
-        </div>
-        <div className="text-[11px] text-muted mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>. No VectoSolve fees.</div>
-      </section>}
-      <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
-      {pairs.length>0 && (
+    <Page>
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Configurator'}]} />} title="Custom Bouquet Configurator"
+        lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'} />
+      <div className="space-y-4 mt-6">
         <section className="bg-surface2 p-4 rounded-2xl border">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms</h3>
-            {pairMsg && <span className="text-[11px] text-green-700">{pairMsg} — <Link to="/cart" className="underline font-semibold">view cart</Link></span>}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-            {pairs.map(p=> (
-              <div key={p.id} className="bg-surface border rounded-xl p-3 flex flex-col">
-                <Link to={`/product/${p.slug}`} className="text-sm font-semibold text-ink hover:underline line-clamp-2">{p.title}</Link>
-                <span className="text-sm text-highlight font-bold mt-1">${Number(p.price).toFixed(2)} <span className="text-[10px] font-normal text-muted">AUD</span></span>
-                <button onClick={()=>addPair(p)} disabled={pairBusy===p.id} className="mt-2 text-xs bg-bloom-500 text-white rounded-full py-1.5 font-bold disabled:opacity-60">{pairBusy===p.id?'Adding…':'Add to cart'}</button>
-              </div>
-            ))}
-          </div>
+          <h3 className="font-bold">1 · Paper Colour</h3>
+          <div className="flex flex-wrap gap-2 mt-2">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
+          <div className="flex flex-wrap gap-2 mt-2">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
         </section>
-      )}
-      <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
-      <div className="bg-surface2 border rounded-2xl p-4 space-y-3">
-        <h3 className="font-bold">Your details — for custom order</h3>
-        <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email*" type="email" className="w-full border rounded-xl px-3 py-2 text-sm" />
-        <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name*" className="w-full border rounded-xl px-3 py-2 text-sm" />
-        <input value={form.postcode} onChange={e=>setForm({...form,postcode:e.target.value})} placeholder="Postcode* (6000 Perth metro)" className="w-full border rounded-xl px-3 py-2 text-sm" />
-        {err && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{err}</div>}
-        {msg && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs">{msg}</div>}
+        <section className="bg-surface2 p-4 rounded-2xl border">
+          <h3 className="font-bold">2 · Texture & Weight</h3>
+          <div className="flex flex-wrap gap-2 mt-2">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
+          <div className="flex flex-wrap gap-2 mt-2">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
+        </section>
+        <section className="bg-surface2 p-4 rounded-2xl border space-y-3">
+          <h3 className="font-bold">3 · Stems & Armature</h3>
+          <div className="flex items-center gap-3">Stems <input type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1" /> {spec.stemCount}</div>
+          <div className="flex items-center gap-3">Armature mm <input type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} className="flex-1" /> {spec.armatureHeightMm}</div>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+${greeneryPrice})</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+${vasePrice})</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={spec.domeIncluded} onChange={e=>setSpec({domeIncluded:e.target.checked})} /> Glass display dome (+${domePrice})</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={spec.ledIncluded} onChange={e=>setSpec({ledIncluded:e.target.checked})} /> Warm LED fairy lights (+${ledPrice})</label>
+        </section>
+        {s.show_cricut === '1' && <section className="bg-surface2 p-4 rounded-2xl border">
+          <h3 className="font-bold">4 · Cricut Template — free SVG</h3>
+          <div className="flex flex-wrap gap-2 mt-2">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
+          <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
+            <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
+            <div style={{display:'none'}} className="bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label}</div>
+          </div>
+          {import.meta.env.DEV && <div className="text-[11px] text-muted mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>.</div>}
+        </section>}
+        <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} />
+        {pairs.length>0 && (
+          <section className="bg-surface2 p-4 rounded-2xl border">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms</h3>
+              {pairMsg && <span className="text-[11px] text-success-800">{pairMsg} — <Link to="/cart" className="underline font-semibold">view cart</Link></span>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+              {pairs.map(p=> (
+                <div key={p.id} className="bg-surface border rounded-xl p-3 flex flex-col">
+                  <Link to={`/product/${p.slug}`} className="text-sm font-semibold text-ink hover:underline line-clamp-2">{p.title}</Link>
+                  <span className="text-sm text-highlight font-bold mt-1">${Number(p.price).toFixed(2)} <span className="text-[10px] font-normal text-muted">AUD</span></span>
+                  <button onClick={()=>addPair(p)} disabled={pairBusy===p.id} className="mt-2 text-xs bg-bloom-500 text-white rounded-full py-1.5 font-bold disabled:opacity-60">{pairBusy===p.id?'Adding…':'Add to cart'}</button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
+        <div className="bg-surface2 border rounded-2xl p-4 space-y-3">
+          <h3 className="font-bold">Your details — for custom order</h3>
+          <Input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email*" type="email" label="Email" size="sm" className="w-full" />
+          <Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name*" label="Full name" size="sm" className="w-full" />
+          <Input value={form.postcode} onChange={e=>setForm({...form,postcode:e.target.value})} placeholder="Postcode* (6000 Perth metro)" label="Postcode" size="sm" className="w-full" />
+          {err && <Alert tone="danger" className="text-xs">{err}</Alert>}
+          {msg && <Alert tone="ok" className="text-xs">{msg}</Alert>}
+        </div>
+        <div className="bg-bloom-700 text-white rounded-2xl p-5">
+          <div className="flex justify-between"><span>Unit</span><span className="font-bold">${est.unitPrice.toFixed(2)} AUD</span></div>
+          <div className="flex justify-between mt-1"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)}</span></div>
+          <div className="flex justify-between mt-1 text-sm opacity-80"><span>Est. craft time</span><span>{est.estimatedMinutes} min</span></div>
+          <div className="text-xs opacity-60 mt-2">Live price — materials + craft time. Earn 1 Bloom pt per $1.</div>
+          <Btn onClick={submit} className="w-full mt-4" variant="primary" size="lg">Create Custom Order → Drafting/Proofing</Btn>
+        </div>
       </div>
-      <div className="bg-bloom-700 text-white rounded-2xl p-5">
-        <div className="flex justify-between"><span>Unit</span><span className="font-bold">${est.unitPrice.toFixed(2)} AUD</span></div>
-        <div className="flex justify-between mt-1"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)}</span></div>
-        <div className="flex justify-between mt-1 text-sm opacity-80"><span>Est. craft time</span><span>{est.estimatedMinutes} min</span></div>
-        <div className="text-xs opacity-60 mt-2">{`Live BOM: sheet cost × stems + labour $${labourRate}/hr × minutes + ${marginPct}% margin. Manual sheet price you set — no supplier API fees. Earn 1 Bloom pt per $1.`}</div>
-        <button onClick={submit} className="w-full mt-4 bg-bloom-500 py-3 rounded-xl font-bold">Create Custom Order → Drafting/Proofing</button>
-      </div>
-    </div>
+    </Page>
   );
 }

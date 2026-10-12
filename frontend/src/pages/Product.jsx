@@ -2,8 +2,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { addToCart as addToCartApi } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
+import Alert from '../components/ui/Alert';
 import { Input, Select, TextArea } from '../components/ui/Field';
 import ProductCard from '../components/ProductCard';
 
@@ -74,8 +75,13 @@ export default function Product(){
     }catch(e2){ setRvErr(e2.message); }
     finally{ setRvBusy(false); }
   }
-  if(!p) return <div className="p-8 text-center"><div className="animate-pulse bg-surface h-64 rounded-2xl"/><p className="mt-4 text-muted">Loading bloom…</p></div>;
-  if(p.error) return <div className="p-8 text-center"><div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">Failed to load product: {err || 'Not found'} <div className="mt-3"><Link to="/shop" className="underline font-bold">← Back to Shop</Link></div></div></div>;
+  if(!p) return <Page width="detail"><Breadcrumbs items={[{label:'Shop', to:'/shop'}]} /><div className="mt-4 animate-pulse bg-surface3 h-64 rounded-2xl"/></Page>;
+  if(p.error) return (
+    <Page width="detail">
+      <Breadcrumbs items={[{label:'Shop', to:'/shop'}]} />
+      <Alert tone="danger" className="mt-4">Failed to load product: {err || 'Not found'} <Link to="/shop" className="underline font-bold">← Back to Shop</Link></Alert>
+    </Page>
+  );
   const variantsArr = Array.isArray(p.variants) ? p.variants : [];
   const imagesArr = Array.isArray(p.images) ? p.images : [];
   const activePrice = Number(variantId? variantsArr.find(v=>v.id===variantId)?.price : p.price);
@@ -136,7 +142,7 @@ export default function Product(){
   const shareText = encodeURIComponent(p.title);
   const shareCls = "border rounded-full px-3 py-1.5 hover:bg-surface3";
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <Page width="detail">
       <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(productLd)}} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(crumbsLd)}} />
       <Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:p.title}]} />
@@ -154,21 +160,21 @@ export default function Product(){
         {reviews.length>0 && <div className="text-sm text-muted"><span className="text-highlight font-bold text-lg">{avg.toFixed(1)}</span> {stars(avg)} — {reviews.length} review{reviews.length>1?'s':''}</div>}
       </div>
       <div>
-        <h1 className="text-3xl font-black text-ink">{p.title}</h1>
+        <h1 className="text-2xl md:text-3xl font-black text-ink">{p.title}</h1>
         <div className="text-2xl font-bold text-highlight mt-2">${Number(p.price).toFixed(2)} AUD</div>
         <p className="mt-4 text-ink">{p.description}</p>
         {(p.flowerType || p.colourFamily || p.stemLengthMm || (p.occasions||[]).length > 0 || p.careInstructions) && (
           <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3 space-y-1">
             {(p.flowerType || p.colourFamily || p.stemLengthMm) && (
               <div className="flex flex-wrap gap-2">
-                {p.flowerType && <Link to={`/shop?flowerType=${encodeURIComponent(p.flowerType)}`} className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize hover:border-bloom-500 hover:text-bloom-700">{p.flowerType}</Link>}
-                {p.colourFamily && <Link to={`/shop?colourFamily=${encodeURIComponent(p.colourFamily)}`} className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize hover:border-bloom-500 hover:text-bloom-700">{p.colourFamily.replace(/-/g,' ')}</Link>}
+                {p.flowerType && <Link to={`/shop?flowerType=${encodeURIComponent(p.flowerType)}`} className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize hover:border-bloom-500 hover:text-highlight">{p.flowerType}</Link>}
+                {p.colourFamily && <Link to={`/shop?colourFamily=${encodeURIComponent(p.colourFamily)}`} className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold capitalize hover:border-bloom-500 hover:text-highlight">{p.colourFamily.replace(/-/g,' ')}</Link>}
                 {p.stemLengthMm && <span className="px-2 py-0.5 rounded-full bg-surface2 border text-xs font-semibold">{p.stemLengthMm} mm stems</span>}
               </div>
             )}
             {(p.occasions||[]).length>0 && (
               <div className="text-xs text-muted">Perfect for: {(p.occasions||[]).map((o,i)=> (
-                <span key={o}>{i>0 && ', '}<Link to={`/occasions/${encodeURIComponent(o)}`} className="underline font-medium hover:text-bloom-700">{o.replace(/-/g,' ')}</Link></span>
+                <span key={o}>{i>0 && ', '}<Link to={`/occasions/${encodeURIComponent(o)}`} className="underline font-medium hover:text-highlight">{o.replace(/-/g,' ')}</Link></span>
               ))}</div>
             )}
             {p.careInstructions && <div className="text-xs text-muted">Care: {p.careInstructions}</div>}
@@ -186,11 +192,11 @@ export default function Product(){
             ))}
           </div>
         )}
-        {variantsArr.length>0 && <div className="mt-4"><label className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>{stock} left</span>}</label><Select value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
-        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`text-sm ${lowStock?'text-amber-600':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
+        {variantsArr.length>0 && <div className="mt-4"><label className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-warning-50 text-warning-800 border border-warning-200':'bg-success-50 text-success-800 border border-success-200'}`}>{stock} left</span>}</label><Select value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
+        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`text-sm ${lowStock?'text-warning-800':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
         <Btn size="lg" className="mt-6 w-full transition" onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0}>Add to Cart — ${ (activePrice*qty).toFixed(2)}</Btn>
-        {err && <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{err}</div>}
-        {msg && <div className="mt-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">{msg}</div>}
+        {err && <Alert tone="danger" className="mt-3">{err}</Alert>}
+        {msg && <Alert tone="ok" className="mt-3">{msg}</Alert>}
         <div className="mt-3 flex gap-2 text-xs">
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">GST inclusive</span>
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">ABN on invoice</span>
@@ -216,7 +222,7 @@ export default function Product(){
           <h2 className="text-xl font-black text-ink">Reviews {reviews.length>0 && <span className="text-base font-bold text-muted">— {avg.toFixed(1)} ★ ({reviews.length})</span>}</h2>
           {reviews.length>0 && <span className="text-2xl text-highlight" aria-hidden="true">{stars(avg)}</span>}
         </div>
-        {reviews.length===0 && <p className="text-sm text-muted mt-3">No reviews yet — be the first to review this bloom.</p>}
+        {reviews.length===0 && <div className="mt-3 text-sm text-muted bg-surface2 border rounded-2xl p-4">No reviews yet — be the first to review this bloom.</div>}
         <div className="mt-4 grid gap-3">
           {reviews.map(r=> (
             <div key={r.id} className="bg-surface2 border rounded-2xl p-4">
@@ -233,10 +239,10 @@ export default function Product(){
         <div className="mt-6 bg-surface2 border rounded-2xl p-4 max-w-2xl">
           <h3 className="font-bold text-sm text-ink">Write a review</h3>
           {rvSent ? (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mt-3">Thanks! Your review is pending approval — it will appear here once the studio approves it.</p>
+            <Alert tone="ok" className="mt-3">Thanks! Your review is pending approval — it will appear here once the studio approves it.</Alert>
           ) : (
             <form onSubmit={submitReview} className="mt-3 space-y-3">
-              {rvErr && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{rvErr}</div>}
+              {rvErr && <Alert tone="danger">{rvErr}</Alert>}
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-ink font-semibold">Rating</span>
                 {[1,2,3,4,5].map(n=> (
@@ -256,6 +262,6 @@ export default function Product(){
           )}
         </div>
       </section>
-    </div>
+    </Page>
   );
 }

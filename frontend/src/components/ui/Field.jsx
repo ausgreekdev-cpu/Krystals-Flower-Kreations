@@ -4,7 +4,7 @@ import { useId, cloneElement } from 'react';
 // (labelVisible=false → zero visual change; visible labels land with the
 // Phase 3.2 a11y pass). A sr-only label is a sibling (fragment), never a
 // wrapper — wrapping would clip the input too.
-const BASE = 'border rounded-xl px-3 py-2';
+const BASE = 'border rounded-xl px-3 py-2 bg-surface2 focus:outline-none focus:ring-2 focus:ring-bloom-500/20 focus:border-bloom-500';
 
 function fieldClass({ size, className }) {
   return [BASE, size === 'sm' && 'text-sm', className].filter(Boolean).join(' ');

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import NotebookPanel from '../components/NotebookPanel';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
+import Alert from '../components/ui/Alert';
 import Btn from '../components/ui/Btn';
+import { CardSkeleton } from '../components/ui/State';
 import { Input, Select } from '../components/ui/Field';
 import { usePublicSettings } from '../lib/publicSettings';
+
 export default function Workshops(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -33,17 +36,25 @@ export default function Workshops(){
     }catch(e){ setBookErr(e.message); }
   }
   const settings = usePublicSettings();
-  if (settings.show_workshops === undefined) return <div className="max-w-4xl mx-auto px-4 py-8 text-sm text-muted">Loading…</div>;
+  if (settings.show_workshops === undefined) return <Page><div className="text-sm text-muted">Loading…</div></Page>;
   if (settings.show_workshops !== '1') return <Navigate to="/" replace />;
-  if(loading) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="animate-pulse bg-surface2 border rounded-2xl p-6 h-32">Loading workshops…</div></div>;
-  if(err) return <div className="max-w-4xl mx-auto px-4 py-8"><div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">Failed to load workshops: {err} <button onClick={()=>window.location.reload()} className="ml-2 underline">Retry</button></div></div>;
-  if(!loading && items.length===0) return <div className="max-w-4xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Workshops'}]} /><h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1><p className="text-muted mt-2">No workshops yet — check back or design via Configurator.</p><Btn to="/configurator" size="lg" className="mt-4 inline-block">Design Custom Bouquet</Btn></div>;
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+  if(loading) return <Page><Breadcrumbs items={[{label:'Workshops'}]} /><CardSkeleton lines={6} className="mt-4" /></Page>;
+  if(err) return (
+    <Page>
       <Breadcrumbs items={[{label:'Workshops'}]} />
-      <h1 className="text-2xl font-black text-ink">Workshops — Perth Studio</h1>
-      <p className="text-muted mt-2">Cricut Blooms 101, Origami Bouquet & Armature Art. Max 12, kits included.</p>
-      <div className="mt-4 bg-surface border border-bloom-100 rounded-xl px-4 py-3 flex justify-between items-center">
+      <Alert tone="danger" className="mt-4">Failed to load workshops: {err} <button onClick={()=>window.location.reload()} className="underline font-bold">Retry</button></Alert>
+    </Page>
+  );
+  if(!loading && items.length===0) return (
+    <Page>
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Workshops'}]} />} title="Workshops — Perth Studio" lede="No workshops yet — check back or design via Configurator." />
+      <Btn to="/configurator" size="lg" className="mt-4 inline-block">Design Custom Bouquet</Btn>
+    </Page>
+  );
+  return (
+    <Page>
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Workshops'}]} />} title="Workshops — Perth Studio" lede="Cricut Blooms 101, Origami Bouquet & Armature Art. Max 12, kits included." />
+      <div className="mt-4 bg-surface border rounded-xl px-4 py-3 flex flex-wrap justify-between items-center gap-2">
         <span className="text-sm text-ink">Before you book, explore Notebook guide — supplies & folding previews</span>
         <Btn to="/notebook?workshop=cricut-blooms-101" variant="soft" size="pill" className="text-xs">Notebook →</Btn>
       </div>
@@ -61,8 +72,8 @@ export default function Workshops(){
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={booking.kitAddOn} onChange={e=>setBooking({...booking,kitAddOn:e.target.checked})} /> Kit add-on (+$25)</label>
         </div>
         <Btn size="md" className="mt-3" onClick={book}>Book — Pay later (manual)</Btn>
-        {bookErr && <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{bookErr}</div>}
-        {bookMsg && <div className="mt-3 bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-xs">{bookMsg}</div>}
+        {bookErr && <Alert tone="danger" className="mt-3 text-xs">{bookErr}</Alert>}
+        {bookMsg && <Alert tone="ok" className="mt-3 text-xs">{bookMsg}</Alert>}
         {qr && <div className="mt-3 text-center"><img src={qr.qrUrl} alt={qr.qrPayload} className="mx-auto w-48 h-48 border rounded-xl" /><div className="text-[11px] font-mono bg-surface3 rounded px-2 py-1 mt-2 break-all">{qr.qrPayload}</div><div className="text-xs text-muted mt-1">Show at POS — /pos check-in or workshop door</div></div>}
       </div>
       <div className="mt-6 grid gap-4">
@@ -71,11 +82,11 @@ export default function Workshops(){
             <h3 className="font-bold text-ink">{w.title}</h3>
             <p className="text-sm text-muted mt-2">{w.description}</p>
             <div className="text-sm font-bold text-highlight mt-2">${Number(w.price).toFixed(2)} • {w.durationMinutes} min • {w.level || 'beginner'}</div>
-            <div className="mt-3 space-y-1">{(w.sessions||[]).map(s=> <div key={s.id} className={`text-xs rounded-lg px-3 py-2 flex justify-between ${s.capacity - s.bookedCount<=0?'bg-red-50 border border-red-200 text-red-700':'bg-surface'}`}><span>{new Date(s.startsAt).toLocaleString('en-AU', { timeZone:'Australia/Perth', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span><span>{Math.max(0,s.capacity - s.bookedCount)} spots left {s.capacity - s.bookedCount<=0 && '• Waitlist'}</span></div>)}</div>
+            <div className="mt-3 space-y-1">{(w.sessions||[]).map(s=> <div key={s.id} className={`text-xs rounded-lg px-3 py-2 flex justify-between ${s.capacity - s.bookedCount<=0?'bg-warning-50 border border-warning-200 text-warning-800':'bg-surface'}`}><span>{new Date(s.startsAt).toLocaleString('en-AU', { timeZone:'Australia/Perth', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span><span>{Math.max(0,s.capacity - s.bookedCount)} spots left {s.capacity - s.bookedCount<=0 && '• Waitlist'}</span></div>)}</div>
             <div className="mt-3"><NotebookPanel compact query={`${w.slug} ${w.title}`} /></div>
           </div>
         ))}
       </div>
-    </div>
+    </Page>
   );
 }

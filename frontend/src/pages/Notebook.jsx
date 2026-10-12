@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import { usePublicSettings } from '../lib/publicSettings';
 
 const NOTEBOOK_ID = '459b06d5-2520-442a-ae3c-048b54c78902';
@@ -27,23 +27,20 @@ export default function Notebook(){
   const iframeSrc = q ? `${notebookUrl}?q=${encodeURIComponent(q)}` : notebookUrl;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <Breadcrumbs items={[{label:'Notebook'}]} />
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-ink">Perth Studio Notebook — Research Hub</h1>
-          <p className="text-sm text-muted mt-2 max-w-2xl">{showCricut ? 'NotebookLM sources — Cricut settings for Perth humidity, BOM paper costs, armature wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.' : 'NotebookLM sources — BOM paper costs, armature wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.'}</p>
-        </div>
-        <div className="flex gap-2">
-          <a href={notebookUrl} target="_blank" rel="noopener" className="bg-bloom-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-bloom-700">Open in NotebookLM →</a>
-          <button onClick={()=>{ navigator.clipboard.writeText(notebookUrl); setCopied(true); setTimeout(()=>setCopied(false),2000); }} className="border rounded-xl px-4 py-2 text-sm hover:bg-surface3">{copied?'Copied':'Copy link'}</button>
-        </div>
-      </div>
+    <Page width="wide">
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Notebook'}]} />} title="Perth Studio Notebook — Research Hub"
+        lede={showCricut ? 'NotebookLM sources — Cricut settings for Perth humidity, BOM paper costs, armature wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.' : 'NotebookLM sources — BOM paper costs, armature wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.'}
+        action={
+          <div className="flex gap-2 mt-3 md:mt-0">
+            <a href={notebookUrl} target="_blank" rel="noopener" className="bg-bloom-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-bloom-700">Open in NotebookLM →</a>
+            <button onClick={()=>{ navigator.clipboard.writeText(notebookUrl); setCopied(true); setTimeout(()=>setCopied(false),2000); }} className="border rounded-xl px-4 py-2 text-sm hover:bg-surface3">{copied?'Copied':'Copy link'}</button>
+          </div>
+        } />
 
-      {q && <div className="mt-4 bg-surface border border-bloom-100 rounded-xl px-4 py-2 text-sm">Filtered by: <span className="font-bold">{q}</span> <Link to="/notebook" className="ml-2 underline">Clear</Link></div>}
+      {q && <div className="mt-4 bg-surface border rounded-xl px-4 py-2 text-sm">Filtered by: <span className="font-bold">{q}</span> <Link to="/notebook" className="ml-2 underline">Clear</Link></div>}
 
       <div className="mt-6 bg-surface2 border rounded-2xl overflow-hidden shadow-sm">
-        <div className="bg-bloom-700 text-white px-4 py-2 flex justify-between items-center text-xs">
+        <div className="bg-bloom-700 text-white px-4 py-2 flex flex-wrap justify-between items-center gap-2 text-xs">
           <span>NotebookLM — {NOTEBOOK_ID.slice(0,8)} • Anyone with link can view</span>
           <span className="opacity-80">If iframe is blank, click Open in NotebookLM (Google login required)</span>
         </div>
@@ -83,15 +80,17 @@ export default function Notebook(){
         </div>}
       </div>
 
-      <div className="mt-6 bg-surface2 border rounded-2xl p-4">
-        <h3 className="font-bold text-sm">Notebook details</h3>
-        <div className="text-xs text-muted mt-2 space-y-1">
-          <div>Notebook ID: <code className="bg-surface3 px-1 rounded">{NOTEBOOK_ID}</code></div>
-          <div>Primary: <a href={NOTEBOOK_URL} target="_blank" rel="noopener" className="underline">{NOTEBOOK_URL}</a></div>
-          <div>Fallback: <a href={FALLBACK_URL} target="_blank" rel="noopener" className="underline">{FALLBACK_URL}</a></div>
-          <div className="text-[11px] text-muted mt-2">If iframe shows “Sign in” or blank, ensure sharing is “Anyone with link → Viewer” and allow third-party cookies for googleusercontent.com. Audio autoplay may require click.</div>
+      {import.meta.env.DEV && (
+        <div className="mt-6 bg-surface2 border rounded-2xl p-4">
+          <h3 className="font-bold text-sm">Notebook details</h3>
+          <div className="text-xs text-muted mt-2 space-y-1">
+            <div>Notebook ID: <code className="bg-surface3 px-1 rounded">{NOTEBOOK_ID}</code></div>
+            <div>Primary: <a href={NOTEBOOK_URL} target="_blank" rel="noopener" className="underline">{NOTEBOOK_URL}</a></div>
+            <div>Fallback: <a href={FALLBACK_URL} target="_blank" rel="noopener" className="underline">{FALLBACK_URL}</a></div>
+            <div className="text-[11px] text-muted mt-2">If iframe shows “Sign in” or blank, ensure sharing is “Anyone with link → Viewer” and allow third-party cookies for googleusercontent.com. Audio autoplay may require click.</div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </Page>
   );
 }

@@ -56,13 +56,13 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
             </div>
             <div className="relative bg-surface2/90 backdrop-blur rounded-xl px-4 py-3 border shadow text-center">
               <div className="font-bold text-ink text-sm">{title}</div>
-              <div className="text-xs text-muted">{probing ? 'Checking 3D model…' : <>Add your Blender export at <code className="bg-surface3 px-1 rounded">{glb}</code></>}</div>
-              <a href={glb} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Check GLB exists →</a>
+              <div className="text-xs text-muted">{probing ? 'Checking 3D model…' : '3D preview coming soon'}</div>
+              {import.meta.env.DEV && <a href={glb} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Check GLB exists →</a>}
             </div>
           </div>
         )}
       </div>
-      <p className="text-[11px] text-muted mt-2">Free pipeline: Blender 4.2 → Draco GLB &lt;2MB → place in <code>frontend/public/3d/</code>. Cached 30d via Workbox.</p>
+      {import.meta.env.DEV && <p className="text-[11px] text-muted mt-2">Free pipeline: Blender 4.2 → Draco GLB &lt;2MB → place in <code>frontend/public/3d/</code>. Cached 30d via Workbox.</p>}
     </div>
   );
 }

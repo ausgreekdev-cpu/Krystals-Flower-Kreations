@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchCart, cartItems, updateCartItem, clearCart, computeCartTotals } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
-import Breadcrumbs from '../components/layout/Breadcrumbs';
+import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
+import Alert from '../components/ui/Alert';
+import { EmptyState, Skeleton } from '../components/ui/State';
 
 export default function Cart(){
   const nav=useNavigate();
@@ -28,23 +30,28 @@ export default function Cart(){
     catch(e){ setErr(e.message||'Clear failed'); }
     load();
   }
-  if(loading) return <div className="p-8 text-center"><div className="animate-pulse bg-surface2 border rounded-2xl p-6">Loading cart…</div></div>;
+  if(loading) return <Page><PageHeader crumbs={<Breadcrumbs items={[{label:'Cart'}]} />} title="Cart" /><Skeleton className="mt-6 h-40" /></Page>;
   const items = cartItems(cart);
   const { subtotal, gst, youEarn, loyaltyEnabled, freeOver } = computeCartTotals(items, s);
-  if(items.length===0) return <div className="max-w-3xl mx-auto px-4 py-8 text-center"><Breadcrumbs items={[{label:'Cart'}]} /><h1 className="text-2xl font-black text-ink">Your cart is empty</h1><p className="text-muted mt-2">Browse paper bouquets or design a custom bloom.</p><div className="mt-4 flex gap-3 justify-center"><Btn to="/shop" size="pillLg">Shop</Btn><Btn to="/configurator" variant="outline" size="pillLg">Configurator</Btn></div></div>;
+  if(items.length===0) return (
+    <Page>
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Cart'}]} />} title="Your cart is empty" lede="Browse paper bouquets or design a custom bloom." />
+      <EmptyState className="mt-6" title="Nothing in the cart yet" body="Made-to-order blooms from the Perth studio, or design your own in the configurator."
+        action={<div className="flex gap-3"><Btn to="/shop" size="md">Shop blooms</Btn><Btn to="/configurator" variant="outline" size="md">Configurator</Btn></div>} />
+    </Page>
+  );
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <Breadcrumbs items={[{label:'Cart'}]} />
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-black text-ink">Cart — {items.length} item(s)</h1><Btn variant="dangerOutline" size="pill" className="text-xs" onClick={clearAll}>Clear</Btn></div>
-      {err && <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">{err} {err.includes('stock') && <span>— try lowering qty</span>}</div>}
+    <Page>
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Cart'}]} />} title={`Cart — ${items.length} item(s)`} className="flex justify-between items-center gap-3" action={<Btn variant="dangerOutline" size="sm" onClick={clearAll}>Clear</Btn>} />
+      {err && <Alert tone="danger" className="mt-3">{err} {err.includes('stock') && <span>— try lowering qty</span>}</Alert>}
       <div className="mt-6 space-y-3">
         {items.map(it=> (
-          <div key={it.id} className="bg-surface2 p-4 rounded-2xl border flex gap-4 hover:shadow-sm">
+          <div key={it.id} className="bg-surface2 p-4 rounded-2xl border flex gap-4 hover:shadow">
             <img loading="lazy" src={it.product?.images?.[0]?.url || `/placeholder-bloom.jpg`} alt={it.product?.title} width="80" height="80" className="w-20 h-20 rounded-xl object-cover" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
             <div className="flex-1">
               <div className="font-bold text-ink text-sm">{it.product?.title || it.title} {it.variant? `— ${it.variant.title}`:''}</div>
               <div className="text-sm text-muted">${Number(it.priceSnapshot).toFixed(2)} × {it.quantity} = <span className="font-bold">${ (Number(it.priceSnapshot)*it.quantity).toFixed(2) }</span></div>
-              <div className="mt-2 flex gap-2 items-center"><Btn variant="outline" size="pill" onClick={()=>updateQty(it.id, it.quantity-1)} disabled={it.quantity<=1} aria-label="Decrease quantity">−</Btn><span className="px-2 py-1 text-sm font-bold">{it.quantity}</span><Btn size="pill" onClick={()=>updateQty(it.id, Math.min(99,it.quantity+1))} disabled={it.quantity>=99} aria-label="Increase quantity">+</Btn><Btn variant="danger" size="bare" className="ml-auto text-xs" onClick={()=>updateQty(it.id,0)}>Remove</Btn></div>
+              <div className="mt-2 flex gap-2 items-center"><Btn variant="outline" size="icon" onClick={()=>updateQty(it.id, it.quantity-1)} disabled={it.quantity<=1} aria-label="Decrease quantity">−</Btn><span className="px-2 py-1 text-sm font-bold">{it.quantity}</span><Btn size="icon" onClick={()=>updateQty(it.id, Math.min(99,it.quantity+1))} disabled={it.quantity>=99} aria-label="Increase quantity">+</Btn><Btn variant="danger" size="bare" className="ml-auto text-xs" onClick={()=>updateQty(it.id,0)}>Remove</Btn></div>
             </div>
           </div>
         ))}
@@ -60,6 +67,6 @@ export default function Cart(){
       {loyaltyEnabled && <div className="mt-6 bg-bloom-700 text-white rounded-2xl p-4 text-xs flex gap-3">
         <span>✿</span><span>Blossom at {s.loyalty_blossom_threshold || 100} pts, Garden at {s.loyalty_garden_threshold || 500} — redeem {s.loyalty_min_redeem_points || 100} pts = ${(Number(s.loyalty_min_redeem_points || 100)/100*Number(s.loyalty_redeem_rate || 5)).toFixed(2)} off at checkout (ask at till).</span>
       </div>}
-    </div>
+    </Page>
   );
 }

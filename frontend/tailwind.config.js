@@ -15,6 +15,10 @@ export default {
         line: 'rgb(var(--line) / <alpha-value>)',
         'line-strong': 'rgb(var(--line-strong) / <alpha-value>)',
         highlight: 'rgb(var(--highlight) / <alpha-value>)',
+        // Semantic status ramps — dark-safe (see index.css)
+        success: { 50: 'rgb(var(--success-50) / <alpha-value>)', 200: 'rgb(var(--success-200) / <alpha-value>)', 800: 'rgb(var(--success-800) / <alpha-value>)' },
+        warning: { 50: 'rgb(var(--warning-50) / <alpha-value>)', 200: 'rgb(var(--warning-200) / <alpha-value>)', 800: 'rgb(var(--warning-800) / <alpha-value>)' },
+        danger: { 50: 'rgb(var(--danger-50) / <alpha-value>)', 200: 'rgb(var(--danger-200) / <alpha-value>)', 800: 'rgb(var(--danger-800) / <alpha-value>)' },
       },
       borderColor: {
         DEFAULT: 'rgb(var(--line) / <alpha-value>)',

@@ -7,8 +7,11 @@ const VARIANTS = {
   primary: 'bg-bloom-500 text-white font-bold hover:bg-bloom-700 disabled:opacity-50 disabled:cursor-not-allowed',
   outline: 'border hover:bg-surface3 disabled:opacity-40 disabled:cursor-not-allowed',
   soft: 'bg-surface2 border hover:bg-surface3',
-  danger: 'text-red-600 hover:underline',
-  dangerOutline: 'border hover:bg-red-50 hover:text-red-600',
+  danger: 'text-danger-800 hover:underline',
+  dangerOutline: 'border hover:bg-danger-50 hover:text-danger-800',
+  // On dark/gradient surfaces (hero bands) — contrast comes from white, not tokens
+  onDark: 'bg-white/15 border border-white/60 text-white font-bold hover:bg-white/25',
+  light: 'bg-surface2 text-ink font-bold hover:bg-surface shadow',
 };
 const SIZES = {
   lg: 'py-3 rounded-xl',
@@ -22,7 +25,7 @@ const SIZES = {
 };
 
 export default function Btn({ variant = 'primary', size = 'lg', to, className = '', children, ...rest }) {
-  const cls = [VARIANTS[variant], SIZES[size], className].filter(Boolean).join(' ');
+  const cls = [VARIANTS[variant], SIZES[size], 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-highlight/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface', className].filter(Boolean).join(' ');
   if (to) return <Link to={to} className={cls} {...rest}>{children}</Link>;
   return <button className={cls} {...rest}>{children}</button>;
 }
