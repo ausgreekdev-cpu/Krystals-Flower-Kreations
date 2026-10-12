@@ -151,6 +151,9 @@ app.use('/api/custom-orders', customOrderRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api', sitemapRoutes);
+// Also at root: Netlify can't chain 200-rewrites, so /sitemap.xml is forced
+// straight to the function and must resolve here too (netlify.toml).
+app.use('/', sitemapRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/meta', metaRoutes);
 

@@ -46,11 +46,13 @@
   status = 200
 
 # robots.txt points here — serve the dynamic sitemap (products + published posts).
-# force = true: the UI sitemap build plugin writes a static homepage-only
-# sitemap.xml into dist; without force that file shadows this redirect.
+# Netlify does not chain 200-rewrites, so /sitemap.xml goes straight to the
+# function (which also serves it at /sitemap.xml, see app.js). force=true:
+# the UI sitemap build plugin writes a static homepage-only sitemap.xml that
+# would otherwise shadow this.
 [[redirects]]
   from = "/sitemap.xml"
-  to = "/api/sitemap.xml"
+  to = "/.netlify/functions/api"
   status = 200
   force = true
 

@@ -35,6 +35,13 @@ test('sitemap honours x-forwarded-host and x-forwarded-proto (custom domain behi
   assert.ok(!xml.includes(`<loc>${srv.base}/</loc>`), 'request host not used when forwarded host present');
 });
 
+test('sitemap is also served at /sitemap.xml (Netlify forces the path straight to the function)', async () => {
+  const res = await fetch(`${srv.base}/sitemap.xml`);
+  assert.equal(res.status, 200);
+  const xml = await res.text();
+  assert.ok(xml.includes('<urlset'), 'valid urlset root at root path');
+});
+
 test('draft posts are excluded from the sitemap', async () => {
   const suffix = Date.now().toString(36);
   const pubSlug = `sitemap-pub-${suffix}`;
