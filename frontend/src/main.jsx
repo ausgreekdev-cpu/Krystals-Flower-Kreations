@@ -13,6 +13,7 @@ import StaffBar from './components/layout/StaffBar.jsx';
 // everything else (Admin, POS, …) loads on navigation.
 const Shop = lazy(() => import('./pages/Shop.jsx'));
 const Product = lazy(() => import('./pages/Product.jsx'));
+const Occasion = lazy(() => import('./pages/Occasion.jsx'));
 const Cart = lazy(() => import('./pages/Cart.jsx'));
 const Checkout = lazy(() => import('./pages/Checkout.jsx'));
 const Blog = lazy(() => import('./pages/Blog.jsx'));
@@ -47,6 +48,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/" element={<App />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/product/:slug" element={<Product />} />
+            <Route path="/occasions/:slug" element={<Occasion />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/blog" element={<Blog />} />

@@ -7,10 +7,12 @@ const router = Router();
 // Dynamic sitemap from products + published posts (robots.txt → /sitemap.xml → this route)
 router.get('/sitemap.xml', asyncHandler(async (req, res) => {
   const origin = process.env.FRONTEND_URL?.split(',')[0] || 'https://krystalsflowercreations.com.au';
-  const [products, posts] = await Promise.all([
+  const [products, posts, withOccasions] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, select: { slug: true, updatedAt: true }, take: 500, orderBy: { updatedAt: 'desc' } }),
     prisma.post.findMany({ where: { status: 'published' }, select: { slug: true, publishedAt: true, updatedAt: true }, take: 200, orderBy: { publishedAt: 'desc' } }),
+    prisma.product.findMany({ where: { isActive: true, occasions: { isEmpty: false } }, select: { occasions: true }, take: 500 }),
   ]);
+  const occasionSlugs = [...new Set(withOccasions.flatMap(p => p.occasions))].slice(0, 50);
   const urls = [
     { loc: `${origin}/`, changefreq: 'weekly', priority: '1.0' },
     { loc: `${origin}/shop`, changefreq: 'daily', priority: '0.9' },
@@ -19,6 +21,7 @@ router.get('/sitemap.xml', asyncHandler(async (req, res) => {
     { loc: `${origin}/blog`, changefreq: 'weekly', priority: '0.6' },
     { loc: `${origin}/notebook`, changefreq: 'weekly', priority: '0.7' },
     { loc: `${origin}/privacy`, changefreq: 'yearly', priority: '0.3' },
+    ...occasionSlugs.map(o => ({ loc: `${origin}/occasions/${o}`, changefreq: 'weekly', priority: '0.7' })),
     ...products.map(p => ({ loc: `${origin}/product/${p.slug}`, lastmod: p.updatedAt.toISOString().slice(0,10), changefreq: 'weekly', priority: '0.7' })),
     ...posts.map(p => ({ loc: `${origin}/blog/${p.slug}`, lastmod: (p.publishedAt || p.updatedAt).toISOString().slice(0,10), changefreq: 'monthly', priority: '0.6' }))
   ];

@@ -168,7 +168,7 @@ export default function Product(){
             )}
             {(p.occasions||[]).length>0 && (
               <div className="text-xs text-muted">Perfect for: {(p.occasions||[]).map((o,i)=> (
-                <span key={o}>{i>0 && ', '}<Link to={`/shop?occasion=${encodeURIComponent(o)}`} className="underline font-medium hover:text-bloom-700">{o.replace(/-/g,' ')}</Link></span>
+                <span key={o}>{i>0 && ', '}<Link to={`/occasions/${encodeURIComponent(o)}`} className="underline font-medium hover:text-bloom-700">{o.replace(/-/g,' ')}</Link></span>
               ))}</div>
             )}
             {p.careInstructions && <div className="text-xs text-muted">Care: {p.careInstructions}</div>}
