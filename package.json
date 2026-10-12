@@ -2,8 +2,12 @@
   "name": "krystals-flower-kreations",
   "private": true,
   "version": "0.1.0",
-  "description": "Krystal's Flower Kreations — paper florist & armature art workshop (Perth WA). Cricut + origami shop, blog, POS & workshop platform.",
-  "workspaces": ["backend", "frontend", "mobile"],
+  "description": "Krystal's Flower Kreations \u2014 paper florist & armature art workshop (Perth WA). Cricut + origami shop, blog, POS & workshop platform.",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "mobile"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
@@ -16,5 +20,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "turndown": "^7.2.4"
   }
 }
