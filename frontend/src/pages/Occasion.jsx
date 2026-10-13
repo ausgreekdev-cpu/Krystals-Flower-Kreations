@@ -66,9 +66,9 @@ export default function Occasion(){
       <div className="max-w-3xl">
         <PageHeader crumbs={<Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:title}]} />} title={`${title} — handmade paper flowers`} lede={known?.blurb || 'Handmade everlasting paper blooms from our Perth studio — made to order, GST inclusive, free Perth delivery over $150.'} />
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Occasion pages">
         {Object.entries(KNOWN).map(([k, v]) => (
-          <Link key={k} to={`/occasions/${k}`} className={`${CHIP} ${k===slug?CHIP_ON:CHIP_OFF}`}>{v.title}</Link>
+          <Link key={k} to={`/occasions/${k}`} aria-current={k===slug ? 'page' : undefined} className={`${CHIP} ${k===slug?CHIP_ON:CHIP_OFF}`}>{v.title}</Link>
         ))}
       </div>
       {products === null ? (

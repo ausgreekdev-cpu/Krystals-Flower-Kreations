@@ -81,19 +81,19 @@ export default function Configurator(){
         lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'} />
       <div className="space-y-4 mt-6">
         <section className="bg-surface2 p-4 rounded-2xl border">
-          <h3 className="font-bold">1 · Paper Colour</h3>
-          <div className="flex flex-wrap gap-2 mt-2">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
-          <div className="flex flex-wrap gap-2 mt-2">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
+        <h3 className="font-bold">1 · Paper Colour</h3>
+        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper palette">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} aria-pressed={spec.palette===p.id} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
+        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper colour">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} aria-pressed={spec.paperColor===c && !spec.palette} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
         </section>
         <section className="bg-surface2 p-4 rounded-2xl border">
-          <h3 className="font-bold">2 · Texture & Weight</h3>
-          <div className="flex flex-wrap gap-2 mt-2">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
-          <div className="flex flex-wrap gap-2 mt-2">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
+        <h3 className="font-bold">2 · Texture & Weight</h3>
+        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper texture">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} aria-pressed={spec.paperTexture===t} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
+        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
         </section>
         <section className="bg-surface2 p-4 rounded-2xl border space-y-3">
           <h3 className="font-bold">3 · Stems & Armature</h3>
-          <div className="flex items-center gap-3">Stems <input type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1" /> {spec.stemCount}</div>
-          <div className="flex items-center gap-3">Armature mm <input type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} className="flex-1" /> {spec.armatureHeightMm}</div>
+          <div className="flex items-center gap-3"><label htmlFor="cfg-stems" className="shrink-0">Stems</label> <input id="cfg-stems" type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1" aria-valuetext={`${spec.stemCount} stems`} /> <span aria-hidden="true">{spec.stemCount}</span></div>
+          <div className="flex items-center gap-3"><label htmlFor="cfg-armature" className="shrink-0">Armature mm</label> <input id="cfg-armature" type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} className="flex-1" aria-valuetext={`${spec.armatureHeightMm} millimetres`} /> <span aria-hidden="true">{spec.armatureHeightMm}</span></div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={spec.addGreenery} onChange={e=>setSpec({addGreenery:e.target.checked})} /> Add greenery (+${greeneryPrice})</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={spec.vaseIncluded} onChange={e=>setSpec({vaseIncluded:e.target.checked})} /> Vase (+${vasePrice})</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={spec.domeIncluded} onChange={e=>setSpec({domeIncluded:e.target.checked})} /> Glass display dome (+${domePrice})</label>
@@ -101,7 +101,7 @@ export default function Configurator(){
         </section>
         {s.show_cricut === '1' && <section className="bg-surface2 p-4 rounded-2xl border">
           <h3 className="font-bold">4 · Cricut Template — free SVG</h3>
-          <div className="flex flex-wrap gap-2 mt-2">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
+          <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Cricut template">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} aria-pressed={spec.templateId===t.id} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
           <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
             <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
             <div style={{display:'none'}} className="bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label}</div>
@@ -129,9 +129,9 @@ export default function Configurator(){
         <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
         <div className="bg-surface2 border rounded-2xl p-4 space-y-3">
           <h3 className="font-bold">Your details — for custom order</h3>
-          <Input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email*" type="email" label="Email" size="sm" className="w-full" />
-          <Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name*" label="Full name" size="sm" className="w-full" />
-          <Input value={form.postcode} onChange={e=>setForm({...form,postcode:e.target.value})} placeholder="Postcode* (6000 Perth metro)" label="Postcode" size="sm" className="w-full" />
+          <Input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com" type="email" label="Email" labelVisible size="sm" className="w-full" />
+          <Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name" label="Full name" labelVisible size="sm" className="w-full" />
+          <Input value={form.postcode} onChange={e=>setForm({...form,postcode:e.target.value})} placeholder="6000 Perth metro" label="Postcode" labelVisible size="sm" className="w-full" />
           {err && <Alert tone="danger" className="text-xs">{err}</Alert>}
           {msg && <Alert tone="ok" className="text-xs">{msg}</Alert>}
         </div>

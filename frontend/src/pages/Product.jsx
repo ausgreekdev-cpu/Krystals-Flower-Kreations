@@ -20,7 +20,7 @@ export default function Product(){
   const [rvForm,setRvForm]=useState({ name:'', rating:5, title:'', body:'', website:'' });
   const [rvSent,setRvSent]=useState(false); const [rvErr,setRvErr]=useState(''); const [rvBusy,setRvBusy]=useState(false);
   useEffect(()=>{
-    fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=>{ setP(d); setReviews(Array.isArray(d.reviews)?d.reviews:[]); }).catch(e=>{ setErr(e.message); setP({ error:true }); });
+    fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=>{ setP(d); setReviews(Array.isArray(d.reviews)?d.reviews:[]); document.title = `${d.title} — ${ORG}`; }).catch(e=>{ setErr(e.message); setP({ error:true }); });
   }, [slug]);
   // Field definitions drive labels/types for p.customFields — same list for every product
   useEffect(()=>{
@@ -192,8 +192,8 @@ export default function Product(){
             ))}
           </div>
         )}
-        {variantsArr.length>0 && <div className="mt-4"><label className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-warning-50 text-warning-800 border border-warning-200':'bg-success-50 text-success-800 border border-success-200'}`}>{stock} left</span>}</label><Select value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
-        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`text-sm ${lowStock?'text-warning-800':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
+        {variantsArr.length>0 && <div className="mt-4"><label htmlFor="product-variant" className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-warning-50 text-warning-800 border border-warning-200':'bg-success-50 text-success-800 border border-success-200'}`}>{stock} left</span>}</label><Select id="product-variant" value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
+        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center" aria-live="polite">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`text-sm ${lowStock?'text-warning-800':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
         <Btn size="lg" className="mt-6 w-full transition" onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0}>Add to Cart — ${ (activePrice*qty).toFixed(2)}</Btn>
         {err && <Alert tone="danger" className="mt-3">{err}</Alert>}
         {msg && <Alert tone="ok" className="mt-3">{msg}</Alert>}
@@ -246,15 +246,15 @@ export default function Product(){
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-ink font-semibold">Rating</span>
                 {[1,2,3,4,5].map(n=> (
-                  <button type="button" key={n} onClick={()=>setRvForm(f=>({...f, rating:n}))} aria-label={`${n} star${n>1?'s':''}`}
+                  <button type="button" key={n} onClick={()=>setRvForm(f=>({...f, rating:n}))} aria-label={`${n} star${n>1?'s':''}`} aria-pressed={rvForm.rating===n}
                     className={`w-7 h-7 rounded-full border text-lg leading-none ${rvForm.rating>=n?'bg-bloom-500 text-white border-bloom-500':'bg-surface border-line text-muted hover:bg-surface3'}`}>
                     {rvForm.rating>=n?'★':'☆'}
                   </button>
                 ))}
               </div>
-              <Input required label="Your name" placeholder="Your name*" value={rvForm.name} onChange={e=>setRvForm(f=>({...f, name:e.target.value}))} minLength={2} maxLength={100} size="sm" className="w-full" />
-              <Input label="Review title" placeholder="Title (optional)" value={rvForm.title} onChange={e=>setRvForm(f=>({...f, title:e.target.value}))} maxLength={200} size="sm" className="w-full" />
-              <TextArea label="Review text" placeholder="What did you think? (optional)" value={rvForm.body} onChange={e=>setRvForm(f=>({...f, body:e.target.value}))} maxLength={2000} rows={3} size="sm" className="w-full" />
+              <Input required label="Your name" placeholder="Your name" labelVisible value={rvForm.name} onChange={e=>setRvForm(f=>({...f, name:e.target.value}))} minLength={2} maxLength={100} size="sm" className="w-full" />
+              <Input label="Review title" placeholder="Title (optional)" labelVisible value={rvForm.title} onChange={e=>setRvForm(f=>({...f, title:e.target.value}))} maxLength={200} size="sm" className="w-full" />
+              <TextArea label="Review text" placeholder="What did you think? (optional)" labelVisible value={rvForm.body} onChange={e=>setRvForm(f=>({...f, body:e.target.value}))} maxLength={2000} rows={3} size="sm" className="w-full" />
               <input type="text" value={rvForm.website} onChange={e=>setRvForm(f=>({...f, website:e.target.value}))} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
               <Btn size="sm" disabled={rvBusy}>{rvBusy?'Sending…':'Submit review'}</Btn>
               <p className="text-[11px] text-muted">Reviews are checked by the studio before they appear.</p>

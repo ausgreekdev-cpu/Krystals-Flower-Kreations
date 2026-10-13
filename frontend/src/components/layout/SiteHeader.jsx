@@ -50,6 +50,13 @@ export default function SiteHeader() {
   // Close the mobile menu / search row whenever the route changes.
   useEffect(() => { setMobileOpen(false); setSearchRowOpen(false); }, [location.pathname]);
 
+  // Esc closes the mobile menu / search row (keyboard users can back out).
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') { setMobileOpen(false); setSearchRowOpen(false); } }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const toggleColorMode = () => { const next = nextColorMode(); setColorModeState(next); };
   function onSearch(e) {
     e.preventDefault();
@@ -106,16 +113,16 @@ export default function SiteHeader() {
           {/* Centred desktop search — visible from md up (was lg, leaving 768–1023px without one) */}
           <div className="col-start-2 hidden md:flex justify-center min-w-0">
             <form onSubmit={onSearch} className="flex w-full max-w-sm lg:max-w-md min-w-0">
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label="Search products" className="w-full min-w-0 border rounded-l-xl px-4 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label="Search products" className="w-full min-w-0 border rounded-l-xl px-4 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-bloom-500/40" />
               <button type="submit" className="bg-bloom-500 text-white px-4 rounded-r-xl text-sm font-bold hover:bg-bloom-700 shrink-0">Search</button>
             </form>
           </div>
           {/* Right: nav at xl, hamburger below xl, search icon below md */}
           <div className="col-start-3 flex items-center justify-end gap-2 min-w-0">
-            <button onClick={() => setSearchRowOpen(!searchRowOpen)} className="md:hidden p-2 rounded-lg border hover:bg-surface3" aria-label="Search" aria-expanded={searchRowOpen}>
+            <button onClick={() => setSearchRowOpen(!searchRowOpen)} className="md:hidden p-2 rounded-lg border hover:bg-surface3" aria-label="Search" aria-expanded={searchRowOpen} aria-controls="site-search-row">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="M14 14l4 4" strokeLinecap="round" /></svg>
             </button>
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="xl:hidden p-2 rounded-lg border hover:bg-surface3" aria-label="Menu" aria-expanded={mobileOpen}>
+            <button onClick={() => setMobileOpen(!mobileOpen)} className="xl:hidden p-2 rounded-lg border hover:bg-surface3" aria-label="Menu" aria-expanded={mobileOpen} aria-controls="site-menu">
               <span className="block w-5 h-0.5 bg-ink mb-1"></span><span className="block w-5 h-0.5 bg-ink mb-1"></span><span className="block w-5 h-0.5 bg-ink"></span>
             </button>
             <nav className="hidden xl:flex gap-4 text-sm font-medium items-center">
@@ -144,16 +151,16 @@ export default function SiteHeader() {
         </div>
         {/* Mobile / tablet search row — one tap from the header icon, no hamburger needed */}
         {searchRowOpen && (
-          <div className="md:hidden border-t bg-surface2 px-4 py-3">
+          <div id="site-search-row" className="md:hidden border-t bg-surface2 px-4 py-3">
             <form onSubmit={onSearch} className="flex">
-              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label="Search products" className="flex-1 min-w-0 border rounded-l-xl px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={searchPlaceholder} aria-label="Search products" className="flex-1 min-w-0 border rounded-l-xl px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-bloom-500/40" />
               <button type="submit" className="bg-bloom-500 text-white px-3 rounded-r-xl text-sm font-bold">Go</button>
             </form>
           </div>
         )}
         {/* Mobile / tablet dropdown */}
         {mobileOpen && (
-          <div className="xl:hidden border-t bg-surface2 px-4 py-3 space-y-2">
+          <div id="site-menu" className="xl:hidden border-t bg-surface2 px-4 py-3 space-y-2">
             <form onSubmit={onSearch} className="flex"><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" className="flex-1 border rounded-l-xl px-3 py-2 text-sm bg-surface" /><button type="submit" className="bg-bloom-500 text-white px-3 rounded-r-xl text-sm">Go</button></form>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <Link to="/" className="bg-bloom-500 text-white rounded-xl p-3 font-bold">🏠 Home</Link>

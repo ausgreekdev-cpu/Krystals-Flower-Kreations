@@ -98,5 +98,5 @@ export default function App(){
   );
 }
 function Card({title, desc, to}){
-  return <Link to={to} className="bg-surface2 rounded-2xl p-6 border hover:shadow-lg hover:border-bloom-100 transition"><h3 className="font-bold text-base text-ink">{title}</h3><p className="mt-2 text-sm text-muted">{desc}</p><span className="mt-4 inline-block text-xs font-bold text-highlight">Explore →</span></Link>;
+  return <Link to={to} className="bg-surface2 rounded-2xl p-6 border hover:shadow-lg hover:border-bloom-100 transition"><h2 className="font-bold text-base text-ink">{title}</h2><p className="mt-2 text-sm text-muted">{desc}</p><span className="mt-4 inline-block text-xs font-bold text-highlight">Explore →</span></Link>;
 }

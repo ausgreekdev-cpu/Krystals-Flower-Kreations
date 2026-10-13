@@ -3,6 +3,7 @@ import { usePublicSettings } from '../lib/publicSettings';
 import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
 import Alert from '../components/ui/Alert';
+import { Input } from '../components/ui/Field';
 import { EmptyState } from '../components/ui/State';
 import ProductCard from '../components/ProductCard';
 
@@ -46,9 +47,9 @@ export default function Shop(){
   const CHIP_OFF = 'bg-surface2 border-line hover:bg-surface3';
   const chip = (active) => `${CHIP} ${active ? CHIP_ON : CHIP_OFF}`;
   const FloristGroup = ({label, options, value, set}) => options.length === 0 ? null : (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">{label}</span>
-      {options.map(o => <button key={o} onClick={()=>set(value===o?'':o)} className={chip(value===o)}>{o.replace(/-/g,' ')}</button>)}
+    <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label={`Filter by ${label.toLowerCase()}`}>
+      <span className="text-[11px] font-semibold text-muted uppercase tracking-wide" aria-hidden="true">{label}</span>
+      {options.map(o => <button key={o} onClick={()=>set(value===o?'':o)} aria-pressed={value===o} className={chip(value===o)}>{o.replace(/-/g,' ')}</button>)}
     </div>
   );
   // Storefront settings: default sort + page size (0 = everything)
@@ -69,11 +70,11 @@ export default function Shop(){
       {/* Toolbar: search + filter chips directly under the heading (was a detached full-width row) */}
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex gap-3 flex-1 min-w-0 sm:max-w-md">
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder={s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…'} aria-label="Search products" className="flex-1 min-w-0 border rounded-xl px-4 py-3 bg-surface2 focus:outline-none focus:ring-2 focus:ring-bloom-500/20" />
+          <Input label="Search products" value={q} onChange={e=>setQ(e.target.value)} placeholder={s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…'} className="flex-1 min-w-0" />
           <Btn variant="outline" size="inline" onClick={()=>setQ('')}>Clear</Btn>
         </div>
-        <div className="flex gap-2 flex-wrap sm:ml-auto">
-          {['all','made_to_order','digital','physical'].map(f=> <button key={f} onClick={()=>setFilter(f)} className={chip(filter===f)}>{f==='all'?'All': f==='made_to_order'?'Made to order': f==='digital'?'SVG': f}</button>)}
+        <div className="flex gap-2 flex-wrap sm:ml-auto" role="group" aria-label="Filter by type">
+          {['all','made_to_order','digital','physical'].map(f=> <button key={f} onClick={()=>setFilter(f)} aria-pressed={filter===f} className={chip(filter===f)}>{f==='all'?'All': f==='made_to_order'?'Made to order': f==='digital'?'SVG': f}</button>)}
         </div>
       </div>
       {/* Florist discovery: bloom / colour / occasion chips (shareable via URL) */}

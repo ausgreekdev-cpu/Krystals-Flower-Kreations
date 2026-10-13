@@ -25,7 +25,7 @@ const SIZES = {
 };
 
 export default function Btn({ variant = 'primary', size = 'lg', to, className = '', children, ...rest }) {
-  const cls = [VARIANTS[variant], SIZES[size], 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-highlight/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface', className].filter(Boolean).join(' ');
+  const cls = [VARIANTS[variant], SIZES[size], 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bloom-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface', className].filter(Boolean).join(' ');
   if (to) return <Link to={to} className={cls} {...rest}>{children}</Link>;
   return <button className={cls} {...rest}>{children}</button>;
 }

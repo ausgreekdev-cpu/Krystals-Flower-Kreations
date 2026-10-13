@@ -61,20 +61,20 @@ export default function Workshops(){
       <div className="mt-6 bg-surface2 border rounded-2xl p-4">
         <h3 className="font-bold text-sm">Book a session</h3>
         <div className="mt-3 grid md:grid-cols-2 gap-3">
-          <Select size="sm" label="Session" value={booking.sessionId} onChange={e=>setBooking({...booking, sessionId:e.target.value})}>
+          <Select size="sm" label="Session" labelVisible value={booking.sessionId} onChange={e=>setBooking({...booking, sessionId:e.target.value})}>
             <option value="">Select session</option>
             {items.flatMap(w=> (w.sessions||[]).map(s=> <option key={s.id} value={s.id}>{w.title} — {new Date(s.startsAt).toLocaleString('en-AU', { timeZone:'Australia/Perth', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})} — {Math.max(0,s.capacity - s.bookedCount)} left</option>))}
           </Select>
-          <Input size="sm" label="Full name" placeholder="Full name*" value={booking.name} onChange={e=>setBooking({...booking,name:e.target.value})} />
-          <Input size="sm" label="Email" placeholder="Email*" type="email" value={booking.email} onChange={e=>setBooking({...booking,email:e.target.value})} />
-          <Input size="sm" label="Phone" placeholder="Phone" value={booking.phone} onChange={e=>setBooking({...booking,phone:e.target.value})} />
+          <Input size="sm" label="Full name" placeholder="Full name" labelVisible value={booking.name} onChange={e=>setBooking({...booking,name:e.target.value})} />
+          <Input size="sm" label="Email" placeholder="you@example.com" type="email" labelVisible value={booking.email} onChange={e=>setBooking({...booking,email:e.target.value})} />
+          <Input size="sm" label="Phone" placeholder="Phone (optional)" labelVisible value={booking.phone} onChange={e=>setBooking({...booking,phone:e.target.value})} />
           <label className="flex items-center gap-2 text-sm"><Input type="number" min={1} max={10} value={booking.quantity} onChange={e=>setBooking({...booking,quantity: parseInt(e.target.value)||1})} className="w-20" /> spots</label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={booking.kitAddOn} onChange={e=>setBooking({...booking,kitAddOn:e.target.checked})} /> Kit add-on (+$25)</label>
         </div>
         <Btn size="md" className="mt-3" onClick={book}>Book — Pay later (manual)</Btn>
         {bookErr && <Alert tone="danger" className="mt-3 text-xs">{bookErr}</Alert>}
         {bookMsg && <Alert tone="ok" className="mt-3 text-xs">{bookMsg}</Alert>}
-        {qr && <div className="mt-3 text-center"><img src={qr.qrUrl} alt={qr.qrPayload} className="mx-auto w-48 h-48 border rounded-xl" /><div className="text-[11px] font-mono bg-surface3 rounded px-2 py-1 mt-2 break-all">{qr.qrPayload}</div><div className="text-xs text-muted mt-1">Show at POS — /pos check-in or workshop door</div></div>}
+        {qr && <div className="mt-3 text-center"><img src={qr.qrUrl} alt={qr.qrPayload} className="mx-auto w-48 h-48 border rounded-xl" /><div className="text-[11px] font-mono bg-surface3 text-ink rounded px-2 py-1 mt-2 break-all">{qr.qrPayload}</div><div className="text-xs text-muted mt-1">Show at POS — /pos check-in or workshop door</div></div>}
       </div>
       <div className="mt-6 grid gap-4">
         {items.map(w=> (

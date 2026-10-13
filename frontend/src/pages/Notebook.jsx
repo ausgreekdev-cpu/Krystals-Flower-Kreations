@@ -53,7 +53,7 @@ export default function Notebook(){
           referrerPolicy="strict-origin-when-cross-origin"
           style={{ width:'100%', height:'80vh', border:0, background:'#FFF7F0' }}
         />
-        <div className="bg-surface3 border-t px-4 py-3 flex flex-col sm:flex-row justify-between gap-2 text-xs text-muted">
+        <div className="bg-surface3 border-t px-4 py-3 flex flex-col sm:flex-row justify-between gap-2 text-xs text-ink">
           <span>{showCricut ? 'Sources: paper stocks, Cricut Maker settings, armature guides • Audio overview available inside NotebookLM' : 'Sources: paper stocks, armature guides • Audio overview available inside NotebookLM'}</span>
           <a href={FALLBACK_URL} target="_blank" rel="noopener" className="underline">Try fallback notebook.google.com →</a>
         </div>
@@ -84,7 +84,7 @@ export default function Notebook(){
         <div className="mt-6 bg-surface2 border rounded-2xl p-4">
           <h3 className="font-bold text-sm">Notebook details</h3>
           <div className="text-xs text-muted mt-2 space-y-1">
-            <div>Notebook ID: <code className="bg-surface3 px-1 rounded">{NOTEBOOK_ID}</code></div>
+            <div>Notebook ID: <code className="bg-surface3 text-ink px-1 rounded">{NOTEBOOK_ID}</code></div>
             <div>Primary: <a href={NOTEBOOK_URL} target="_blank" rel="noopener" className="underline">{NOTEBOOK_URL}</a></div>
             <div>Fallback: <a href={FALLBACK_URL} target="_blank" rel="noopener" className="underline">{FALLBACK_URL}</a></div>
             <div className="text-[11px] text-muted mt-2">If iframe shows “Sign in” or blank, ensure sharing is “Anyone with link → Viewer” and allow third-party cookies for googleusercontent.com. Audio autoplay may require click.</div>

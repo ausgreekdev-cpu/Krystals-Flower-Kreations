@@ -27,7 +27,7 @@ export default function Blog(){
               <h3 className="font-bold text-base text-ink">{p.title}</h3>
               {p.publishedAt && <div className="text-xs text-muted mt-0.5">{new Date(p.publishedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
               <p className="text-sm text-muted mt-1.5 line-clamp-2">{p.excerpt}</p>
-              <div className="flex flex-wrap gap-1.5 mt-auto pt-2">{(p.tags||'').split(',').map(t=>t.trim()).filter(Boolean).map(t=> <span key={t} className="text-[11px] bg-surface3 text-muted rounded-full px-2 py-0.5">{t}</span>)}</div>
+              <div className="flex flex-wrap gap-1.5 mt-auto pt-2">{(p.tags||'').split(',').map(t=>t.trim()).filter(Boolean).map(t=> <span key={t} className="text-[11px] bg-surface3 text-ink rounded-full px-2 py-0.5">{t}</span>)}</div>
             </div>
           </Link>
         ))}
