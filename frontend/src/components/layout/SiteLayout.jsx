@@ -4,6 +4,7 @@ import SiteHeader from './SiteHeader';
 import SiteFooter from './SiteFooter';
 import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole } from '../../lib/session';
+import BloomMark from '../ui/BloomMark';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
 const FALLBACK_BUSINESS = "Krystals Flower Creations";
@@ -53,7 +54,7 @@ export default function SiteLayout() {
     return (
       <div className="min-h-screen grid place-items-center bg-surface px-6">
         <div className="max-w-md w-full bg-surface2 border rounded-3xl p-8 text-center">
-          <div className="text-5xl">✿</div>
+          <div className="text-bloom-500 flex justify-center"><BloomMark className="w-12 h-12" /></div>
           <h1 className="text-2xl font-black text-ink mt-4">{businessName}</h1>
           <p className="text-muted mt-3 text-sm">{s.maintenance_message || "We're giving the studio a quick refresh — back shortly."}</p>
           <div className="mt-6 flex justify-center gap-3">

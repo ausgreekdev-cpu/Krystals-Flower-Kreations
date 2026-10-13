@@ -69,9 +69,9 @@ export default function Shop(){
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Shop'}]} />} title="Shop — paper blooms & armature art" lede={subtitle} />
       {/* Toolbar: search + filter chips directly under the heading (was a detached full-width row) */}
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex gap-3 flex-1 min-w-0 sm:max-w-md">
-          <Input label="Search products" value={q} onChange={e=>setQ(e.target.value)} placeholder={s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…'} className="flex-1 min-w-0" />
-          <Btn variant="outline" size="inline" onClick={()=>setQ('')}>Clear</Btn>
+        <div className="flex-1 min-w-0 sm:max-w-md flex items-stretch border rounded-xl bg-surface2 overflow-hidden focus-within:ring-2 focus-within:ring-bloom-500/40 focus-within:border-bloom-500">
+          <Input label="Search products" value={q} onChange={e=>setQ(e.target.value)} placeholder={s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…'} className="flex-1 min-w-0 border-0 rounded-none bg-transparent focus:ring-0 focus:border-0" />
+          <button type="button" onClick={()=>setQ('')} className="px-4 border-l border-line text-xs font-bold text-muted hover:text-ink shrink-0" aria-label="Clear search">Clear</button>
         </div>
         <div className="flex gap-2 flex-wrap sm:ml-auto" role="group" aria-label="Filter by type">
           {['all','made_to_order','digital','physical'].map(f=> <button key={f} onClick={()=>setFilter(f)} aria-pressed={filter===f} className={chip(filter===f)}>{f==='all'?'All': f==='made_to_order'?'Made to order': f==='digital'?'SVG': f}</button>)}

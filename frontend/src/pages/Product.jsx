@@ -140,16 +140,16 @@ export default function Product(){
   };
   const shareUrl = encodeURIComponent(window.location.href);
   const shareText = encodeURIComponent(p.title);
-  const shareCls = "border rounded-full px-3 py-1.5 hover:bg-surface3";
+  const shareCls = "border rounded-full px-3 py-1.5 hover:bg-surface3 hover:text-highlight transition";
   return (
     <Page width="detail">
       <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(productLd)}} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(crumbsLd)}} />
       <Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:p.title}]} />
-      <div className="grid md:grid-cols-2 gap-8">
-      <div className="space-y-3">
-        <img loading="eager" decoding="async" src={imagesArr[0]?.url || `/placeholder-bloom.jpg`} alt={p.title} width="800" height="800" className="rounded-2xl w-full shadow-sm" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
-        {imagesArr.length>1 && <div className="flex gap-2 overflow-auto">{imagesArr.slice(1,5).map(im=><img key={im.id} src={im.url} alt="" loading="lazy" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
+      <div className="grid md:grid-cols-2 gap-8 items-start">
+      <div className="space-y-3 md:sticky md:top-24 self-start">
+        <img loading="eager" decoding="async" src={imagesArr[0]?.url || `/placeholder-bloom.svg`} alt={p.title} width="800" height="800" className="rounded-2xl w-full border shadow-md" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} />
+        {imagesArr.length>1 && <div className="flex gap-2 overflow-auto">{imagesArr.slice(1,5).map(im=><img key={im.id} src={im.url} alt="" loading="lazy" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
         <div className="flex flex-wrap gap-2 text-xs">
           <a href={`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`} target="_blank" rel="noreferrer" className={shareCls}>Share FB</a>
           <a href={`https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`} target="_blank" rel="noreferrer" className={shareCls}>Share X</a>
@@ -193,7 +193,7 @@ export default function Product(){
           </div>
         )}
         {variantsArr.length>0 && <div className="mt-4"><label htmlFor="product-variant" className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-warning-50 text-warning-800 border border-warning-200':'bg-success-50 text-success-800 border border-success-200'}`}>{stock} left</span>}</label><Select id="product-variant" value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
-        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center" aria-live="polite">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`text-sm ${lowStock?'text-warning-800':'text-muted'}`}>{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
+        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center" aria-live="polite">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`inline-flex items-center gap-1.5 text-sm ${lowStock?'text-warning-800':'text-muted'}`}><span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${lowStock?'bg-warning-500':stock===0?'bg-bloom-500':'bg-success-500'}`} />{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
         <Btn size="lg" className="mt-6 w-full transition" onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0}>Add to Cart — ${ (activePrice*qty).toFixed(2)}</Btn>
         {err && <Alert tone="danger" className="mt-3">{err}</Alert>}
         {msg && <Alert tone="ok" className="mt-3">{msg}</Alert>}

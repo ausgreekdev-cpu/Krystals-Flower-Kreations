@@ -4,7 +4,7 @@ import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Alert from '../components/ui/Alert';
 import { EmptyState, Skeleton } from '../components/ui/State';
 
-const PLACEHOLDER = '/placeholder-bloom.jpg';
+const PLACEHOLDER = '/placeholder-bloom.svg';
 
 export default function Blog(){
   const [posts,setPosts]=useState(null);

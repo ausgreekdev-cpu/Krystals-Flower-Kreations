@@ -6,6 +6,7 @@ import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
 import Alert from '../components/ui/Alert';
 import { EmptyState, Skeleton } from '../components/ui/State';
+import BloomMark from '../components/ui/BloomMark';
 
 export default function Cart(){
   const nav=useNavigate();
@@ -47,7 +48,7 @@ export default function Cart(){
       <div className="mt-6 space-y-3">
         {items.map(it=> (
           <div key={it.id} className="bg-surface2 p-4 rounded-2xl border flex gap-4 hover:shadow">
-            <img loading="lazy" src={it.product?.images?.[0]?.url || `/placeholder-bloom.jpg`} alt={it.product?.title} width="80" height="80" className="w-20 h-20 rounded-xl object-cover" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
+            <img loading="lazy" src={it.product?.images?.[0]?.url || `/placeholder-bloom.svg`} alt={it.product?.title} width="80" height="80" className="w-20 h-20 rounded-xl object-cover" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} />
             <div className="flex-1">
               <div className="font-bold text-ink text-sm">{it.product?.title || it.title} {it.variant? `— ${it.variant.title}`:''}</div>
               <div className="text-sm text-muted">${Number(it.priceSnapshot).toFixed(2)} × {it.quantity} = <span className="font-bold">${ (Number(it.priceSnapshot)*it.quantity).toFixed(2) }</span></div>
@@ -65,7 +66,7 @@ export default function Cart(){
         <Link to="/shop" className="block text-center text-xs text-muted mt-3 hover:text-highlight">← Continue shopping</Link>
       </div>
       {loyaltyEnabled && <div className="mt-6 bg-bloom-700 text-white rounded-2xl p-4 text-xs flex gap-3">
-        <span>✿</span><span>Blossom at {s.loyalty_blossom_threshold || 100} pts, Garden at {s.loyalty_garden_threshold || 500} — redeem {s.loyalty_min_redeem_points || 100} pts = ${(Number(s.loyalty_min_redeem_points || 100)/100*Number(s.loyalty_redeem_rate || 5)).toFixed(2)} off at checkout (ask at till).</span>
+        <BloomMark className="w-4 h-4 shrink-0 mt-0.5" /><span>Blossom at {s.loyalty_blossom_threshold || 100} pts, Garden at {s.loyalty_garden_threshold || 500} — redeem {s.loyalty_min_redeem_points || 100} pts = ${(Number(s.loyalty_min_redeem_points || 100)/100*Number(s.loyalty_redeem_rate || 5)).toFixed(2)} off at checkout (ask at till).</span>
       </div>}
     </Page>
   );

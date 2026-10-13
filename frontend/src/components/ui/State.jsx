@@ -1,5 +1,6 @@
 import Alert from './Alert.jsx';
 import Btn from './Btn.jsx';
+import BloomMark from './BloomMark.jsx';
 
 // Loading / empty / error treatments — one recipe per state so every page
 // fails and loads the same way.
@@ -20,7 +21,7 @@ export function CardSkeleton({ lines = 3, className = '' }) {
 export function EmptyState({ title, body, action, className = '' }) {
   return (
     <div className={`bg-surface2 border rounded-2xl p-10 text-center ${className}`}>
-      <div className="text-3xl" aria-hidden>✿</div>
+      <div className="text-bloom-500 flex justify-center"><BloomMark className="w-8 h-8" /></div>
       <h2 className="mt-3 text-lg font-bold text-ink">{title}</h2>
       {body && <p className="mt-1 text-sm text-muted">{body}</p>}
       {action && <div className="mt-5 flex justify-center">{action}</div>}

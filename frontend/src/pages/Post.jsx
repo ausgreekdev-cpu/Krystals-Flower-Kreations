@@ -7,7 +7,7 @@ import { usePublicSettings } from '../lib/publicSettings';
 
 const ORG = "Krystals Flower Creations";
 const DEFAULT_TITLE = "Krystals Flower Creations — Paper Florist Perth WA";
-const PLACEHOLDER = '/placeholder-bloom.jpg';
+const PLACEHOLDER = '/placeholder-bloom.svg';
 
 export default function Post(){
   const {slug}=useParams(); const [p,setP]=useState(null); const [err,setErr]=useState('');
@@ -69,7 +69,7 @@ export default function Post(){
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {p.products.map(rp => rp.product && (
               <Link key={rp.product.id} to={`/product/${rp.product.slug}`} className="bg-surface2 border rounded-2xl p-3 hover:shadow hover:border-bloom-100 transition">
-                <img loading="lazy" src={rp.product.images?.[0]?.url || '/placeholder-bloom.jpg'} alt={rp.product.title} className="w-full h-28 object-cover rounded-xl" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.jpg'; }} />
+                <img loading="lazy" src={rp.product.images?.[0]?.url || '/placeholder-bloom.svg'} alt={rp.product.title} className="w-full h-28 object-cover rounded-xl" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} />
                 <div className="font-bold text-sm text-ink mt-2 line-clamp-2">{rp.product.title}</div>
                 <div className="text-highlight font-bold text-sm">${Number(rp.product.price).toFixed(2)}</div>
               </Link>

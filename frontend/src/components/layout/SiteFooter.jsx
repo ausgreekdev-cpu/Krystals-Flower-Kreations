@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../../lib/publicSettings';
+import BloomMark from '../ui/BloomMark';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
 const FALLBACK_BUSINESS = "Krystals Flower Creations";
@@ -17,19 +18,23 @@ export default function SiteFooter() {
   ].filter(x => x.url);
   return (
     <footer className="mt-auto border-t bg-surface2">
-      <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-8 text-sm">
+      <div className="max-w-7xl mx-auto px-4 py-10 grid md:grid-cols-3 gap-8 text-sm">
         <div>
-          <Link to="/" className="font-black text-ink hover:text-highlight">{businessName}</Link>
-          <div className="text-muted mt-2">{s.business_address ? `${s.business_address} • ` : ''}Handmade • GST inclusive</div>
+          <Link to="/" className="inline-flex items-center gap-2 font-black text-ink hover:text-highlight">
+            <span className="w-8 h-8 rounded-full bg-bloom-500 text-white grid place-items-center"><BloomMark className="w-4 h-4" /></span>
+            {businessName}
+          </Link>
+          <div className="text-muted mt-3">Handmade paper flowers · Perth WA</div>
+          {s.business_address && <div className="text-muted mt-1">{s.business_address}</div>}
           {s.opening_hours && <div className="text-muted mt-1">{s.opening_hours}</div>}
           {socials.length > 0 && (
-            <div className="flex flex-wrap gap-3 mt-2">
-              {socials.map(x => <a key={x.label} href={x.url} target="_blank" rel="noreferrer" className="text-muted hover:text-highlight">{x.label}</a>)}
+            <div className="flex flex-wrap gap-3 mt-3">
+              {socials.map(x => <a key={x.label} href={x.url} target="_blank" rel="noreferrer" className="text-muted underline underline-offset-2 hover:text-highlight">{x.label}</a>)}
             </div>
           )}
         </div>
         <div>
-          <div className="font-bold">Shop</div>
+          <div className="font-bold text-ink">Shop</div>
           <div className="mt-2 space-y-1 text-muted">
             <Link to="/" className="hover:text-highlight block">Home</Link>
             <Link to="/shop" className="hover:text-highlight block">All bouquets</Link>
@@ -39,7 +44,7 @@ export default function SiteFooter() {
           </div>
         </div>
         <div>
-          <div className="font-bold">More</div>
+          <div className="font-bold text-ink">More</div>
           <div className="mt-2 space-y-1 text-muted">
             <Link to="/loyalty" className="hover:text-highlight block">Bloom Points</Link>
             <Link to="/blog" className="hover:text-highlight block">Journal</Link>
@@ -51,7 +56,7 @@ export default function SiteFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t py-4 text-center text-xs text-muted">© {new Date().getFullYear()} {businessName} — Perth WA • ABN {s.abn || import.meta.env.VITE_ABN || 'XX XXX XXX XXX'} on invoices</div>
+      <div className="border-t py-4 text-center text-xs text-muted">© {new Date().getFullYear()} {businessName} — Perth WA • GST inclusive • ABN {s.abn || import.meta.env.VITE_ABN || 'XX XXX XXX XXX'} on invoices</div>
     </footer>
   );
 }

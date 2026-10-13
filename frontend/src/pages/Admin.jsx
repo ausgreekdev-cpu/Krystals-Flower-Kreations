@@ -1929,7 +1929,7 @@ function CollectionModal({ collection, products, onClose, onSaved, token }) {
             {products.map((p) => (
               <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface3 cursor-pointer">
                 <input type="checkbox" checked={memberIds.has(p.id)} onChange={() => toggleMember(p)} />
-                <img src={p.images?.[0]?.url || '/placeholder-bloom.jpg'} alt="" className="w-8 h-8 rounded object-cover" onError={(e) => { e.currentTarget.src = '/placeholder-bloom.jpg'; }} />
+                <img src={p.images?.[0]?.url || '/placeholder-bloom.svg'} alt="" className="w-8 h-8 rounded object-cover" onError={(e) => { e.currentTarget.src = '/placeholder-bloom.svg'; }} />
                 <span className="text-ink flex-1 truncate">{p.title}</span>
                 <span className="text-xs text-muted">${Number(p.price).toFixed(2)}</span>
               </label>

@@ -5,6 +5,7 @@ import { fetchCart, cartItems, subscribeCart } from '../../lib/cartClient';
 import { subscribe, nextColorMode, getColorMode } from '../../lib/colorMode';
 import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole, currentUser } from '../../lib/session';
+import BloomMark from '../ui/BloomMark';
 
 const MODE_ICONS = { system: '🖥️', light: '☀️', dark: '🌙' };
 const MODE_LABELS = { system: 'System', light: 'Light', dark: 'Dark' };
@@ -16,7 +17,7 @@ const FALLBACK_BUSINESS = "Krystals Flower Creations";
 function LogoMark({ src }) {
   const [failed, setFailed] = useState(false);
   if (src && !failed) return <img src={src} alt="" className="w-8 h-8 rounded-full object-cover" onError={() => setFailed(true)} />;
-  return <span className="w-8 h-8 rounded-full bg-bloom-500 text-white grid place-items-center text-sm">✿</span>;
+  return <span className="w-8 h-8 rounded-full bg-bloom-500 text-white grid place-items-center"><BloomMark className="w-4 h-4" /></span>;
 }
 
 function navClass({ isActive }) {

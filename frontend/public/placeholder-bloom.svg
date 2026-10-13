@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-label="Paper bloom placeholder">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#fdeef4"/>
+      <stop offset="55%" stop-color="#f7d9e6"/>
+      <stop offset="100%" stop-color="#eec4d6"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <rect x="392" y="440" width="16" height="240" rx="8" fill="#c9527c" opacity="0.45"/>
+  <g transform="translate(400 400)">
+    <g fill="#c9527c" opacity="0.9">
+      <ellipse cx="0" cy="-140" rx="82" ry="140"/>
+      <ellipse cx="0" cy="-140" rx="82" ry="140" transform="rotate(72)"/>
+      <ellipse cx="0" cy="-140" rx="82" ry="140" transform="rotate(144)"/>
+      <ellipse cx="0" cy="-140" rx="82" ry="140" transform="rotate(216)"/>
+      <ellipse cx="0" cy="-140" rx="82" ry="140" transform="rotate(288)"/>
+    </g>
+    <circle cx="0" cy="0" r="58" fill="#8e2f56"/>
+  </g>
+</svg>
