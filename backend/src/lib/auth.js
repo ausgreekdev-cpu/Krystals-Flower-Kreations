@@ -44,6 +44,23 @@ export function verifyToken(token) {
   return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
 }
 
+// ── Digital-goods download tokens ──────────────────────────────────────────
+// Purpose-scoped JWT minted per OrderLine at purchase; delivered via the
+// confirmation email and consumed by GET /api/dl/:token. 30-day expiry.
+export const DOWNLOAD_TOKEN_TTL = '30d';
+
+export function signDownloadToken(lineId) {
+  return jwt.sign({ lineId, purpose: 'dl' }, getJwtSecret(), { expiresIn: DOWNLOAD_TOKEN_TTL, algorithm: 'HS256' });
+}
+
+export function verifyDownloadToken(token) {
+  const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
+  if (payload.purpose !== 'dl' || !payload.lineId) {
+    throw Object.assign(new Error('Invalid download token'), { status: 404, code: 'invalid_download_token' });
+  }
+  return payload;
+}
+
 export async function hashPassword(plain) {
   return bcrypt.hash(plain, 10);
 }

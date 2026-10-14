@@ -35,11 +35,22 @@ export function storageDriver() {
 
 // Bucket create specs. product-images keeps its original 5MB/image-only rule;
 // procedure-media carries the spec-pack types (PDF/SVG/ZIP/STL/video) at 25MB.
+// digital-assets is PRIVATE (no public URL) — purchased Cricut SVGs live here
+// and are only reachable through the tokenized /api/dl/:token route.
+const PRIVATE_BUCKETS = new Set(['digital-assets']);
+export function isPrivateBucket(bucket) { return PRIVATE_BUCKETS.has(bucket); }
+
 function bucketSpec(bucket) {
   if (bucket === 'procedure-media') {
     return {
       id: bucket, name: bucket, public: true, file_size_limit: 25 * 1024 * 1024,
       allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf', 'application/zip', 'model/stl', 'video/mp4', 'video/quicktime'],
+    };
+  }
+  if (bucket === 'digital-assets') {
+    return {
+      id: bucket, name: bucket, public: false, file_size_limit: 5 * 1024 * 1024,
+      allowed_mime_types: ['image/svg+xml'],
     };
   }
   return { id: bucket, name: bucket, public: true, file_size_limit: 5 * 1024 * 1024, allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'] };
@@ -73,16 +84,17 @@ async function ensureBucket(cfg, bucket) {
 }
 
 /**
- * Store a file and return its public URL.
+ * Store a file and return its public URL (or a `bucket/key` ref for private buckets).
  * @param {string} key  e.g. "products/<id>-<rand>.jpg"
  * @param {{ bucket?: string }} [opts] override bucket (default: SUPABASE_STORAGE_BUCKET)
  */
 export async function putObject(key, buffer, contentType = 'image/jpeg', opts = {}) {
   if (!SAFE_KEY.test(key) || key.includes('..')) throw Object.assign(new Error('Invalid storage key'), { status: 400, code: 'validation_failed' });
   const cfg = supabaseConfig();
+  const bucket = (cfg ? (opts.bucket || cfg.bucket) : opts.bucket) || 'product-images';
+  if (!SAFE_BUCKET.test(bucket)) throw Object.assign(new Error('Invalid storage bucket'), { status: 400, code: 'validation_failed' });
+  const isPrivate = isPrivateBucket(bucket);
   if (cfg) {
-    const bucket = opts.bucket || cfg.bucket;
-    if (!SAFE_BUCKET.test(bucket)) throw Object.assign(new Error('Invalid storage bucket'), { status: 400, code: 'validation_failed' });
     await ensureBucket(cfg, bucket);
     const res = await fetch(`${cfg.url}/storage/v1/object/${bucket}/${key}`, {
       method: 'POST',
@@ -92,19 +104,50 @@ export async function putObject(key, buffer, contentType = 'image/jpeg', opts = 
     if (!res.ok) {
       throw Object.assign(new Error(`Image storage upload failed (${res.status})`), { status: 502, code: 'storage_failed', expose: true });
     }
-    return `${cfg.url}/storage/v1/object/public/${bucket}/${key}`;
+    // Private buckets have no public URL — return the storage key ref instead.
+    return isPrivate ? `${bucket}/${key}` : `${cfg.url}/storage/v1/object/public/${bucket}/${key}`;
   }
-  const file = path.join(LOCAL_ROOT, key);
+  // Local disk: private buckets live OUTSIDE the statically-served uploads dir
+  // so they are never reachable at /uploads/<key>.
+  const root = isPrivate ? path.join(path.dirname(LOCAL_ROOT), 'uploads-private') : LOCAL_ROOT;
+  const file = path.join(root, key);
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, buffer);
   } catch (e) {
     throw Object.assign(new Error('Image storage is not writable on this host — set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'), { status: 503, code: 'storage_unavailable', expose: true, cause: e });
   }
-  return `/uploads/${key}`;
+  return isPrivate ? `${bucket}/${key}` : `/uploads/${key}`;
 }
 
-/** Delete a previously stored object given its public URL. Best-effort. */
+/**
+ * Fetch a stored object's bytes by its `bucket/key` ref (as returned by
+ * putObject for private buckets). Throws 404-style errors when missing.
+ */
+export async function getObject(ref) {
+  const slash = String(ref || '').indexOf('/');
+  if (slash <= 0) throw Object.assign(new Error('Invalid storage ref'), { status: 400, code: 'validation_failed' });
+  const bucket = ref.slice(0, slash);
+  const key = ref.slice(slash + 1);
+  if (!SAFE_BUCKET.test(bucket) || !SAFE_KEY.test(key) || key.includes('..')) {
+    throw Object.assign(new Error('Invalid storage ref'), { status: 400, code: 'validation_failed' });
+  }
+  const cfg = supabaseConfig();
+  if (cfg) {
+    const res = await fetch(`${cfg.url}/storage/v1/object/${bucket}/${key}`, {
+      headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key },
+    });
+    if (res.status === 404) throw Object.assign(new Error('File not found'), { status: 404, code: 'not_found', expose: true });
+    if (!res.ok) throw Object.assign(new Error(`Storage read failed (${res.status})`), { status: 502, code: 'storage_failed', expose: true });
+    return Buffer.from(await res.arrayBuffer());
+  }
+  const root = isPrivateBucket(bucket) ? path.join(path.dirname(LOCAL_ROOT), 'uploads-private') : LOCAL_ROOT;
+  const file = path.join(root, key);
+  if (!fs.existsSync(file)) throw Object.assign(new Error('File not found'), { status: 404, code: 'not_found', expose: true });
+  return fs.readFileSync(file);
+}
+
+/** Delete a previously stored object given its public URL or private `bucket/key` ref. Best-effort. */
 export async function deleteObjectByUrl(url) {
   if (!url) return;
   const cfg = supabaseConfig();
@@ -123,6 +166,23 @@ export async function deleteObjectByUrl(url) {
     const key = url.slice('/uploads/'.length);
     if (!SAFE_KEY.test(key) || key.includes('..')) return;
     const file = path.join(LOCAL_ROOT, key);
+    try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
+    return;
+  }
+  // Private-bucket ref: "digital-assets/<key>"
+  const slash = url.indexOf('/');
+  if (slash > 0) {
+    const bucket = url.slice(0, slash);
+    const key = url.slice(slash + 1);
+    if (!isPrivateBucket(bucket) || !SAFE_KEY.test(key) || key.includes('..')) return;
+    if (cfg) {
+      await fetch(`${cfg.url}/storage/v1/object/${bucket}/${key}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key },
+      }).catch(() => {});
+      return;
+    }
+    const file = path.join(path.dirname(LOCAL_ROOT), 'uploads-private', key);
     try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   }
 }

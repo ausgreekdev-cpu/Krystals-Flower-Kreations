@@ -100,7 +100,7 @@ export default function Configurator(){
           <label className="flex items-center gap-2"><input type="checkbox" checked={spec.ledIncluded} onChange={e=>setSpec({ledIncluded:e.target.checked})} /> Warm LED fairy lights (+${ledPrice})</label>
         </section>
         {s.show_cricut === '1' && <section className="bg-surface2 p-4 rounded-2xl border">
-          <h3 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Cricut Template — free SVG</h3>
+          <h3 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Cricut Template — free preview</h3>
           <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Cricut template">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} aria-pressed={spec.templateId===t.id} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
           <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
             <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
@@ -112,13 +112,14 @@ export default function Configurator(){
         {pairs.length>0 && (
           <section className="bg-surface2 p-4 rounded-2xl border">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms</h3>
+              <h3 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms & templates</h3>
               {pairMsg && <span className="text-[11px] text-success-800">{pairMsg} — <Link to="/cart" className="underline font-semibold">view cart</Link></span>}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
               {pairs.map(p=> (
                 <div key={p.id} className="bg-surface border rounded-xl p-3 flex flex-col">
                   <Link to={`/product/${p.slug}`} className="text-sm font-semibold text-ink hover:underline line-clamp-2">{p.title}</Link>
+                  {(p.stockMode === 'digital' || p.type === 'digital_template') && <span className="mt-1 self-start text-[10px] font-bold bg-highlight/10 text-highlight border border-highlight/20 px-1.5 py-0.5 rounded-full">Instant download</span>}
                   <span className="text-sm text-highlight font-bold mt-1">${Number(p.price).toFixed(2)} <span className="text-[10px] font-normal text-muted">AUD</span></span>
                   <button onClick={()=>addPair(p)} disabled={pairBusy===p.id} className="mt-2 text-xs bg-bloom-500 text-white rounded-full py-1.5 font-bold disabled:opacity-60">{pairBusy===p.id?'Adding…':'Add to cart'}</button>
                 </div>

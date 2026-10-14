@@ -1403,7 +1403,21 @@ function ProductModal({ product, onClose, onSaved, onChanged, token }) {
   const [manageFields, setManageFields] = useState(false);
   const [newField, setNewField] = useState({ label: '', type: 'text' });
   const [images, setImages] = useState(() => product?.images || []);
+  const [svgUploading, setSvgUploading] = useState(false);
+  const [svgUrl, setSvgUrl] = useState(() => product?.svgUrl || null);
+  const isDigitalForm = form.stockMode === 'digital' || form.type === 'digital_template';
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  async function uploadSvgFile(file) {
+    if (!product?.id) return toast('Save the product first, then upload the SVG', 'error');
+    if (!/\.svg$/i.test(file.name) && file.type !== 'image/svg+xml') return toast('SVG files only', 'error');
+    setSvgUploading(true);
+    try {
+      const res = await adminApi.products.uploadSvg(product.id, file, token);
+      setSvgUrl(res.svgUrl);
+      toast('Full SVG uploaded — buyers get this file by email after payment');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setSvgUploading(false); }
+  }
   async function saveAlt(img, alt) {
     try {
       const updated = await adminApi.products.patchImage(product.id, img.id, { alt }, token);
@@ -1545,6 +1559,19 @@ function ProductModal({ product, onClose, onSaved, onChanged, token }) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} /> Featured</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} /> Active (visible in shop)</label>
       </div>
+      {isDigitalForm && (
+        <div className="mt-4 border border-line rounded-xl p-3">
+          <label className={label}>Full SVG file (Cricut-ready — emailed to buyers after payment)</label>
+          <div className="flex items-center gap-2 mt-1">
+            <input type="file" accept=".svg,image/svg+xml" className="text-xs" disabled={svgUploading || !product?.id}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadSvgFile(f); }} />
+            {svgUploading && <span className="text-xs text-muted">Uploading…</span>}
+          </div>
+          <div className="text-xs text-muted mt-1.5">
+            {!product?.id ? 'Save the product first to upload the file.' : svgUrl ? '✓ File uploaded — replaces any previous file (old emailed links keep working).' : 'No file yet — buyers receive nothing until one is uploaded.'}
+          </div>
+        </div>
+      )}
       <div className="mt-4 border border-line rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold text-muted">Custom fields</label>

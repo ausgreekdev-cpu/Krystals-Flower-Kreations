@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
-import { authenticate } from '../lib/auth.js';
+import { authenticate, signDownloadToken } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
@@ -55,6 +55,25 @@ function idempotencyKeyOf(req) {
   return req.headers['idempotency-key'] ? String(req.headers['idempotency-key']).slice(0, 100) : null;
 }
 
+// Mint a 30-day download token per digital order line and persist the link on
+// OrderLine.downloadUrl. Called at finalize (manual checkout / PayPal capture)
+// so the confirmation email can include working links. Best-effort — a token
+// failure never blocks the order itself.
+async function mintDigitalDownloadUrls(order) {
+  const digital = (order.lines || []).filter((l) => l.isDigital);
+  if (!digital.length) return order;
+  try {
+    for (const line of digital) {
+      const token = signDownloadToken(line.id);
+      await prisma.orderLine.update({ where: { id: line.id }, data: { downloadUrl: `/api/dl/${token}` } });
+      line.downloadUrl = `/api/dl/${token}`;
+    }
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'download_token_mint_failed', orderNumber: order.orderNumber, err: e?.message }));
+  }
+  return order;
+}
+
 // Shared checkout pipeline: price the cart, deduct stock, create the order.
 // Returns { error: { status, body } } for expected client failures,
 // { idempotent: true, order, shipping, gst } on an Idempotency-Key hit, or
@@ -104,13 +123,19 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
   // is honoured at checkout time.
   let subtotal = 0;
   let weight = 0;
+  let hasPhysical = false;
   const pricedItems = cart.items.map((it) => {
     const unitPrice = Number(it.variant ? it.variant.price : it.product.price);
     return { ...it, unitPrice };
   });
   for (const it of pricedItems) {
     subtotal += it.unitPrice * it.quantity;
-    weight += (it.product.weightGrams || 300) * it.quantity;
+    // Digital lines carry no weight — avoid the falsy-0 → 300g fallback so
+    // digital-only carts never pay shipping.
+    if (it.product.stockMode !== 'digital') {
+      weight += (it.product.weightGrams || 300) * it.quantity;
+      hasPhysical = true;
+    }
   }
 
   let discountTotal = 0;
@@ -142,7 +167,10 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     } } };
   }
 
-  const shipping = await calculateShipping({ postcode: data.shippingPostcode, subtotal: goodsTotal, weightGrams: weight });
+  // Digital-only carts never pay shipping (email delivery).
+  const shipping = hasPhysical
+    ? await calculateShipping({ postcode: data.shippingPostcode, subtotal: goodsTotal, weightGrams: weight })
+    : { price: 0 };
   const total = Math.max(0, subtotal - discountTotal + shipping.price);
   const gst = await calculateGstInclusive(total);
 
@@ -229,6 +257,9 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
   // /:id/status for manual payments, /paypal/capture for PayPal).
 
   if (!deferFinalize) {
+    // Mint 30-day download tokens for digital lines before emailing so the
+    // confirmation includes working links.
+    await mintDigitalDownloadUrls(order);
     // Email receipt (non-blocking, logs if SMTP not configured)
     await sendOrderConfirmation(order).catch(()=>{});
     // Studio alert (settings: admin_order_alert_enabled / _recipient)
@@ -322,6 +353,8 @@ router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptur
   const fresh = await prisma.order.findUnique({ where: { id: order.id }, include: { lines: true } });
   if (isNew) {
     // Finalize deferred from /paypal/create: loyalty + emails now money moved.
+    // Mint digital download links first so the confirmation includes them.
+    await mintDigitalDownloadUrls(fresh);
     await earnForOrder(prisma, { email: fresh.email, total: fresh.total, orderId: fresh.id, reason: 'purchase' });
     await sendOrderConfirmation(fresh).catch(()=>{});
     await sendAdminOrderAlert(fresh).catch(()=>{});

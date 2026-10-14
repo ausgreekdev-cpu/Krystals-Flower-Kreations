@@ -147,6 +147,13 @@ export const adminApi = {
     deleteImage: (productId: string, imageId: string, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'DELETE', token }),
     patchImage: (productId: string, imageId: string, body: { alt?: string }, token: string) => req<any>(`/api/products/${productId}/images/${imageId}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     reorderImages: (productId: string, order: string[], token: string) => req<any>(`/api/products/${productId}/images/order`, { method: 'PUT', body: JSON.stringify({ order }), token }),
+    // Purchased digital template file — stored in the private bucket, served
+    // only via the tokenized /api/dl route after payment.
+    uploadSvg: (productId: string, file: File, token: string) => {
+      const fd = new FormData();
+      fd.append('file', file, file.name.replace(/\.[^.]+$/, '') + '.svg');
+      return req<any>(`/api/products/${productId}/svg`, { method: 'POST', body: fd, token });
+    },
   },
   inventory: {
     levels: (token: string) => req<any[]>('/api/inventory/levels', { token }),

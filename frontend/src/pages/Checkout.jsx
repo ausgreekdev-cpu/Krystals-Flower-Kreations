@@ -125,6 +125,8 @@ export default function Checkout(){
     })();
     return () => { cancelled = true; try { buttons?.close?.(); } catch { /* already closed */ } };
   }, [pp.paypalOrderId, result, form.paymentMethod, s.paypal_client_id]);
+  // Every line digital → the summary shows "Digital delivery — email" instead of Shipping
+  const digitalOnly = Boolean(result?.order?.lines?.length) && result.order.lines.every(l => l.isDigital);
   return (
     <Page>
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Cart', to:'/cart'}, {label:'Checkout'}]} />} title="Checkout — Perth WA" lede={s.shipping_note || 'GST inclusive • Perth metro (12) / WA regional (18) / national (22) • free over $150 • PayPal at checkout • Click & collect Perth'} />
@@ -171,7 +173,7 @@ export default function Checkout(){
             <div className="font-bold">Order {result.order.orderNumber} created</div>
             <div className="mt-1 grid gap-0.5 text-xs">
               <div className="flex justify-between"><span>Subtotal</span><span>${Number(result.order.subtotal).toFixed(2)}</span></div>
-              <div className="flex justify-between"><span>Shipping</span><span>${Number(result.order.shippingCost).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>{digitalOnly ? 'Digital delivery — email' : 'Shipping'}</span><span>{digitalOnly ? 'free' : `$${Number(result.order.shippingCost).toFixed(2)}`}</span></div>
               <div className="flex justify-between"><span>Discount</span><span>−${Number(result.order.discountTotal).toFixed(2)}</span></div>
               <div className="flex justify-between"><span>GST incl.</span><span>${Number(result.gst.gst).toFixed(2)}</span></div>
               <div className="flex justify-between font-bold text-sm mt-1"><span>Total</span><span>${Number(result.order.total).toFixed(2)}</span></div>

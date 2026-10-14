@@ -5,7 +5,7 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate, querySchemas } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { upload } from '../middleware/upload.js';
+import { upload, uploadDocs, docMimeLooksReal } from '../middleware/upload.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import sharp from 'sharp';
 import crypto from 'crypto';
@@ -223,6 +223,33 @@ router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','d
   await deleteObjectByUrl(image.url);
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_image_delete', entityType: 'product', entityId: req.params.productId, details: { imageId: image.id } });
   res.json({ ok: true });
+}));
+
+// ── Digital template file (Cricut SVG) upload ───────────────────────────────
+// Stores into the PRIVATE digital-assets bucket; the key is saved on
+// Product.svgUrl and only served via the tokenized GET /api/dl/:token route
+// after purchase. Replacing the file updates svgUrl — old emailed tokens keep
+// working (same line → same product → new file).
+const svgUploadLimit = rateLimit('product_svg', 30, 5);
+const SVG_CAP_BYTES = 2 * 1024 * 1024; // 2MB — Cricut SVGs are tiny vector files
+
+router.post('/:id/svg', requireAuth, requireRole('admin','developer','maker','staff'), svgUploadLimit, uploadDocs.single('file'), asyncHandler(async (req, res) => {
+  const productId = String(req.params.id).slice(0, 100);
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'No file uploaded — send the SVG as multipart field "file"', code: 'validation_failed' });
+  if (file.mimetype !== 'image/svg+xml') return res.status(415).json({ error: 'SVG files only', code: 'unsupported_media_type' });
+  if (file.size > SVG_CAP_BYTES) return res.status(413).json({ error: 'SVG too large (2MB max)', code: 'file_too_large' });
+  if (!docMimeLooksReal(file.buffer, 'image/svg+xml')) return res.status(400).json({ error: 'File is not a real SVG', code: 'invalid_file' });
+  const key = `${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.svg`;
+  // putObject returns "digital-assets/<key>" for private buckets
+  const ref = await putObject(key, file.buffer, 'image/svg+xml', { bucket: 'digital-assets' });
+  const previous = product.svgUrl;
+  const updated = await prisma.product.update({ where: { id: productId }, data: { svgUrl: ref } });
+  if (previous && previous !== ref) deleteObjectByUrl(previous).catch(() => {});
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_svg_upload', entityType: 'product', entityId: productId, details: { title: product.title, bytes: file.size } });
+  res.status(201).json({ svgUrl: updated.svgUrl, product: updated });
 }));
 
 export default router;

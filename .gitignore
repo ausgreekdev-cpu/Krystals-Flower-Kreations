@@ -9,6 +9,7 @@ dist/
 coverage/
 prisma/migrations/
 uploads/
+uploads-private/
 *.db
 *.sqlite
 .DS_Store

@@ -92,6 +92,7 @@ export default function Product(){
     ? Number(p.availableQty ?? 0)
     : (variantsArr.find(v=>v.id===variantId)?.inventoryQuantity ?? (p.stockMode==='tracked' ? 0 : 999));
   const lowStock = p.stockMode==='tracked' && stock!==999 && stock < 5;
+  const isDigital = p.stockMode === 'digital' || p.type === 'digital_template';
   // Custom fields — only show active definitions with a non-empty value (booleans are presence-only)
   const cf = (p.customFields && typeof p.customFields === 'object') ? p.customFields : {};
   const customRows = fieldDefs
@@ -181,7 +182,7 @@ export default function Product(){
           </div>
         )}
         {s.show_cricut === '1' && p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Cricut-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
-        {p.madeToOrderDays && <div className="mt-2 text-sm text-muted">Made to order — {p.madeToOrderDays} days • Perth studio</div>}
+        {!isDigital && p.madeToOrderDays && <div className="mt-2 text-sm text-muted">Made to order — {p.madeToOrderDays} days • Perth studio</div>}
         {customRows.length>0 && (
           <div className="mt-3 bg-surface border border-bloom-100 rounded-xl p-3 text-sm space-y-1">
             {customRows.map(({ d, v }) => (
@@ -193,16 +194,20 @@ export default function Product(){
           </div>
         )}
         {variantsArr.length>0 && <div className="mt-4"><label htmlFor="product-variant" className="text-sm font-bold">Variant {stock!==999 && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${lowStock?'bg-warning-50 text-warning-800 border border-warning-200':'bg-success-50 text-success-800 border border-success-200'}`}>{stock} left</span>}</label><Select id="product-variant" value={variantId||''} onChange={e=>setVariantId(e.target.value||null)} className="mt-1 w-full"><option value="">Default — ${Number(p.price).toFixed(2)}</option>{variantsArr.map(v=> <option key={v.id} value={v.id}>{v.title} — ${Number(v.price).toFixed(2)} {v.inventoryQuantity!==undefined?`(${v.inventoryQuantity} left)`:''}</option>)}</Select></div>}
-        <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center" aria-live="polite">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`inline-flex items-center gap-1.5 text-sm ${lowStock?'text-warning-800':'text-muted'}`}><span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${lowStock?'bg-warning-500':stock===0?'bg-bloom-500':'bg-success-500'}`} />{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
+        {isDigital ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-muted"><span aria-hidden="true" className="w-2 h-2 rounded-full bg-success-500 shrink-0" />Instant download — SVG delivered by email after payment</div>
+        ) : (
+          <div className="mt-4 flex items-center gap-3"><Btn variant="soft" size="icon" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity">−</Btn><span className="font-bold w-8 text-center" aria-live="polite">{qty}</span><Btn size="icon" onClick={()=>setQty(Math.min(99,qty+1))} aria-label="Increase quantity">+</Btn><span className={`inline-flex items-center gap-1.5 text-sm ${lowStock?'text-warning-800':'text-muted'}`}><span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${lowStock?'bg-warning-500':stock===0?'bg-bloom-500':'bg-success-500'}`} />{lowStock?'Low stock • Perth': stock===0?'Made to order • Perth':'in stock • Perth'} {lowStock && '— order soon'}</span></div>
+        )}
         <Btn size="lg" className="mt-6 w-full transition" onClick={addToCart} disabled={p.stockMode==='tracked' && stock===0}>Add to Cart — ${ (activePrice*qty).toFixed(2)}</Btn>
         {err && <Alert tone="danger" className="mt-3">{err}</Alert>}
         {msg && <Alert tone="ok" className="mt-3">{msg}</Alert>}
         <div className="mt-3 flex gap-2 text-xs">
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">GST inclusive</span>
           <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">ABN on invoice</span>
-          <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">Click & collect 6000</span>
+          {!isDigital && <span className="bg-surface border border-bloom-100 rounded-full px-3 py-1.5">Click & collect 6000</span>}
         </div>
-        <div className="mt-4 text-xs text-muted border-t pt-3">{`Earn ${s.loyalty_earn_rate || 1} Bloom pt per $1 • Blossom at ${s.loyalty_blossom_threshold || 100} pts • Free Perth delivery over $${Number(s.shipping_free_over) || 150}`}</div>
+        {!isDigital && <div className="mt-4 text-xs text-muted border-t pt-3">{`Earn ${s.loyalty_earn_rate || 1} Bloom pt per $1 • Blossom at ${s.loyalty_blossom_threshold || 100} pts • Free Perth delivery over $${Number(s.shipping_free_over) || 150}`}</div>}
       </div>
       </div>
 

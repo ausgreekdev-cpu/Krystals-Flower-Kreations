@@ -124,8 +124,20 @@ export async function sendOrderConfirmation(order) {
       if (rows.length) careBlock = `\n\nCare & occasions:\n${rows.join('\n')}\n`;
     }
   } catch { /* enrichment must never block the confirmation */ }
+  // Digital downloads — absolute links to the tokenized /api/dl route
+  // (tokens minted at checkout finalize; 30-day expiry).
+  const digitalLines = (order.lines || []).filter((l) => l.isDigital && l.downloadUrl);
+  let downloadBlock = '';
+  if (digitalLines.length) {
+    const origin = (process.env.FRONTEND_URL || 'https://krystalsflowercreations.com.au').replace(/\/+$/, '');
+    const rows = digitalLines.map((l) => `  • ${l.title}: ${origin}${l.downloadUrl}`);
+    downloadBlock = `\n\nYour instant downloads (links valid for 30 days):\n${rows.join('\n')}\n\nKeep these safe — anyone with the link can download the file.`;
+  }
+  const readyLine = downloadBlock
+    ? 'Physical items will be made and dispatched separately.'
+    : "We will notify you when it's ready for pickup/dispatch.";
   const footer = s.invoice_footer ? `\n${String(s.invoice_footer).trim()}\n` : '';
-  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystals Flower Creations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}${careBlock}\nWe will notify you when it's ready for pickup/dispatch.\n${footer}\n${await signatureBlock(s)}`;
+  const text = `Hi ${order.shippingName || 'there'},\n\nThank you for your order ${order.orderNumber} from Krystals Flower Creations (Perth WA).\nTotal: $${Number(order.total).toFixed(2)} (GST incl.)\nStatus: ${order.status}\n${paymentBlock}${careBlock}${downloadBlock}\n${readyLine}\n${footer}\n${await signatureBlock(s)}`;
   const row = await enqueueEmail({ to: order.email, subject, text, template: 'order_confirmation', payload: { orderNumber: order.orderNumber } });
   sendFromQueue(row).catch(()=>{});
   return row;
