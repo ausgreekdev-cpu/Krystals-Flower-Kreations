@@ -75,9 +75,15 @@ async function ensureBucket(cfg, bucket) {
     });
     if (!res.ok && res.status !== 409) {
       const text = await res.text().catch(() => '');
-      // Supabase returns 400 with "already exists" on some versions
       if (!/already exists|Duplicate/i.test(text)) {
-        throw Object.assign(new Error(`Storage bucket setup failed (${res.status})`), { status: 503, code: 'storage_unavailable', expose: true });
+        // storage-api versions differ: some answer 400 (not 409) with a
+        // BucketAlreadyExists JSON body that our regex misses — probe the
+        // bucket directly before giving up, and keep Supabase's message.
+        const probe = await fetch(`${cfg.url}/storage/v1/bucket/${bucket}`, {
+          headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key },
+        }).catch(() => null);
+        if (probe && probe.ok) return true;
+        throw Object.assign(new Error(`Storage bucket setup failed (${res.status}): ${text.slice(0, 200)}`), { status: 503, code: 'storage_unavailable', expose: true });
       }
     }
     return true;
