@@ -116,3 +116,48 @@
 [[edge_functions]]
   path = "/loyalty"
   function = "markdown"
+
+# ── Per-route OG/Twitter meta edge function (netlify/edge-functions/meta.ts) ──
+# Rewrites <head> og:/twitter:/canonical for link-preview bots only (FB,
+# WhatsApp, Twitter, Slack, Googlebot, …) — humans get a zero-cost pass-through.
+# Same paths as markdown; Netlify chains every matching edge function in
+# declaration order, so keep these blocks AFTER the markdown blocks above.
+[[edge_functions]]
+  path = "/"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/shop"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/blog"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/blog/*"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/product/*"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/occasions/*"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/workshops"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/about"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/privacy"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/loyalty"
+  function = "meta"
