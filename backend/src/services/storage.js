@@ -100,14 +100,16 @@ async function ensureBucket(cfg, bucket) {
 }
 
 // Best-effort spec sync for buckets created before a mime/limit was added —
-// never throws (an older supabase build may reject the PATCH; uploads of the
+// never throws (an older supabase build may reject the update; uploads of the
 // new type will then fail loudly instead of silently corrupting state).
+// This storage-api build has no PATCH /bucket/:id (404 InvalidRequest) but
+// PUT /bucket/:id works; keep PATCH first for builds that standardise on it.
 async function syncBucketSpec(cfg, spec) {
-  await fetch(`${cfg.url}/storage/v1/bucket/${spec.id}`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key, 'Content-Type': 'application/json' },
-    body: JSON.stringify(spec),
-  }).catch(() => {});
+  const headers = { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key, 'Content-Type': 'application/json' };
+  const body = JSON.stringify(spec);
+  const patched = await fetch(`${cfg.url}/storage/v1/bucket/${spec.id}`, { method: 'PATCH', headers, body }).catch(() => null);
+  if (patched && patched.ok) return;
+  await fetch(`${cfg.url}/storage/v1/bucket/${spec.id}`, { method: 'PUT', headers, body }).catch(() => {});
 }
 
 /**
