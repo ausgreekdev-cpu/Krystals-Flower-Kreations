@@ -170,6 +170,56 @@ export async function sendStatusUpdate(order, fromStatus, toStatus) {
   return row;
 }
 
+// Single abandoned-cart reminder (settings: abandoned_cart_emails_enabled +
+// abandoned_cart_reminder_hours). Items must be included on the cart row
+// (caller passes cart with items). One email per cart — deduped by
+// Cart.reminderSentAt stamped by the recovery job, not here.
+export async function sendCartReminder(cart) {
+  if (!cart?.email) return null;
+  const s = await getSettings().catch(() => ({}));
+  const origin = (process.env.FRONTEND_URL || 'https://krystalsflowercreations.com.au').replace(/\/+$/, '');
+  const items = Array.isArray(cart.items) ? cart.items : [];
+  if (!items.length) return null;
+  const lines = items.map((it) => {
+    const title = it.product?.title || it.title || 'Item';
+    const variant = it.variant?.title ? ` — ${it.variant.title}` : '';
+    const lineTotal = Number(it.priceSnapshot || 0) * Number(it.quantity || 1);
+    return `  ${it.quantity} × ${title}${variant} — $${lineTotal.toFixed(2)}`;
+  }).join('\n');
+  const subtotal = items.reduce((a, it) => a + Number(it.priceSnapshot || 0) * Number(it.quantity || 1), 0);
+  const restoreUrl = `${origin}/cart?restore=${cart.id}`;
+  const retention = Number(s.cart_retention_hours) || 24;
+  const subject = 'Your cart at Krystals Flower Creations';
+  const text = `Hi there,\n\nYou left a few blooms sitting in your cart at Krystals Flower Creations (Perth WA):\n\n${lines}\n\nSubtotal: $${subtotal.toFixed(2)} (GST incl.)\n\nPick up right where you left off:\n${restoreUrl}\n\nYour cart is saved for about ${retention} hours.\n\nIf you didn't start this cart, just ignore this email — we won't send another.\n\n${await signatureBlock(s)}`;
+  const row = await enqueueEmail({ to: cart.email, subject, text, template: 'cart_reminder', payload: { cartId: cart.id } });
+  sendFromQueue(row).catch(()=>{});
+  return row;
+}
+
+// Confirmation for a submitted custom order (configurator). Custom orders
+// previously emailed nothing at all — the customer only saw an on-screen
+// order number, so a reload lost every reference to their $100+ design.
+export async function sendCustomOrderConfirmation(order) {
+  if (!order?.customerEmail) return null;
+  const s = await getSettings().catch(() => ({}));
+  const spec = order.spec && typeof order.spec === 'object' ? order.spec : {};
+  const bits = [];
+  if (spec.paperColor) bits.push(`Colour: ${spec.paperColor}`);
+  if (spec.paperTexture) bits.push(`Paper: ${spec.paperTexture} ${spec.weight || ''}`.trim());
+  if (spec.stemCount) bits.push(`Stems: ${spec.stemCount}`);
+  if (spec.armatureHeightMm) bits.push(`Height: ~${spec.armatureHeightMm} mm`);
+  if (spec.addGreenery) bits.push('Greenery included');
+  if (spec.vaseIncluded) bits.push('Vase included');
+  if (spec.domeIncluded) bits.push('Glass dome included');
+  if (spec.ledIncluded) bits.push('Fairy lights included');
+  const specBlock = bits.length ? `\n\nYour design:\n${bits.map(b => `  • ${b}`).join('\n')}` : '';
+  const subject = `Custom design received — ${order.orderNumber}`;
+  const text = `Hi ${order.customerName || 'there'},\n\nThanks for designing with us! We've received your custom bouquet request ${order.orderNumber}.\nEstimate: $${Number(order.totalPrice).toFixed(2)} (GST incl.)${specBlock}\n\nThe studio will review your design and be in touch from Perth within 1–2 business days with a proof and next steps.\n\nKeep this email — it has your order number.\n\n${await signatureBlock(s)}`;
+  const row = await enqueueEmail({ to: order.customerEmail, subject, text, template: 'custom_order_confirmation', payload: { orderNumber: order.orderNumber } });
+  sendFromQueue(row).catch(()=>{});
+  return row;
+}
+
 export async function sendWorkshopConfirmation(booking, workshop, session, { reminder = false } = {}) {
   const s = await getSettings().catch(() => ({}));
   const when = new Date(session.startsAt).toLocaleString('en-AU', { timeZone: 'Australia/Perth' });

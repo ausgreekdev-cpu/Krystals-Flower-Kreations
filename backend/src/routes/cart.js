@@ -100,6 +100,21 @@ router.post('/update', validate(z.object({ itemId: z.string().min(8).max(100), c
   res.json({ ok: true });
 }));
 
+// Capture an email against the cart for abandoned-cart reminder delivery.
+// Hit from the Cart page ("email me a reminder") and debounced from Checkout
+// (catches PayPal-window abandons where the order was never created).
+// Does NOT touch updatedAt — the idle clock reflects last shopping activity.
+const cartEmailLimit = rateLimit('cart_email', 10, 1);
+const cartEmailSchema = z.object({ cartId: z.string().min(8).max(100), email: z.string().email().max(254) }).strict();
+
+router.post('/email', cartEmailLimit, validate(cartEmailSchema), asyncHandler(async (req, res) => {
+  const { cartId, email } = req.validated;
+  const cart = await prisma.cart.findUnique({ where: { id: cartId } });
+  if (!cart) return res.status(404).json({ error: 'Cart not found', code: 'not_found' });
+  await prisma.cart.update({ where: { id: cartId }, data: { email: email.trim().toLowerCase(), emailCapturedAt: new Date() } });
+  res.json({ ok: true });
+}));
+
 router.delete('/:cartId', asyncHandler(async (req, res) => {
   await prisma.cartItem.deleteMany({ where: { cartId: req.params.cartId } });
   await prisma.cart.delete({ where: { id: req.params.cartId } }).catch(()=>{});

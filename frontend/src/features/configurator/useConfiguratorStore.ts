@@ -1,11 +1,17 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 export interface ConfiguratorSpecState {
   paperColor: string; paperTexture: string; weight: string; stemCount: number; armatureHeightMm: number; templateId: string; addGreenery: boolean; vaseIncluded: boolean; domeIncluded: boolean; ledIncluded: boolean; palette: string | null; notes: string;
 }
 const DEFAULT_SPEC: ConfiguratorSpecState = { paperColor: 'Blush', paperTexture: 'textured', weight: '65lb', stemCount: 7, armatureHeightMm: 350, templateId: 'wattle-sprig', addGreenery: true, vaseIncluded: false, domeIncluded: false, ledIncluded: false, palette: null, notes: '' };
-export const useConfiguratorStore = create<{ spec: ConfiguratorSpecState; unitPrice: number; totalPrice: number; estimatedMinutes: number; setSpec: (p: Partial<ConfiguratorSpecState>)=>void }>((set)=>({
+export const useConfiguratorStore = create<{ spec: ConfiguratorSpecState; unitPrice: number; totalPrice: number; estimatedMinutes: number; setSpec: (p: Partial<ConfiguratorSpecState>)=>void }>()(persist((set)=>({
   spec: DEFAULT_SPEC, unitPrice: 89, totalPrice: 89, estimatedMinutes: 45,
   setSpec: (patch)=> set(s=> ({ spec: { ...s.spec, ...patch } }))
+}), {
+  // Draft recovery: the design survives reload/navigation. Prices stay
+  // derived from live settings (estimateLocalPrice) — never persisted.
+  name: 'kfk_cfg_spec',
+  partialize: (s) => ({ spec: s.spec }),
 }));
 // Local price estimate. Prices come from the storefront settings
 // (configurator_floor / per_stem / vase / greenery) so admin edits show up here.

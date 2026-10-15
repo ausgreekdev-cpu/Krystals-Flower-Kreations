@@ -9,6 +9,22 @@ export async function handler(event, context){
     catch { getSettings = (await import("../../../backend/src/lib/settingsSchema.js")).getSettings; }
     const S = await getSettings().catch(()=>({}));
 
+    // Abandoned-cart reminders — MUST run before the cleanup pass below so a
+    // cart is never emailed after it's been hard-deleted. One email per cart,
+    // deduped by Cart.reminderSentAt; eligibility + retention clamp live in
+    // the service (backend/src/services/cartRecovery.js).
+    let cartReminders = 0;
+    try {
+      if (S.abandoned_cart_emails_enabled !== '0') {
+        let runAbandonedCartReminders;
+        try { runAbandonedCartReminders = (await import("../../backend/src/services/cartRecovery.js")).runAbandonedCartReminders; }
+        catch { runAbandonedCartReminders = (await import("../../../backend/src/services/cartRecovery.js")).runAbandonedCartReminders; }
+        const r = await runAbandonedCartReminders(S);
+        cartReminders = r.sent || 0;
+        if (cartReminders) console.log(`[scheduled] sent ${cartReminders} abandoned-cart reminder(s)`);
+      }
+    } catch(e){ console.log('[scheduled] cart reminders skipped', e.message); }
+
     // Clean expired carts (retention from settings: cart_retention_hours, default 24h)
     const retentionHours = Number(S.cart_retention_hours) || 24;
     const cutoff = new Date(Date.now() - retentionHours*60*60*1000);
@@ -93,8 +109,8 @@ export async function handler(event, context){
       emailDrained = r.sent || 0;
     } catch (e) { console.log('[scheduled] email drain skipped', e.message); }
 
-    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, reminders ${reminders}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}, emailsSent ${emailDrained}`);
-    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, reminders, lowStock: lowCount, rateLimitRowsPurged: purgedRl, emailsSent: emailDrained }) };
+    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, cartReminders ${cartReminders}, reminders ${reminders}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}, emailsSent ${emailDrained}`);
+    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, cartReminders, reminders, lowStock: lowCount, rateLimitRowsPurged: purgedRl, emailsSent: emailDrained }) };
   }catch(err){
     console.error("[scheduled] failed", err);
     return { statusCode: 500, body: JSON.stringify({ error: String(err.message) }) };

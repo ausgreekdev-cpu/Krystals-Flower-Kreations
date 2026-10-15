@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { pricingConfig } from '../services/bomPricing.js';
+import { sendCustomOrderConfirmation } from '../services/email.js';
 import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
@@ -120,6 +121,9 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
   await prisma.ticket.create({ data: { customArtOrderId: order.id, qrPayload, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrPayload)}` } });
   await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: 'Created from configurator' } });
   const full = await prisma.customArtOrder.findUnique({ where: { id: order.id }, include: { history: true, ticket: true } });
+  // Customer confirmation (non-blocking) — previously custom orders emailed
+  // nothing; the on-screen order number was the customer's only reference.
+  await sendCustomOrderConfirmation(full).catch(()=>{});
   res.status(201).json(full);
 }));
 

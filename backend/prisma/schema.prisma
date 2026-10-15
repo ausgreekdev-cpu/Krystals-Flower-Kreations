@@ -475,12 +475,18 @@ model Cart {
   userId    String?
   sessionId String?  @unique // guest
   currency  String   @default("AUD")
+  // Abandoned-cart recovery: email captured on the Cart page or (debounced)
+  // from Checkout; reminderSentAt dedupes the single hourly-cron reminder.
+  email           String?
+  emailCapturedAt DateTime?
+  reminderSentAt  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   items CartItem[]
 
   @@index([updatedAt])
+  @@index([reminderSentAt, updatedAt])
   @@map("carts")
 }
 

@@ -134,6 +134,8 @@ export const SETTINGS = [
   { key: 'admin_order_alert_enabled', section: 'notifications', label: 'New-order alert emails', type: 'toggle', default: '1', public: false },
   { key: 'admin_order_alert_recipient', section: 'notifications', label: 'New-order alert recipient', type: 'email', default: '', public: false, placeholder: 'defaults to Contact email' },
   { key: 'customer_status_emails_enabled', section: 'notifications', label: 'Status-update emails to customers', type: 'toggle', default: '1', public: false },
+  { key: 'abandoned_cart_emails_enabled', section: 'notifications', label: 'Abandoned-cart reminder emails', type: 'toggle', default: '1', public: false, description: 'One reminder per cart where an email was captured (Cart page field or Checkout). No email captured = nothing sends.' },
+  { key: 'abandoned_cart_reminder_hours', section: 'notifications', label: 'Abandoned-cart reminder delay', type: 'number', default: '4', public: false, min: 1, max: 168, unit: 'h idle' },
   { key: 'email_signature', section: 'notifications', label: 'Email signature', type: 'textarea', default: '', public: false, max: 500, description: 'Appended to every customer email.' },
 
   // ── Loyalty ───────────────────────────────────────────────

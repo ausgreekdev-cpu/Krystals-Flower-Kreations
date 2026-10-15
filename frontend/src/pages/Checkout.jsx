@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ordersApi } from '../lib/api/customClient';
+import { ordersApi, cartApi } from '../lib/api/customClient';
 import { fetchCart, cartItems, getCartId, clearCart, clearCartId, dispatchCartChanged } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import { loadPayPalScript } from '../lib/paypalLoader';
@@ -43,6 +43,16 @@ export default function Checkout(){
     const token=localStorage.getItem('token');
     if(token) fetch('/api/loyalty/me', { headers:{ Authorization:`Bearer ${token}` } }).then(r=> r.ok?r.json():null).then(setLoyalty).catch(()=>{});
   }, []);
+  // Abandoned-cart recovery: capture the typed email against the cart
+  // (debounced, fire-and-forget) so a PayPal-window abandon can still be
+  // reminded — the order only exists after capture, but the email does not.
+  useEffect(()=>{
+    const email = form.email.trim();
+    const cartId = getCartId();
+    if(!cartId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    const t = setTimeout(()=>{ cartApi.saveEmail(cartId, email).catch(()=>{}); }, 800);
+    return ()=> clearTimeout(t);
+  }, [form.email]);
   // Live validate discount code with debounce
   useEffect(()=>{
     if(!form.discountCode) return setDiscountMsg('');

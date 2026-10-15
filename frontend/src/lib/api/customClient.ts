@@ -77,6 +77,9 @@ export const cartApi = {
   add: (body: any) => req<{ cartId: string; cart: any }>('/api/cart/add', { method: 'POST', body: JSON.stringify(body) }),
   update: (body: any) => req<any>('/api/cart/update', { method: 'POST', body: JSON.stringify(body) }),
   clear: (cartId: string) => req<any>(`/api/cart/${cartId}`, { method: 'DELETE' }),
+  // Abandoned-cart recovery: store an email against the cart (Cart page field
+  // + debounced Checkout capture). Fire-and-forget from the callers.
+  saveEmail: (cartId: string, email: string) => req<any>('/api/cart/email', { method: 'POST', body: JSON.stringify({ cartId, email }) }),
 };
 export const ordersApi = {
   checkout: (body: any, idempotencyKey?: string) => req<any>('/api/orders/checkout', { method: 'POST', body: JSON.stringify(body), idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),
