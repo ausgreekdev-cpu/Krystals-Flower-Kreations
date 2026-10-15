@@ -259,12 +259,19 @@ router.delete('/:id', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(as
   const doc = await prisma.procedureDocument.findFirst({ where: { id, deletedAt: null } });
   if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   await prisma.procedureDocument.update({ where: { id }, data: { deletedAt: new Date() } });
-  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'procedure_delete', entityType: 'procedure', entityId: doc.id, details: { title: doc.title, version: doc.version } });
+  // Media of a soft-deleted doc is unreachable — drop the rows and the
+  // storage objects (best-effort) instead of orphaning them forever.
+  const media = await prisma.documentMedia.findMany({ where: { documentId: id }, select: { id: true, url: true } });
+  if (media.length) {
+    await Promise.all(media.map((m) => deleteObjectByUrl(m.url)));
+    await prisma.documentMedia.deleteMany({ where: { documentId: id } });
+  }
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'procedure_delete', entityType: 'procedure', entityId: doc.id, details: { title: doc.title, version: doc.version, mediaRemoved: media.length } });
   res.json({ id: doc.id, deleted: true });
 }));
 
 // ── Media upload (Editor+) ───────────────────────────────────────────────────
-router.post('/:id/media', authenticate, requireRole(...EDITOR_ROLES), uploadDocs.array('files', 8), asyncHandler(async (req, res) => {
+router.post('/:id/media', authenticate, requireRole(...EDITOR_ROLES), rateLimit('procedures_media', 30, 5), uploadDocs.array('files', 8), asyncHandler(async (req, res) => {
   const id = String(req.params.id);
   if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
   const doc = await prisma.procedureDocument.findFirst({ where: { id, deletedAt: null }, select: { id: true } });

@@ -24,3 +24,12 @@ Market research/
 # Netlify build smoke artifacts (created/removed by netlify-build.sh)
 .netlify-smoke/
 .tmp-api-sim/
+
+# Operator working files — never stage (exports, scans, spreadsheet
+# working papers, vendor material). No csv/xlsx/pdf is tracked in git.
+.netlify/
+Pros/
+*.xlsx
+*.csv
+docs/*.pdf
+

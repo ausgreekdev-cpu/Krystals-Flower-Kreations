@@ -37,7 +37,9 @@ export function storageDriver() {
 // procedure-media carries the spec-pack types (PDF/SVG/ZIP/STL/video) at 25MB.
 // digital-assets is PRIVATE (no public URL) — purchased Cricut SVGs live here
 // and are only reachable through the tokenized /api/dl/:token route.
-const PRIVATE_BUCKETS = new Set(['digital-assets']);
+// business-documents is PRIVATE too — stocktakes/supplier exports may hold PII
+// and cost data; served only via the authed /api/documents/:id/file route.
+const PRIVATE_BUCKETS = new Set(['digital-assets', 'business-documents']);
 export function isPrivateBucket(bucket) { return PRIVATE_BUCKETS.has(bucket); }
 
 function bucketSpec(bucket) {
@@ -51,6 +53,12 @@ function bucketSpec(bucket) {
     return {
       id: bucket, name: bucket, public: false, file_size_limit: 5 * 1024 * 1024,
       allowed_mime_types: ['image/svg+xml'],
+    };
+  }
+  if (bucket === 'business-documents') {
+    return {
+      id: bucket, name: bucket, public: false, file_size_limit: 25 * 1024 * 1024,
+      allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf', 'application/zip', 'model/stl', 'video/mp4', 'video/quicktime', 'text/csv', 'text/plain', 'text/markdown', 'application/json', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
     };
   }
   return { id: bucket, name: bucket, public: true, file_size_limit: 5 * 1024 * 1024, allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'] };

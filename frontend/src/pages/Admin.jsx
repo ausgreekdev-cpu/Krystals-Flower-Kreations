@@ -11,6 +11,7 @@ import Modal from '../components/admin/Modal';
 import LabelPrintModal from '../components/admin/LabelPrintModal';
 import PackingSlipModal from '../components/admin/PackingSlipModal';
 import InventoryDetail from '../components/admin/InventoryDetail';
+import DocumentCentre from '../components/admin/DocumentCentre';
 import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
@@ -32,6 +33,7 @@ const TABS = [
   { id: 'reviews', label: 'Reviews', icon: '⭐' },
   { id: 'blog', label: 'Blog', icon: '📝' },
   { id: 'procedures', label: 'Procedures', icon: '📐' },
+  { id: 'documents', label: 'Documents', icon: '📁' },
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'meta', label: 'Meta Sync', icon: '🔗' },
   { id: 'pos', label: 'POS', icon: '💳' },
@@ -51,7 +53,7 @@ const NAV_GROUPS = [
   { label: null, tabs: ['overview'] },
   { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
   { label: 'Catalog', tabs: ['products', 'collections', 'recipes', 'inventory'] },
-  { label: 'Content', tabs: ['blog', 'procedures', 'reviews', 'meta', 'notebook'] },
+  { label: 'Content', tabs: ['blog', 'procedures', 'documents', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers'] },
   { label: 'System', tabs: ['users', 'settings'] },
 ];
@@ -307,6 +309,7 @@ function AdminInner({ user }) {
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
                   {tab === 'procedures' && <Procedures token={token} role={user?.role} />}
+                  {tab === 'documents' && <DocumentCentre token={token} role={user?.role} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
@@ -2513,8 +2516,9 @@ function ProcedureDetail({ id, onClose, token, role }) {
     if (rejected.length) toast(`Rejected (max 25MB; images/SVG/PDF/ZIP/STL/MP4/MOV only): ${rejected.map((f) => f.name).join(', ')}`, 'error');
     if (!good.length) return;
     try {
-      await adminApi.procedures.uploadMedia(id, good, token);
-      toast(`Uploaded ${good.length} file${good.length > 1 ? 's' : ''}`);
+      const { created, failures } = await adminApi.procedures.uploadMedia(id, good, token);
+      if (failures.length) toast(`Uploaded ${created.length}, failed: ${failures.map((f) => f.name).join(', ')}`, 'error');
+      else toast(`Uploaded ${created.length} file${created.length > 1 ? 's' : ''}`);
       refresh();
     } catch (e2) { toast(e2.message, 'error'); }
   }

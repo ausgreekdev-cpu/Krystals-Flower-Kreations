@@ -1,0 +1,177 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'fs';
+import prisma from '../src/lib/prisma.js';
+import { deleteObjectByUrl } from '../src/services/storage.js';
+import { startServer, api } from './helpers.js';
+
+// Smart document upload centre (M1): private-bucket storage, sha256 dedup,
+// authed download, metadata edits, soft-delete that removes the bytes — plus
+// the two pre-existing upload bugs fixed in the same phase (procedure media
+// one-file-per-request works and soft-deleting a procedure cleans storage).
+let srv;
+let adminToken;
+
+const auth = () => ({ Authorization: `Bearer ${adminToken}` });
+const UNIQUE = Date.now().toString(36);
+const CSV = `sku,name,qty\nPL-001,Park Lane Cardstock,120\n# m1test ${UNIQUE}\n`;
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>';
+
+async function uploadFile(content, name, type) {
+  const fd = new FormData();
+  fd.append('file', new Blob([content], { type }), name);
+  const res = await fetch(`${srv.base}/api/documents`, { method: 'POST', headers: auth(), body: fd });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+async function purgeDocs() {
+  const stale = await prisma.businessDocument.findMany({ where: { originalName: { contains: 'm1test' } } });
+  for (const d of stale) await deleteObjectByUrl(d.storageRef).catch(() => {});
+  if (stale.length) await prisma.businessDocument.deleteMany({ where: { id: { in: stale.map((d) => d.id) } } });
+}
+
+async function purgeProcedures() {
+  const stale = await prisma.procedureDocument.findMany({ where: { title: 'M1 Test Proc' }, include: { media: true } });
+  for (const p of stale) for (const m of p.media) await deleteObjectByUrl(m.url).catch(() => {});
+  if (stale.length) await prisma.procedureDocument.deleteMany({ where: { id: { in: stale.map((p) => p.id) } } });
+}
+
+before(async () => {
+  srv = await startServer();
+  const login = await api(srv.base, '/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }),
+  });
+  assert.equal(login.status, 200, 'seeded developer login');
+  adminToken = login.body.token;
+  await purgeDocs();
+  await purgeProcedures();
+});
+
+after(async () => {
+  await purgeDocs();
+  await purgeProcedures();
+  await srv.close();
+});
+
+test('POST /api/documents stores a CSV in the private bucket', async () => {
+  const { status, body } = await uploadFile(CSV, `m1test-stocktake-${UNIQUE}.csv`, 'text/csv');
+  assert.equal(status, 201, JSON.stringify(body).slice(0, 300));
+  assert.equal(body.deduped, false);
+  const doc = body.document;
+  assert.ok(doc.storageRef.startsWith('business-documents/'), `private ref, got ${doc.storageRef}`);
+  assert.ok(!doc.storageRef.startsWith('http'), 'never a public URL');
+  assert.equal(doc.kind, 'CSV');
+  assert.equal(doc.category, 'OTHER');
+  assert.match(doc.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(doc.title, `m1test-stocktake-${UNIQUE}`);
+  globalThis.__m1DocId = doc.id;
+});
+
+test('identical bytes are deduped — same row, no second object', async () => {
+  const { status, body } = await uploadFile(CSV, `m1test-stocktake-${UNIQUE}.csv`, 'text/csv');
+  assert.equal(status, 200, `dedup returns 200, got ${status}`);
+  assert.equal(body.deduped, true);
+  assert.equal(body.document.id, globalThis.__m1DocId, 'returns the existing row');
+  const count = await prisma.businessDocument.count({ where: { sha256: body.document.sha256, deletedAt: null } });
+  assert.equal(count, 1, 'only one row per unique byte stream');
+});
+
+test('list requires auth and finds the doc via search + filters', async () => {
+  const noAuth = await fetch(`${srv.base}/api/documents`);
+  assert.equal(noAuth.status, 401);
+
+  const res = await api(srv.base, `/api/documents?q=m1test-stocktake&kind=CSV`, { headers: auth() });
+  assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 200));
+  assert.ok(res.body.documents.some((d) => d.id === globalThis.__m1DocId), 'search finds the upload');
+  assert.equal(typeof res.body.total, 'number');
+  assert.ok(res.body.documents.every((d) => d.kind === 'CSV'), 'kind filter applied');
+
+  const miss = await api(srv.base, `/api/documents?q=no-such-doc-${UNIQUE}`, { headers: auth() });
+  assert.equal(miss.body.documents.length, 0);
+});
+
+test('download requires auth and serves the exact bytes', async () => {
+  const noAuth = await fetch(`${srv.base}/api/documents/${globalThis.__m1DocId}/file`);
+  assert.equal(noAuth.status, 401);
+
+  const res = await fetch(`${srv.base}/api/documents/${globalThis.__m1DocId}/file`, { headers: auth() });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition') || '', /attachment/);
+  assert.match(res.headers.get('content-disposition') || '', /m1test-stocktake/);
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(res.headers.get('cache-control'), 'private, no-store');
+  assert.equal(await res.text(), CSV, 'round-trips the original CSV bytes');
+});
+
+test('PATCH updates title, category and tags; invalid category is rejected', async () => {
+  const bad = await api(srv.base, `/api/documents/${globalThis.__m1DocId}`, {
+    method: 'PATCH', headers: auth(),
+    body: JSON.stringify({ category: 'NOT_A_CATEGORY' }),
+  });
+  assert.equal(bad.status, 400);
+
+  const ok = await api(srv.base, `/api/documents/${globalThis.__m1DocId}`, {
+    method: 'PATCH', headers: auth(),
+    body: JSON.stringify({ title: 'Park Lane Stocktake (m1test)', category: 'STOCKTAKE', tags: ['Stocktake', 'park-lane', 'stocktake'] }),
+  });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body).slice(0, 200));
+  assert.equal(ok.body.title, 'Park Lane Stocktake (m1test)');
+  assert.equal(ok.body.category, 'STOCKTAKE');
+  assert.deepEqual(ok.body.tags, ['stocktake', 'park-lane'], 'lowercased + deduped');
+});
+
+test('rejects a fake PDF and accepts a real-looking xlsx as SPREADSHEET', async () => {
+  const fake = await uploadFile('MZ-this is not a pdf', `m1test-fake-${UNIQUE}.pdf`, 'application/pdf');
+  assert.equal(fake.status, 415);
+
+  const pk = Buffer.concat([Buffer.from('PK\x03\x04'), Buffer.from(`m1test xlsx ${UNIQUE}`.repeat(8))]);
+  const sheet = await uploadFile(pk, `m1test-sheet-${UNIQUE}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.equal(sheet.status, 201, JSON.stringify(sheet.body).slice(0, 200));
+  assert.equal(sheet.body.document.kind, 'SPREADSHEET');
+  globalThis.__m1SheetId = sheet.body.document.id;
+});
+
+test('DELETE soft-deletes and removes the stored bytes', async () => {
+  const doc = await prisma.businessDocument.findUnique({ where: { id: globalThis.__m1DocId } });
+  assert.ok(doc, 'row exists before delete');
+
+  const del = await api(srv.base, `/api/documents/${globalThis.__m1DocId}`, { method: 'DELETE', headers: auth() });
+  assert.equal(del.status, 200);
+
+  assert.equal((await api(srv.base, `/api/documents/${globalThis.__m1DocId}`, { headers: auth() })).status, 404);
+  assert.equal((await fetch(`${srv.base}/api/documents/${globalThis.__m1DocId}/file`, { headers: auth() })).status, 404);
+  const list = await api(srv.base, '/api/documents?q=m1test-stocktake', { headers: auth() });
+  assert.ok(!list.body.documents.some((d) => d.id === globalThis.__m1DocId), 'gone from the list');
+
+  if (doc.storageRef.startsWith('business-documents/')) {
+    // local driver (tests never set SUPABASE_*): private bytes live under backend/uploads-private
+    const key = doc.storageRef.slice('business-documents/'.length);
+    assert.equal(fs.existsSync(`uploads-private/${key}`), false, `bytes removed from uploads-private/${key}`);
+  }
+});
+
+test('procedure soft-delete now cleans media rows and storage objects', async () => {
+  const created = await api(srv.base, '/api/procedures', {
+    method: 'POST', headers: auth(),
+    body: JSON.stringify({ title: 'M1 Test Proc', category: 'PAPER_FLOWER', contentMarkdown: '# m1', status: 'draft' }),
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body).slice(0, 200));
+  const procId = created.body.id;
+
+  const fd = new FormData();
+  fd.append('files', new Blob([SVG], { type: 'image/svg+xml' }), 'm1test.svg');
+  const up = await fetch(`${srv.base}/api/procedures/${procId}/media`, { method: 'POST', headers: auth(), body: fd });
+  assert.equal(up.status, 201, await up.clone().text().catch(() => ''));
+  const media = await prisma.documentMedia.findMany({ where: { documentId: procId } });
+  assert.equal(media.length, 1);
+  const url = media[0].url;
+
+  const del = await api(srv.base, `/api/procedures/${procId}`, { method: 'DELETE', headers: auth() });
+  assert.equal(del.status, 200, JSON.stringify(del.body).slice(0, 200));
+
+  assert.equal(await prisma.documentMedia.count({ where: { documentId: procId } }), 0, 'media rows removed');
+  if (url.startsWith('/uploads/')) {
+    assert.equal(fs.existsSync(`uploads/${url.slice('/uploads/'.length)}`), false, 'media object removed from disk');
+  }
+});

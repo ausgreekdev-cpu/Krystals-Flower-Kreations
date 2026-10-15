@@ -256,15 +256,58 @@ export const adminApi = {
     create: (body: any, token: string) => req<any>('/api/procedures', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/procedures/${id}`, { method: 'PUT', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/procedures/${id}`, { method: 'DELETE', token }),
-    uploadMedia: async (id: string, files: FileList | File[], token: string) => {
-      const fd = new FormData();
-      for (const f of Array.from(files)) fd.append('files', f, f.name);
-      return req<any[]>(`/api/procedures/${id}/media`, { method: 'POST', body: fd, token });
+    // One request per file — Netlify's ~6 MB function payload limit (matches
+    // products.uploadImages); a failing file no longer aborts the batch.
+    uploadMedia: async (id: string, files: FileList | File[], token: string, onProgress?: (done: number, total: number) => void) => {
+      const created: any[] = [];
+      const failures: { name: string; error: string }[] = [];
+      const list = Array.from(files);
+      let done = 0;
+      for (const f of list) {
+        try {
+          const fd = new FormData();
+          fd.append('files', f, f.name);
+          created.push(...(await req<any[]>(`/api/procedures/${id}/media`, { method: 'POST', body: fd, token })));
+        } catch (e: any) {
+          failures.push({ name: f.name, error: e?.message || 'Upload failed' });
+        } finally {
+          done++;
+          onProgress?.(done, list.length);
+        }
+      }
+      return { created, failures };
     },
     addMediaUrl: (id: string, url: string, token: string) => req<any>(`/api/procedures/${id}/media/url`, { method: 'POST', body: JSON.stringify({ url }), token }),
     importContent: (url: string, token: string) => req<any>('/api/procedures/import-content', { method: 'POST', body: JSON.stringify({ url }), token }),
     reorderMedia: (id: string, mediaId: string, displayOrder: number, token: string) => req<any>(`/api/procedures/${id}/media/${mediaId}`, { method: 'PATCH', body: JSON.stringify({ displayOrder }), token }),
     deleteMedia: (id: string, mediaId: string, token: string) => req<any>(`/api/procedures/${id}/media/${mediaId}`, { method: 'DELETE', token }),
+  },
+  // Business document upload centre — private bucket, authed download only.
+  documents: {
+    list: (token: string, params: Record<string, string | number | undefined> = {}) => {
+      const q = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, String(v));
+      const s = q.toString();
+      return req<any>(`/api/documents${s ? `?${s}` : ''}`, { token });
+    },
+    get: (id: string, token: string) => req<any>(`/api/documents/${id}`, { token }),
+    // One file per request (Netlify ~6 MB payload) — the centre uploads sequentially.
+    upload: (file: File, token: string) => {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      return req<{ document: any; deduped: boolean }>(`/api/documents`, { method: 'POST', body: fd, token });
+    },
+    update: (id: string, body: any, token: string) => req<any>(`/api/documents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/documents/${id}`, { method: 'DELETE', token }),
+    // Auth'd fetch → blob (a plain <a href> can't carry the Bearer token)
+    download: async (id: string, token: string) => {
+      const res = await fetch(`${BASE}/api/documents/${id}/file`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(body.error || res.statusText);
+      }
+      return res.blob();
+    },
   },
   pos: {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),

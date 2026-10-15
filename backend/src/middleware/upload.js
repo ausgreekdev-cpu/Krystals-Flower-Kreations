@@ -33,6 +33,27 @@ export const uploadDocs = multer({
   },
 });
 
+// Business document centre — spec-pack types PLUS office/text files
+// (CSV stocktakes, XLSX sheets, markdown/text exports). Extension accepted as
+// a fallback when the browser omits/mistypes the mimetype; callers MUST still
+// sniff the buffer (docMimeLooksReal / NUL-check / PK-check) before storing.
+export const BUSINESS_DOC_MIME = new Set([
+  ...ALLOWED_DOC_MIME,
+  'text/csv', 'text/plain', 'text/markdown', 'application/json',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+]);
+const BUSINESS_DOC_EXT = /\.(csv|tsv|txt|md|json|xlsx|xls)$/i;
+
+export const uploadBusinessDocs = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (BUSINESS_DOC_MIME.has(file.mimetype) || BUSINESS_DOC_EXT.test(file.originalname || '')) return cb(null, true);
+    cb(Object.assign(new Error('Only PDF, spreadsheet, CSV, text, markdown, image, SVG, ZIP or video files are allowed'), { status: 415, code: 'unsupported_media_type' }));
+  },
+});
+
 // Cheap magic-byte sniff for non-raster docs (the rest of the trust is the
 // sandbox: files are served as static objects, never executed).
 export function docMimeLooksReal(buffer, mimetype) {

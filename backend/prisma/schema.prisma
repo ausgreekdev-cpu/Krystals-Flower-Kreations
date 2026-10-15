@@ -1151,3 +1151,58 @@ model ProcedureRevision {
   @@index([documentId])
   @@map("procedure_revisions")
 }
+
+// ── Business document upload centre (stocktakes, supplier docs, exports) ────
+// Bytes live in the PRIVATE business-documents bucket; storageRef is a
+// "bucket/key" ref — never publicly reachable, only served through the
+// authed GET /api/documents/:id/file route (PII/cost data: powerpass CSVs,
+// stocktakes). Link columns are plain uuids (audit-style, no FK).
+enum DocumentKind {
+  PDF
+  CSV
+  SPREADSHEET
+  IMAGE
+  MARKDOWN
+  TEXT
+  OTHER
+}
+
+enum DocumentCategory {
+  STOCKTAKE
+  SUPPLIER
+  INVOICE
+  PROCEDURE
+  EXPORT
+  MEDIA
+  OTHER
+}
+
+model BusinessDocument {
+  id           String           @id @default(uuid()) @db.Uuid
+  title        String
+  originalName String
+  mime         String
+  sizeBytes    Int
+  storageRef   String // "bucket/key" private ref
+  sha256       String // dedup: identical bytes reuse the existing row
+  kind         DocumentKind     @default(OTHER)
+  category     DocumentCategory @default(OTHER)
+  tags         String[]         @default([])
+  extractedText String?         @db.Text // M2+: searchable payload (csv/md rows, pdf text)
+
+  // Plain strings (no @db.Uuid) — users/suppliers use cuid ids, procedures
+  // style: "authorId String?" with no FK so deletes never block.
+  linkedSupplierId  String?
+  linkedProcedureId String?
+  uploadedById      String?
+  deletedAt         DateTime? // soft delete; bytes removed on delete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, deletedAt])
+  @@index([category, deletedAt])
+  @@index([sha256])
+  @@index([deletedAt, createdAt])
+  @@map("business_documents")
+}
