@@ -5,15 +5,17 @@ import sharp from 'sharp';
 import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
+import { __setOcrRecognize } from '../src/services/ocr.js';
 import { startServer, api } from './helpers.js';
 
-// Smart document upload centre (M1–M3): private-bucket storage, sha256 dedup,
+// Smart document upload centre (M1–M4): private-bucket storage, sha256 dedup,
 // authed download, metadata edits, soft-delete that removes the bytes — plus
 // the two pre-existing upload bugs fixed in M1 (procedure media one-file-per-
 // request works and soft-deleting a procedure cleans storage). M2 adds
 // filename auto-categorisation, text extraction + content search, and 160px
 // webp thumbnails. M3 extends extraction to PDF full-text (unpdf) and
-// XLSX/XLS rows (SheetJS).
+// XLSX/XLS rows (SheetJS). M4 adds on-demand OCR (tesseract.js) for images —
+// the engine is stubbed here so tests never touch the network.
 let srv;
 let adminToken;
 
@@ -76,6 +78,11 @@ async function purgeProcedures() {
 
 before(async () => {
   srv = await startServer();
+  globalThis.__m4OcrCalls = 0;
+  __setOcrRecognize(async () => {
+    globalThis.__m4OcrCalls += 1;
+    return { text: `Stub scan body m4token-${UNIQUE}`, confidence: 88 };
+  });
   const login = await api(srv.base, '/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email: 'admin@krystal.local', password: 'admin123' }),
@@ -87,6 +94,7 @@ before(async () => {
 });
 
 after(async () => {
+  __setOcrRecognize(null);
   await purgeDocs();
   await purgeProcedures();
   await srv.close();
@@ -338,4 +346,60 @@ test('dedup hit backfills extractedText for a pre-M3 PDF row', async () => {
   assert.equal(status, 200);
   assert.equal(body.deduped, true);
   assert.ok(body.document.extractedText?.includes(`pelican-${UNIQUE}`), 'pdf text backfilled on dedup');
+});
+
+// ── M4: on-demand OCR (stubbed tesseract engine — no network in tests) ──────
+
+test('OCR extracts text from an image and makes it content-searchable', async () => {
+  const png = await sharp({ create: { width: 60, height: 30, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+  const up = await uploadFile(png, `m4scan-${UNIQUE}.png`, 'image/png');
+  assert.equal(up.status, 201, JSON.stringify(up.body).slice(0, 200));
+  const id = up.body.document.id;
+  globalThis.__m4ImgId = id;
+  assert.equal(up.body.document.extractedText, null, 'upload does not OCR inline');
+
+  const before = globalThis.__m4OcrCalls;
+  const res = await api(srv.base, `/api/documents/${id}/ocr`, { method: 'POST', headers: auth() });
+  assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 200));
+  assert.equal(globalThis.__m4OcrCalls, before + 1, 'engine invoked once');
+  assert.ok(res.body.document.extractedText?.includes(`m4token-${UNIQUE}`), 'text stored');
+  assert.equal(res.body.ocr.confidence, 88);
+  assert.ok(res.body.ocr.chars > 0);
+
+  const list = await api(srv.base, `/api/documents?q=m4token-${UNIQUE}`, { headers: auth() });
+  assert.ok(list.body.documents.some((d) => d.id === id), 'ocr text is searchable');
+});
+
+test('OCR requires auth, refuses non-image/pdf, and 409s when text exists (force re-runs)', async () => {
+  const id = globalThis.__m4ImgId;
+  assert.equal((await fetch(`${srv.base}/api/documents/${id}/ocr`, { method: 'POST' })).status, 401);
+
+  const csvDoc = await api(srv.base, `/api/documents/${globalThis.__m2ExtractId}`, { headers: auth() });
+  assert.ok(csvDoc.body, 'csv doc still active');
+  const wrong = await api(srv.base, `/api/documents/${globalThis.__m2ExtractId}/ocr`, { method: 'POST', headers: auth() });
+  assert.equal(wrong.status, 415);
+
+  const again = await api(srv.base, `/api/documents/${id}/ocr`, { method: 'POST', headers: auth() });
+  assert.equal(again.status, 409, 'already has text');
+
+  const before = globalThis.__m4OcrCalls;
+  const forced = await api(srv.base, `/api/documents/${id}/ocr?force=1`, { method: 'POST', headers: auth() });
+  assert.equal(forced.status, 200, JSON.stringify(forced.body).slice(0, 200));
+  assert.equal(globalThis.__m4OcrCalls, before + 1, 'force re-invokes the engine');
+});
+
+test('text-less PDF OCR returns 422 guidance; SVG is refused', async () => {
+  // single-space content stream: distinct bytes from the M3 empty-pdf fixture,
+  // and unpdf yields only whitespace → clip() → null (still "no text layer")
+  const pdf = await uploadFile(makePdf(' '), `m4empty-${UNIQUE}.pdf`, 'application/pdf');
+  assert.equal(pdf.status, 201, JSON.stringify(pdf.body).slice(0, 200));
+  const pdfOcr = await api(srv.base, `/api/documents/${pdf.body.document.id}/ocr`, { method: 'POST', headers: auth() });
+  assert.equal(pdfOcr.status, 422);
+  assert.match(pdfOcr.body.error, /no text layer/i);
+
+  const svg = await uploadFile('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>', `m4vec-${UNIQUE}.svg`, 'image/svg+xml');
+  assert.equal(svg.status, 201, JSON.stringify(svg.body).slice(0, 200));
+  const svgOcr = await api(srv.base, `/api/documents/${svg.body.document.id}/ocr`, { method: 'POST', headers: auth() });
+  assert.equal(svgOcr.status, 415);
+  assert.match(svgOcr.body.error, /SVG/i);
 });

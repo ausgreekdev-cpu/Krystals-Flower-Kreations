@@ -12,6 +12,9 @@
 
 [functions]
   node_bundler = "esbuild"
+  # OCR downloads ~11MB of langdata on cold start and tesseract takes seconds —
+  # the free-tier default 10s would kill it.
+  timeout_ms = 26000
   external_node_modules = [
     "@prisma/client",
     "@prisma/engines",
@@ -26,6 +29,8 @@
     "nodemailer",
     "serverless-http",
     "sharp",
+    "tesseract.js",
+    "tesseract.js-core",
     "unpdf",
     "xlsx",
     "zod"

@@ -10,6 +10,7 @@ import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { uploadBusinessDocs, docMimeLooksReal } from '../middleware/upload.js';
 import { putObject, getObject, deleteObjectByUrl } from '../services/storage.js';
+import { ocrImage } from '../services/ocr.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { audit } from '../lib/audit.js';
 
@@ -32,6 +33,7 @@ const META_SELECT = {
 const uploadLimit = rateLimit('document_upload', 30, 5);
 const downloadLimit = rateLimit('document_download', 60, 1);
 const thumbLimit = rateLimit('document_thumb', 120, 5);
+const ocrLimit = rateLimit('document_ocr', 10, 10);
 
 function kindFor(mime, name) {
   const m = String(mime || '').toLowerCase();
@@ -313,6 +315,48 @@ router.delete('/:id', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(a
   if (doc.thumbRef) await deleteObjectByUrl(doc.thumbRef);
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_delete', entityType: 'business_document', entityId: id, details: { originalName: doc.originalName } });
   res.json({ id, deleted: true });
+}));
+
+// ── OCR (Editor+, M4): on-demand text recovery for scans ────────────────────
+// Images go through tesseract.js (langdata cached in /tmp; ~10.9MB gz download
+// on cold start — hence timeout_ms 26000 in netlify.toml). Text-less PDFs are
+// NOT rendered (no pdf→image renderer in the function; mupdf would add ~14MB
+// of wasm) — we retry unpdf once and return actionable guidance if the layer
+// really is missing. ?force=1 re-runs even when extractedText already exists.
+router.post('/:id/ocr', authenticate, requireRole(...EDITOR_ROLES), ocrLimit, asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.businessDocument.findFirst({ where: { id, deletedAt: null } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const force = req.query.force === '1' || req.query.force === 'true';
+  if (!['IMAGE', 'PDF'].includes(doc.kind)) {
+    return res.status(415).json({ error: 'OCR supports images and PDFs only', code: 'unsupported_media_type' });
+  }
+  if (doc.mime === 'image/svg+xml') {
+    return res.status(415).json({ error: 'SVG is vector text — download it instead of OCR', code: 'unsupported_media_type' });
+  }
+  if (doc.extractedText && !force) {
+    return res.status(409).json({ error: 'Document already has extracted text — pass ?force=1 to re-run', code: 'conflict' });
+  }
+  const buf = await getObject(doc.storageRef);
+  let text = null; let confidence = null;
+  if (doc.kind === 'PDF') {
+    text = await extractText('PDF', buf); // retry unpdf (transient upload-time failure)
+    if (!text) {
+      return res.status(422).json({
+        error: 'This PDF has no text layer. Export its pages as images (PNG/JPG) and upload those — images are OCRable.',
+        code: 'no_text_layer',
+      });
+    }
+  } else {
+    const out = await ocrImage(buf);
+    text = clip(out.text);
+    confidence = out.confidence;
+    if (!text) return res.status(422).json({ error: 'OCR found no readable text in this image', code: 'no_text_found' });
+  }
+  const updated = await prisma.businessDocument.update({ where: { id }, data: { extractedText: text } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_ocr', entityType: 'business_document', entityId: id, details: { chars: text.length, confidence, kind: doc.kind } });
+  res.json({ document: updated, ocr: { chars: text.length, confidence } });
 }));
 
 export default router;

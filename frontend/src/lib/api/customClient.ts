@@ -317,6 +317,11 @@ export const adminApi = {
       }
       return res.blob();
     },
+    // On-demand OCR (M4) — images via tesseract; 409 when text already exists
+    ocr: (id: string, token: string, force = false) =>
+      req<{ document: any; ocr: { chars: number; confidence: number } }>(
+        `/api/documents/${id}/ocr${force ? '?force=1' : ''}`, { method: 'POST', token },
+      ),
   },
   pos: {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),

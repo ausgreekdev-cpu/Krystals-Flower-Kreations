@@ -41,6 +41,7 @@ export default function DocumentCentre({ token, role }) {
   const [dragOver, setDragOver] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [ocrBusy, setOcrBusy] = useState('');
   const fileRef = useRef(null);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
@@ -111,6 +112,24 @@ export default function DocumentCentre({ token, role }) {
     catch (e) { toast(e.message, 'error'); }
   }
 
+  // M4: on-demand OCR for images (tesseract) / no-text-layer PDF retry.
+  async function runOcr(d, force = false) {
+    setOcrBusy(d.id);
+    try {
+      const r = await adminApi.documents.ocr(d.id, token, force);
+      const conf = r.ocr.confidence ? ` — ${Math.round(r.ocr.confidence)}% confidence` : '';
+      toast(`OCR complete: ${r.ocr.chars} characters extracted${conf}`);
+      refresh();
+    } catch (e) {
+      if (!force && String(e.message).includes('already has extracted text')
+        && window.confirm(`"${d.title}" already has extracted text. Re-run OCR anyway?`)) {
+        setOcrBusy('');
+        return runOcr(d, true);
+      }
+      toast(e.message, 'error');
+    } finally { setOcrBusy(''); }
+  }
+
   return (
     <div className="space-y-3">
       <div
@@ -159,6 +178,12 @@ export default function DocumentCentre({ token, role }) {
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 text-royal-700 border-royal-100">{d.category}</span>
           {d.tags?.length > 0 && <span className="text-[10px] text-muted hidden md:inline">{d.tags.slice(0, 3).join(' · ')}</span>}
           <button onClick={() => download(d)} className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Download</button>
+          {(d.kind === 'IMAGE' || d.kind === 'PDF') && (
+            <button onClick={() => runOcr(d)} disabled={ocrBusy === d.id}
+              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 hover:bg-royal-50 disabled:opacity-50">
+              {ocrBusy === d.id ? 'Reading…' : 'OCR'}
+            </button>
+          )}
           <button onClick={() => setEditing({ id: d.id, title: d.title, category: d.category, tags: (d.tags || []).join(', ') })}
             className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Edit</button>
           <button onClick={() => setConfirmDel(d)} className="text-xs font-semibold border border-red-200 rounded-xl px-2.5 py-1 text-red-600 hover:bg-red-50">Delete</button>
