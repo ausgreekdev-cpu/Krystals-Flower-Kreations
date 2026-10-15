@@ -15,7 +15,7 @@ test('GET /api/products lists seeded products with placeholder images', async ()
   assert.ok(rose, 'seed rose product exists');
   assert.equal(Number(rose.price), 89);
   assert.ok(rose.images?.length > 0, 'product has an image');
-  assert.equal(rose.images[0].url, '/placeholder-bloom.jpg');
+  assert.equal(rose.images[0].url, '/placeholder-bloom.svg');
 });
 
 test('GET /api/products/:slug returns single product', async () => {

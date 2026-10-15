@@ -85,6 +85,8 @@ async function main() {
     const hasImage = await prisma.productImage.findFirst({ where: { productId: prod.id } });
     if (!hasImage) {
       await prisma.productImage.create({ data: { productId: prod.id, url: `/placeholder-bloom.svg`, alt: prod.title, sortOrder: 0 } });
+    } else if (hasImage.url === '/placeholder-bloom.jpg') {
+      await prisma.productImage.update({ where: { id: hasImage.id }, data: { url: '/placeholder-bloom.svg' } });
     }
     // Ensure inventory level (findFirst+create — Prisma upsert rejects null on
     // the @@unique([productId, variantId, locationId]) nullable member)
