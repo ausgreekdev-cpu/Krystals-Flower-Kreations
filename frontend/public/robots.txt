@@ -1,3 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /pos
+Disallow: /kanban
 Sitemap: https://krystalsflowercreations.com.au/sitemap.xml

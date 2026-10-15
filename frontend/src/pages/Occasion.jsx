@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { usePublicSettings } from '../lib/publicSettings';
+import { updateSeo } from '../lib/seo';
 import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Alert from '../components/ui/Alert';
 import Btn from '../components/ui/Btn';
@@ -32,13 +33,12 @@ export default function Occasion(){
   const title = known?.title || `${slugifyLabel(slug || '')} Flowers`;
 
   useEffect(() => {
-    document.title = `${title} Perth WA — Krystals Flower Creations`;
-    let meta = document.querySelector('meta[name="description"]');
-    if(!meta){ meta = document.createElement('meta'); meta.name = 'description'; document.head.appendChild(meta); }
-    meta.content = `${title} in Perth — handmade everlasting paper flowers from Krystals Flower Creations. Made to order, GST inclusive, free Perth delivery over $${Number(s.shipping_free_over) || 150}.`;
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if(!canonical){ canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
-    canonical.href = `${window.location.origin}/occasions/${slug}`;
+    updateSeo({
+      title: `${title} Perth WA — Krystals Flower Creations`,
+      description: `${title} in Perth — handmade everlasting paper flowers from Krystals Flower Creations. Made to order, GST inclusive, free Perth delivery over $${Number(s.shipping_free_over) || 150}.`,
+      canonical: `/occasions/${slug}`,
+      robots: null,
+    });
   }, [slug, title, s.shipping_free_over]);
 
   useEffect(() => {

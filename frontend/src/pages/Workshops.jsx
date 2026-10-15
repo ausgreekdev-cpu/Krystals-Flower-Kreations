@@ -51,8 +51,43 @@ export default function Workshops(){
       <Btn to="/configurator" size="lg" className="mt-4 inline-block">Design Custom Bouquet</Btn>
     </Page>
   );
+  // Structured data — Event per workshop with dated subEvents (Google renders JS)
+  const origin = window.location.origin;
+  const place = {
+    '@type': 'Place',
+    name: 'Krystals Flower Creations Studio',
+    address: { '@type': 'PostalAddress', addressLocality: 'Perth', addressRegion: 'WA', addressCountry: 'AU' },
+  };
+  const eventsLd = items.filter(w => (w.sessions || []).length).map(w => ({
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: w.title,
+    description: w.description || undefined,
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    image: w.imageUrl ? (w.imageUrl.startsWith('http') ? w.imageUrl : `${origin}${w.imageUrl}`) : undefined,
+    location: w.location ? { ...place, name: w.location } : place,
+    organizer: { '@type': 'Organization', name: 'Krystals Flower Creations', url: origin },
+    offers: w.price ? {
+      '@type': 'Offer',
+      priceCurrency: 'AUD',
+      price: Number(w.price).toFixed(2),
+      availability: (w.sessions || []).some(s => s.capacity - s.bookedCount > 0)
+        ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+      url: `${origin}/workshops`,
+    } : undefined,
+    subEvent: (w.sessions || []).map(s => ({
+      '@type': 'Event',
+      name: w.title,
+      startDate: s.startsAt,
+      endDate: s.endsAt || undefined,
+      eventStatus: 'https://schema.org/EventScheduled',
+      location: w.location ? { ...place, name: w.location } : place,
+    })),
+  }));
   return (
     <Page>
+      {eventsLd.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(eventsLd)}} />}
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Workshops'}]} />} title="Workshops — Perth Studio" lede="Cricut Blooms 101, Origami Bouquet & Armature Art. Max 12, kits included." />
       <div className="mt-4 bg-surface border rounded-xl px-4 py-3 flex flex-wrap justify-between items-center gap-2">
         <span className="text-sm text-ink">Before you book, explore Notebook guide — supplies & folding previews</span>

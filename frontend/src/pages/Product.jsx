@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { addToCart as addToCartApi } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
+import { updateSeo } from '../lib/seo';
 import { Page, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
 import Alert from '../components/ui/Alert';
@@ -20,7 +21,14 @@ export default function Product(){
   const [rvForm,setRvForm]=useState({ name:'', rating:5, title:'', body:'', website:'' });
   const [rvSent,setRvSent]=useState(false); const [rvErr,setRvErr]=useState(''); const [rvBusy,setRvBusy]=useState(false);
   useEffect(()=>{
-    fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=>{ setP(d); setReviews(Array.isArray(d.reviews)?d.reviews:[]); document.title = `${d.title} — ${ORG}`; }).catch(e=>{ setErr(e.message); setP({ error:true }); });
+    fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=>{
+      setP(d); setReviews(Array.isArray(d.reviews)?d.reviews:[]);
+      const desc = String(d.metaDescription || d.description || '').replace(/\s+/g, ' ').trim().slice(0, 170) || undefined;
+      updateSeo({ title: `${d.title} — ${ORG}`, description: desc });
+    }).catch(e=>{
+      setErr(e.message); setP({ error:true });
+      updateSeo({ title: `Product not found — ${ORG}`, description: 'This paper bloom could not be found — browse the shop for everlasting bouquets and Cricut templates.' });
+    });
   }, [slug]);
   // Field definitions drive labels/types for p.customFields — same list for every product
   useEffect(()=>{

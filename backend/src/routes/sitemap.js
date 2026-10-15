@@ -16,7 +16,10 @@ router.get('/sitemap.xml', asyncHandler(async (req, res) => {
     prisma.post.findMany({ where: { status: 'published' }, select: { slug: true, publishedAt: true, updatedAt: true }, take: 200, orderBy: { publishedAt: 'desc' } }),
     prisma.product.findMany({ where: { isActive: true, occasions: { isEmpty: false } }, select: { occasions: true }, take: 500 }),
   ]);
-  const occasionSlugs = [...new Set(withOccasions.flatMap(p => p.occasions))].slice(0, 50);
+  // Curated landing pages (Occasion.jsx KNOWN map) must always be listed —
+  // product-derived slugs vanish entirely when the catalog is empty.
+  const CURATED_OCCASIONS = ['wedding', 'birthday', 'mothers-day', 'anniversary', 'sympathy', 'graduation', 'housewarming'];
+  const occasionSlugs = [...new Set([...CURATED_OCCASIONS, ...withOccasions.flatMap(p => p.occasions)])].slice(0, 50);
   const urls = [
     { loc: `${origin}/`, changefreq: 'weekly', priority: '1.0' },
     { loc: `${origin}/shop`, changefreq: 'daily', priority: '0.9' },

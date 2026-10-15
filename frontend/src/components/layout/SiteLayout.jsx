@@ -4,6 +4,7 @@ import SiteHeader from './SiteHeader';
 import SiteFooter from './SiteFooter';
 import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole } from '../../lib/session';
+import { updateSeo, restoreSeo } from '../../lib/seo';
 import BloomMark from '../ui/BloomMark';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
@@ -26,6 +27,22 @@ const ROUTE_TITLES = {
   '/privacy': `Privacy Policy — ${BRAND}`,
   '/login': `Sign in — ${BRAND}`,
 };
+// Per-route meta description (Googlebot renders JS so these land in SERP
+// snippets). Dynamic routes (/product, /blog/:slug, /occasions) set their
+// own in their page effects — omitted keys are never overwritten.
+const ROUTE_DESCRIPTIONS = {
+  '/': 'Everlasting paper bouquets that never wilt. Custom Cricut + origami blooms, Perth studio. Shop, configurator & workshops — GST inclusive, free Perth delivery over $150.',
+  '/shop': 'Shop handmade paper flowers — everlasting bouquets, Cricut SVG templates & armature art from our Perth studio. GST inclusive, free Perth delivery over $150.',
+  '/configurator': 'Design a custom paper bouquet — colour, texture, weight, stems, armature & add-ons with live AUD pricing and a Perth craft-time estimate.',
+  '/workshops': 'Paper flower workshops in Perth — Cricut Blooms 101, Origami Bouquet & Armature Art. Kits included, max 12 per class.',
+  '/blog': 'Journal — paper florist tutorials, Cricut settings for Perth humidity, origami folds and studio behind-the-scenes.',
+  '/loyalty': 'Bloom Points — earn 1 point per $1 at Krystals Flower Creations and redeem on paper blooms.',
+  '/notebook': 'Studio Notebook — paper florist knowledge base: glue tests, Cricut settings, origami instructions & studio notes.',
+  '/about': 'About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, armature art and workshop kits.',
+  '/privacy': 'Privacy policy — Krystals Flower Creations, Perth WA.',
+};
+// Utility pages shouldn't appear in search results.
+const NOINDEX = new Set(['/cart', '/checkout', '/login']);
 
 export default function SiteLayout() {
   const location = useLocation();
@@ -33,18 +50,35 @@ export default function SiteLayout() {
   const mainRef = useRef(null);
   const firstRender = useRef(true);
 
-  // SPA route changes: reset scroll, restore keyboard focus to the main
-  // landmark, and announce the new page title. Skipped on the initial load.
-  // Dynamic routes (/product/:slug, /blog/:slug, /occasions/:slug) set their
-  // own titles in their page effects — those run first, so never clobber.
+  // SPA route changes: reset scroll and restore keyboard focus to the main
+  // landmark. Skipped on the initial load.
   useEffect(() => {
     window.scrollTo(0, 0);
     if (firstRender.current) { firstRender.current = false; return; }
     mainRef.current?.focus({ preventScroll: true });
-    const t = ROUTE_TITLES[location.pathname];
-    if (t) document.title = t;
-    else if (!/^\/(product|blog|occasions)\//.test(location.pathname)) document.title = `Page not found — ${BRAND}`;
   }, [location.pathname]);
+
+  // Head meta: title/description/canonical/robots on every route — including
+  // hard loads of a static route (index.html ships the home values, so a
+  // refreshed /shop previously kept the home title forever). Dynamic routes
+  // set their own title/description in page effects; undefined keys are
+  // skipped so those are never clobbered.
+  useEffect(() => {
+    const isStatic = ROUTE_TITLES[location.pathname] !== undefined;
+    const isDynamic = /^\/(product|blog|occasions)\//.test(location.pathname);
+    updateSeo({
+      title: isStatic ? ROUTE_TITLES[location.pathname]
+        : (isDynamic ? undefined : `Page not found — ${BRAND}`),
+      description: isStatic ? ROUTE_DESCRIPTIONS[location.pathname]
+        : (isDynamic ? undefined : 'This page could not be found — browse paper blooms, workshops and the custom bouquet configurator.'),
+      canonical: isStatic || isDynamic ? location.pathname : null,
+      robots: NOINDEX.has(location.pathname) || (!isStatic && !isDynamic) ? 'noindex, nofollow' : null,
+    });
+  }, [location.pathname]);
+
+  // Leaving the public site (→ /admin, /pos): reset head values to the
+  // index.html defaults; those routes apply their own noindex.
+  useEffect(() => () => restoreSeo(), []);
 
   const businessName = s.business_name || FALLBACK_BUSINESS;
   const email = s.contact_email || FALLBACK_EMAIL;

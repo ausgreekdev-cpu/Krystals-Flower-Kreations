@@ -64,8 +64,23 @@ export default function Shop(){
   const shown = pageSize > 0 ? sorted.slice(0, pageSize) : sorted;
   const freeOver = Number(s.shipping_free_over) || 150;
   const subtitle = `Perth studio • Made-to-order ${s.handling_days_text || '3-7 days'} • Free Perth delivery over $${freeOver}`;
+  // Structured data — CollectionPage + ItemList of the visible grid
+  const shopLd = shown.length ? {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Shop paper blooms — Krystals Flower Creations',
+    url: `${window.location.origin}/shop`,
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: shown.slice(0, 48).map((p, i) => ({
+        '@type': 'ListItem', position: i + 1,
+        name: p.title, url: `${window.location.origin}/product/${p.slug}`,
+      })),
+    },
+  } : null;
   return (
     <Page width="wide">
+      {shopLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(shopLd)}} />}
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Shop'}]} />} title="Shop — paper blooms & armature art" lede={subtitle} />
       {/* Toolbar: search + filter chips directly under the heading (was a detached full-width row) */}
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">

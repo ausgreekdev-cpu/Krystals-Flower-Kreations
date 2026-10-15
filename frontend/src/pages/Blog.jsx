@@ -10,8 +10,24 @@ export default function Blog(){
   const [posts,setPosts]=useState(null);
   const [err,setErr]=useState('');
   useEffect(()=>{ fetch('/api/posts').then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=> setPosts(Array.isArray(d)?d: (Array.isArray(d.posts)?d.posts:[]))).catch(e=>{ setErr(e.message); setPosts([]); }); }, []);
+  // Structured data — Blog with the post list (Google renders JS)
+  const blogLd = Array.isArray(posts) && posts.length ? {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: 'Journal — Krystals Flower Creations',
+    url: `${window.location.origin}/blog`,
+    description: 'Tutorials, Cricut tips, origami folds & studio behind-the-scenes from a Perth paper florist.',
+    blogPost: posts.slice(0, 20).map(p => ({
+      '@type': 'BlogPosting',
+      headline: p.title,
+      url: `${window.location.origin}/blog/${p.slug}`,
+      datePublished: p.publishedAt ? new Date(p.publishedAt).toISOString().slice(0, 10) : undefined,
+      description: p.excerpt || undefined,
+    })),
+  } : null;
   return (
     <Page width="default">
+      {blogLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(blogLd)}} />}
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Journal'}]} />} title="Journal" lede="Tutorials, Cricut tips, origami folds & studio behind-the-scenes." />
       {err && <Alert tone="danger" className="mt-4">Failed to load posts: {err}</Alert>}
       {posts === null && !err && (

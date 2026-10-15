@@ -4,6 +4,7 @@ import { adminApi, authApi, getToken, clearSession } from '../lib/api/customClie
 import { subscribe, nextColorMode, getColorMode, MODES } from '../lib/colorMode';
 import { applyTheme } from '../lib/theme';
 import { invalidatePublicSettings } from '../lib/publicSettings';
+import { updateSeo, restoreSeo } from '../lib/seo';
 import { renderMarkdown } from '../lib/markdown';
 import { ToastProvider, useToast } from '../components/admin/Toast';
 import Modal from '../components/admin/Modal';
@@ -328,6 +329,11 @@ const STAFF_ROLES = ['staff', 'maker', 'admin', 'developer'];
 
 export default function AdminStudio() {
   const [user, setUser] = useState(undefined); // undefined = checking
+  // Back-office — never index; leaving for the public site restores defaults
+  useEffect(() => {
+    updateSeo({ robots: 'noindex, nofollow' });
+    return () => restoreSeo();
+  }, []);
   useEffect(() => {
     const token = getToken();
     const toLogin = () => window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);

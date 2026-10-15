@@ -4,9 +4,9 @@ import { Page, Breadcrumbs } from '../components/ui/Page';
 import { CardSkeleton, ErrorState } from '../components/ui/State';
 import { renderMarkdown } from '../lib/markdown';
 import { usePublicSettings } from '../lib/publicSettings';
+import { updateSeo, restoreSeo } from '../lib/seo';
 
 const ORG = "Krystals Flower Creations";
-const DEFAULT_TITLE = "Krystals Flower Creations — Paper Florist Perth WA";
 const PLACEHOLDER = '/placeholder-bloom.svg';
 
 export default function Post(){
@@ -19,11 +19,9 @@ export default function Post(){
   // Per-post SEO head (Googlebot renders JS; SPA can't emit crawler-visible og:image)
   useEffect(()=>{
     if(!p || !p.title) return;
-    document.title = (p.metaTitle || `${p.title} | ${ORG}`).slice(0, 70);
-    const desc = (p.metaDescription || p.excerpt || '').slice(0, 170);
-    const meta = document.querySelector('meta[name="description"]');
-    if (meta && desc) meta.setAttribute('content', desc);
-    return () => { document.title = DEFAULT_TITLE; };
+    const desc = (p.metaDescription || p.excerpt || '').replace(/\s+/g,' ').trim().slice(0, 170) || undefined;
+    updateSeo({ title: (p.metaTitle || `${p.title} | ${ORG}`).slice(0, 70), description: desc });
+    return () => restoreSeo();
   }, [p]);
   if(err) return (
     <Page>

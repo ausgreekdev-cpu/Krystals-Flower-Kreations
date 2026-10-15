@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { clearSession, getUser } from '../../lib/api/customClient';
 import { currentStaffRole } from '../../lib/session';
 import { usePublicSettings } from '../../lib/publicSettings';
+import { updateSeo, restoreSeo } from '../../lib/seo';
 
 const TITLES = { '/pos': 'Point of Sale', '/kanban': 'Custom Order Board' };
 
@@ -12,6 +14,11 @@ export default function StaffBar() {
   const s = usePublicSettings();
   const user = getUser();
   const title = TITLES[pathname] || 'Studio Tool';
+  // Staff routes are never indexed; restore head defaults on exit
+  useEffect(() => {
+    updateSeo({ title: `${title} — Krystals Flower Creations`, robots: 'noindex, nofollow' });
+    return () => restoreSeo();
+  }, [title]);
   function signOut() {
     clearSession();
     window.location.assign('/');
