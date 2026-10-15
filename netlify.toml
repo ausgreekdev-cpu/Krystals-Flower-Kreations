@@ -12,9 +12,10 @@
 
 [functions]
   node_bundler = "esbuild"
-  # OCR downloads ~11MB of langdata on cold start and tesseract takes seconds —
-  # the free-tier default 10s would kill it.
-  timeout_ms = 26000
+  # OCR cold start (11MB langdata download + tesseract recognize) needs time;
+  # the platform default synchronous execution limit is 60s and timeout_ms is
+  # NOT a valid [functions] site-level key (config parser rejects it as
+  # "must be an object" — it's read as a per-function table name).
   external_node_modules = [
     "@prisma/client",
     "@prisma/engines",
