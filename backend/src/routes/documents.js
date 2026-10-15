@@ -24,11 +24,12 @@ const CATEGORIES = ['STOCKTAKE', 'SUPPLIER', 'INVOICE', 'PROCEDURE', 'EXPORT', '
 const META_SELECT = {
   id: true, title: true, originalName: true, mime: true, sizeBytes: true, sha256: true,
   kind: true, category: true, tags: true, linkedSupplierId: true, linkedProcedureId: true,
-  uploadedById: true, createdAt: true, updatedAt: true,
+  uploadedById: true, thumbRef: true, createdAt: true, updatedAt: true,
 };
 
 const uploadLimit = rateLimit('document_upload', 30, 5);
 const downloadLimit = rateLimit('document_download', 60, 1);
+const thumbLimit = rateLimit('document_thumb', 120, 5);
 
 function kindFor(mime, name) {
   const m = String(mime || '').toLowerCase();
@@ -91,6 +92,38 @@ function asciiFilename(name) {
   return String(name || 'file').replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
 }
 
+// M2: guess the category from the filename (admin can still edit per-row).
+// Order matters — the most specific business keywords win, IMAGE kind is the
+// MEDIA fallback rather than the first rule.
+function categoryFor(name, kind) {
+  const n = String(name || '').toLowerCase();
+  if (/stocktake|stock-take|stock_take|inventory|cycle.?count/.test(n)) return 'STOCKTAKE';
+  if (/invoice|tax.?invoice|receipt|\bbill\b/.test(n)) return 'INVOICE';
+  if (/supplier|vendor|provider/.test(n)) return 'SUPPLIER';
+  if (/procedure|\bsop\b|guide|how-?to|spec(?:ification)?|\bprocess\b/.test(n)) return 'PROCEDURE';
+  if (/export|backup|\bdump\b|snapshot/.test(n)) return 'EXPORT';
+  if (kind === 'IMAGE' || /photo|scan|image|picture|logo/.test(n)) return 'MEDIA';
+  return 'OTHER';
+}
+
+// M2: searchable text for the cheap kinds. PDF/XLSX extraction lands in M3.
+const EXTRACT_CAP = 256 * 1024; // 256KB of text per doc is plenty for search
+function extractText(kind, buffer) {
+  if (!['CSV', 'MARKDOWN', 'TEXT'].includes(kind) || !buffer.length) return null;
+  const text = buffer.subarray(0, EXTRACT_CAP).toString('utf8');
+  return text.trim() ? text : null;
+}
+
+// M2: 160px webp preview for raster images (gif → first frame). SVG skipped.
+const THUMB_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+async function makeThumb(buffer) {
+  try {
+    return await sharp(buffer).rotate().resize(160, 160, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 70 }).toBuffer();
+  } catch {
+    return null; // thumbnail is best-effort — never block the upload
+  }
+}
+
 const patchSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   category: z.enum(['STOCKTAKE', 'SUPPLIER', 'INVOICE', 'PROCEDURE', 'EXPORT', 'MEDIA', 'OTHER']).optional(),
@@ -114,6 +147,7 @@ router.get('/', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (
       { title: { contains: q, mode: 'insensitive' } },
       { originalName: { contains: q, mode: 'insensitive' } },
       { tags: { has: q.toLowerCase() } },
+      { extractedText: { contains: q, mode: 'insensitive' } },
     ] } : {}),
   };
   const [total, documents] = await Promise.all([
@@ -147,7 +181,21 @@ router.get('/:id/file', authenticate, requireRole(...EDITOR_ROLES), downloadLimi
   res.send(buf);
 }));
 
-// ── Upload (Editor+): sniff → sha256 dedup → private store ──────────────────
+// ── Thumbnail (Editor+): 160px webp preview generated at upload (M2) ────────
+router.get('/:id/thumb', authenticate, requireRole(...EDITOR_ROLES), thumbLimit, asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.businessDocument.findFirst({ where: { id, deletedAt: null } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (!doc.thumbRef) return res.status(404).json({ error: 'No thumbnail', code: 'not_found' });
+  const buf = await getObject(doc.thumbRef);
+  res.setHeader('Content-Type', 'image/webp');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.send(buf);
+}));
+
+// ── Upload (Editor+): sniff → sha256 dedup → auto-categorise → extract → thumb ─
 router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, uploadBusinessDocs.single('file'), asyncHandler(async (req, res) => {
   const file = req.file;
   if (!file || !file.buffer?.length) return res.status(400).json({ error: 'No file', code: 'validation_failed' });
@@ -158,9 +206,25 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   }
 
   // Dedup: identical bytes reuse the existing active row (no second object).
+  // Rows uploaded before M2 may lack extractedText/thumbRef — backfill them.
   const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
   const existing = await prisma.businessDocument.findFirst({ where: { sha256, deletedAt: null } });
-  if (existing) return res.status(200).json({ document: existing, deduped: true });
+  if (existing) {
+    const patch = {};
+    if (!existing.extractedText) {
+      const text = extractText(kind, file.buffer);
+      if (text) patch.extractedText = text;
+    }
+    if (!existing.thumbRef && kind === 'IMAGE' && THUMB_MIMES.has(mime)) {
+      const tbuf = await makeThumb(file.buffer);
+      if (tbuf) patch.thumbRef = await putObject(`docs/${existing.id}-thumb.webp`, tbuf, 'image/webp', { bucket: 'business-documents' });
+    }
+    if (Object.keys(patch).length) {
+      const updated = await prisma.businessDocument.update({ where: { id: existing.id }, data: patch });
+      return res.status(200).json({ document: updated, deduped: true });
+    }
+    return res.status(200).json({ document: existing, deduped: true });
+  }
 
   let buf = file.buffer; let outMime = mime; let ext = extFor(mime, file.originalname);
   if (kind === 'IMAGE' && ['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
@@ -169,11 +233,20 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   }
   const key = `docs/${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
   const storageRef = await putObject(key, buf, outMime, { bucket: 'business-documents' });
+  let thumbRef = null;
+  if (kind === 'IMAGE' && THUMB_MIMES.has(mime)) {
+    const tbuf = await makeThumb(file.buffer);
+    if (tbuf) thumbRef = await putObject(key.replace(/\.[^.]+$/, '') + '-thumb.webp', tbuf, 'image/webp', { bucket: 'business-documents' });
+  }
   const title = String(file.originalname || 'Untitled').replace(/\.[^.]+$/, '').slice(0, 200) || 'Untitled';
   const row = await prisma.businessDocument.create({
-    data: { title, originalName: String(file.originalname || title).slice(0, 255), mime: outMime, sizeBytes: buf.length, storageRef, sha256, kind, uploadedById: req.user.id },
+    data: {
+      title, originalName: String(file.originalname || title).slice(0, 255), mime: outMime,
+      sizeBytes: buf.length, storageRef, sha256, kind, category: categoryFor(file.originalname, kind),
+      extractedText: extractText(kind, file.buffer), thumbRef, uploadedById: req.user.id,
+    },
   });
-  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, sizeBytes: row.sizeBytes } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes } });
   res.status(201).json({ document: row, deduped: false });
 }));
 
@@ -203,6 +276,7 @@ router.delete('/:id', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(a
   if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   await prisma.businessDocument.update({ where: { id }, data: { deletedAt: new Date() } });
   await deleteObjectByUrl(doc.storageRef); // best-effort — PII should not linger
+  if (doc.thumbRef) await deleteObjectByUrl(doc.thumbRef);
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_delete', entityType: 'business_document', entityId: id, details: { originalName: doc.originalName } });
   res.json({ id, deleted: true });
 }));

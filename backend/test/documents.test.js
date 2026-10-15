@@ -1,14 +1,17 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
+import sharp from 'sharp';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
 import { startServer, api } from './helpers.js';
 
-// Smart document upload centre (M1): private-bucket storage, sha256 dedup,
+// Smart document upload centre (M1+M2): private-bucket storage, sha256 dedup,
 // authed download, metadata edits, soft-delete that removes the bytes — plus
-// the two pre-existing upload bugs fixed in the same phase (procedure media
-// one-file-per-request works and soft-deleting a procedure cleans storage).
+// the two pre-existing upload bugs fixed in M1 (procedure media one-file-per-
+// request works and soft-deleting a procedure cleans storage). M2 adds
+// filename auto-categorisation, csv/md/txt text extraction + content search,
+// and 160px webp thumbnails for raster images.
 let srv;
 let adminToken;
 
@@ -25,8 +28,13 @@ async function uploadFile(content, name, type) {
 }
 
 async function purgeDocs() {
-  const stale = await prisma.businessDocument.findMany({ where: { originalName: { contains: 'm1test' } } });
-  for (const d of stale) await deleteObjectByUrl(d.storageRef).catch(() => {});
+  const stale = await prisma.businessDocument.findMany({ where: { OR: [
+    { originalName: { contains: 'm1test' } }, { originalName: { contains: UNIQUE } },
+  ] } });
+  for (const d of stale) {
+    await deleteObjectByUrl(d.storageRef).catch(() => {});
+    if (d.thumbRef) await deleteObjectByUrl(d.thumbRef).catch(() => {});
+  }
   if (stale.length) await prisma.businessDocument.deleteMany({ where: { id: { in: stale.map((d) => d.id) } } });
 }
 
@@ -55,7 +63,7 @@ after(async () => {
 });
 
 test('POST /api/documents stores a CSV in the private bucket', async () => {
-  const { status, body } = await uploadFile(CSV, `m1test-stocktake-${UNIQUE}.csv`, 'text/csv');
+  const { status, body } = await uploadFile(CSV, `m1test-basic-${UNIQUE}.csv`, 'text/csv');
   assert.equal(status, 201, JSON.stringify(body).slice(0, 300));
   assert.equal(body.deduped, false);
   const doc = body.document;
@@ -64,12 +72,12 @@ test('POST /api/documents stores a CSV in the private bucket', async () => {
   assert.equal(doc.kind, 'CSV');
   assert.equal(doc.category, 'OTHER');
   assert.match(doc.sha256, /^[0-9a-f]{64}$/);
-  assert.equal(doc.title, `m1test-stocktake-${UNIQUE}`);
+  assert.equal(doc.title, `m1test-basic-${UNIQUE}`);
   globalThis.__m1DocId = doc.id;
 });
 
 test('identical bytes are deduped — same row, no second object', async () => {
-  const { status, body } = await uploadFile(CSV, `m1test-stocktake-${UNIQUE}.csv`, 'text/csv');
+  const { status, body } = await uploadFile(CSV, `m1test-basic-${UNIQUE}.csv`, 'text/csv');
   assert.equal(status, 200, `dedup returns 200, got ${status}`);
   assert.equal(body.deduped, true);
   assert.equal(body.document.id, globalThis.__m1DocId, 'returns the existing row');
@@ -81,7 +89,7 @@ test('list requires auth and finds the doc via search + filters', async () => {
   const noAuth = await fetch(`${srv.base}/api/documents`);
   assert.equal(noAuth.status, 401);
 
-  const res = await api(srv.base, `/api/documents?q=m1test-stocktake&kind=CSV`, { headers: auth() });
+  const res = await api(srv.base, `/api/documents?q=m1test-basic&kind=CSV`, { headers: auth() });
   assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 200));
   assert.ok(res.body.documents.some((d) => d.id === globalThis.__m1DocId), 'search finds the upload');
   assert.equal(typeof res.body.total, 'number');
@@ -98,7 +106,7 @@ test('download requires auth and serves the exact bytes', async () => {
   const res = await fetch(`${srv.base}/api/documents/${globalThis.__m1DocId}/file`, { headers: auth() });
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-disposition') || '', /attachment/);
-  assert.match(res.headers.get('content-disposition') || '', /m1test-stocktake/);
+  assert.match(res.headers.get('content-disposition') || '', /m1test-basic/);
   assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(res.headers.get('cache-control'), 'private, no-store');
   assert.equal(await res.text(), CSV, 'round-trips the original CSV bytes');
@@ -141,7 +149,7 @@ test('DELETE soft-deletes and removes the stored bytes', async () => {
 
   assert.equal((await api(srv.base, `/api/documents/${globalThis.__m1DocId}`, { headers: auth() })).status, 404);
   assert.equal((await fetch(`${srv.base}/api/documents/${globalThis.__m1DocId}/file`, { headers: auth() })).status, 404);
-  const list = await api(srv.base, '/api/documents?q=m1test-stocktake', { headers: auth() });
+  const list = await api(srv.base, '/api/documents?q=m1test-basic', { headers: auth() });
   assert.ok(!list.body.documents.some((d) => d.id === globalThis.__m1DocId), 'gone from the list');
 
   if (doc.storageRef.startsWith('business-documents/')) {
@@ -174,4 +182,78 @@ test('procedure soft-delete now cleans media rows and storage objects', async ()
   if (url.startsWith('/uploads/')) {
     assert.equal(fs.existsSync(`uploads/${url.slice('/uploads/'.length)}`), false, 'media object removed from disk');
   }
+});
+
+// ── M2: auto-categorise, extraction + content search, thumbnails ────────────
+
+test('filename auto-categorises (stocktake keyword wins over generic csv)', async () => {
+  const { status, body } = await uploadFile(`sku,name,qty\nX-${UNIQUE},Widget,1\n`, `M1 Stocktake ${UNIQUE}.csv`, 'text/csv');
+  assert.equal(status, 201, JSON.stringify(body).slice(0, 200));
+  assert.equal(body.document.category, 'STOCKTAKE');
+});
+
+test('CSV text is extracted and q finds the doc by content', async () => {
+  const token = `zebra-${UNIQUE}`;
+  const csv = `sku,name,qty\nZL-1,Paper ${token},42\n`;
+  globalThis.__m2ExtractCsv = csv;
+  const { status, body } = await uploadFile(csv, `export-${UNIQUE}.csv`, 'text/csv');
+  assert.equal(status, 201, JSON.stringify(body).slice(0, 200));
+  const id = body.document.id;
+  globalThis.__m2ExtractId = id;
+  assert.equal(body.document.category, 'EXPORT', 'export keyword auto-categorised');
+
+  const det = await api(srv.base, `/api/documents/${id}`, { headers: auth() });
+  assert.ok(det.body.extractedText?.includes(token), 'extractedText populated');
+
+  const list = await api(srv.base, `/api/documents?q=${token}`, { headers: auth() });
+  assert.ok(list.body.documents.some((d) => d.id === id), 'content search hits');
+});
+
+test('markdown is extracted + auto-categorised; images get a webp thumbnail', async () => {
+  const mdToken = `owl-${UNIQUE}`;
+  const md = await uploadFile(`# Guide\n\nUnique phrase ${mdToken} here.\n`, `procedure-${UNIQUE}.md`, 'text/markdown');
+  assert.equal(md.status, 201, JSON.stringify(md.body).slice(0, 200));
+  assert.equal(md.body.document.kind, 'MARKDOWN');
+  assert.equal(md.body.document.category, 'PROCEDURE', 'procedure keyword auto-categorised');
+  assert.ok(md.body.document.extractedText?.includes(mdToken), 'markdown extracted');
+
+  const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: { r: 200, g: 40, b: 90 } } }).png().toBuffer();
+  const img = await uploadFile(png, `scan-${UNIQUE}.png`, 'image/png');
+  assert.equal(img.status, 201, JSON.stringify(img.body).slice(0, 200));
+  assert.equal(img.body.document.category, 'MEDIA', 'scan keyword → MEDIA');
+  assert.equal(img.body.document.kind, 'IMAGE');
+  assert.ok(img.body.document.thumbRef?.startsWith('business-documents/docs/'), `thumbRef, got ${img.body.document.thumbRef}`);
+  globalThis.__m2ImgId = img.body.document.id;
+
+  const thumb = await fetch(`${srv.base}/api/documents/${globalThis.__m2ImgId}/thumb`, { headers: auth() });
+  assert.equal(thumb.status, 200);
+  assert.equal(thumb.headers.get('content-type'), 'image/webp');
+  assert.equal(thumb.headers.get('x-content-type-options'), 'nosniff');
+  const bytes = Buffer.from(await thumb.arrayBuffer());
+  assert.ok(bytes.length > 12 && bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP', 'valid webp bytes');
+
+  const anon = await fetch(`${srv.base}/api/documents/${globalThis.__m2ImgId}/thumb`);
+  assert.equal(anon.status, 401, 'thumb requires auth');
+});
+
+test('non-image docs have no thumbnail — thumb endpoint 404s', async () => {
+  const res = await fetch(`${srv.base}/api/documents/${globalThis.__m2ExtractId}/thumb`, { headers: auth() });
+  assert.equal(res.status, 404);
+});
+
+test('dedup hit backfills extractedText for pre-M2 rows', async () => {
+  await prisma.businessDocument.update({ where: { id: globalThis.__m2ExtractId }, data: { extractedText: null } });
+  const { status, body } = await uploadFile(globalThis.__m2ExtractCsv, `export-${UNIQUE}.csv`, 'text/csv');
+  assert.equal(status, 200);
+  assert.equal(body.deduped, true);
+  assert.ok(body.document.extractedText?.includes(`zebra-${UNIQUE}`), 'extractedText backfilled on dedup');
+});
+
+test('deleting an image also removes its thumbnail bytes', async () => {
+  const doc = await prisma.businessDocument.findUnique({ where: { id: globalThis.__m2ImgId } });
+  assert.ok(doc?.thumbRef, 'image row has thumbRef');
+  const del = await api(srv.base, `/api/documents/${globalThis.__m2ImgId}`, { method: 'DELETE', headers: auth() });
+  assert.equal(del.status, 200);
+  const key = doc.thumbRef.slice('business-documents/'.length);
+  assert.equal(fs.existsSync(`uploads-private/${key}`), false, `thumb bytes removed from uploads-private/${key}`);
 });

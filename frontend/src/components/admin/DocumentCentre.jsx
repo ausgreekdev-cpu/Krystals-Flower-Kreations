@@ -14,6 +14,21 @@ const MAX_BYTES = 25 * 1024 * 1024;
 const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 const KIND_CHIP = 'text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-surface3 text-ink';
 
+// M2: rows with a thumbRef show the server-generated 160px webp preview
+// (fetched as a blob — the thumb route needs the Bearer header).
+function Thumb({ id, token, kind }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    let dead = false; let objUrl = '';
+    adminApi.documents.thumb(id, token)
+      .then((blob) => { if (dead) return; objUrl = URL.createObjectURL(blob); setUrl(objUrl); })
+      .catch(() => {});
+    return () => { dead = true; if (objUrl) URL.revokeObjectURL(objUrl); };
+  }, [id, token]);
+  if (!url) return <div className="w-10 h-10 rounded-lg bg-surface3 grid place-items-center text-[9px] font-bold text-muted shrink-0" aria-hidden>{kind.slice(0, 3)}</div>;
+  return <img src={url} alt="" className="w-10 h-10 rounded-lg object-cover border border-line shrink-0" />;
+}
+
 export default function DocumentCentre({ token, role }) {
   const toast = useToast();
   const [params, setParams] = useState({ q: '', kind: '', category: '', page: 1 });
@@ -109,13 +124,13 @@ export default function DocumentCentre({ token, role }) {
         <div className="text-sm text-ink font-semibold">Drop files here or{' '}
           <button type="button" onClick={() => fileRef.current?.click()} className="text-royal-700 underline font-bold">browse</button>
         </div>
-        <div className="text-[11px] text-muted mt-1">PDF, XLSX, CSV, images &amp; more — max 25MB each. Identical files are detected and reused.</div>
+        <div className="text-[11px] text-muted mt-1">PDF, XLSX, CSV, images &amp; more — max 25MB each. Identical files are detected and reused; category is guessed from the filename.</div>
         {busy && <div className="text-xs text-royal-700 font-semibold mt-2" role="status">{busy}</div>}
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1 min-w-[180px]"><label className={label} htmlFor="doc-q">Search</label>
-          <input id="doc-q" className={input} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title, file name or tag…" /></div>
+          <input id="doc-q" className={input} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title, file name, tag or contents…" /></div>
         <div><label className={label} htmlFor="doc-kind">Type</label>
           <select id="doc-kind" className={input} value={params.kind} onChange={(e) => setF({ kind: e.target.value })}>
             <option value="">All</option>
@@ -133,6 +148,9 @@ export default function DocumentCentre({ token, role }) {
       {rows?.length === 0 && <div className="text-xs text-muted py-10 text-center">No documents match — drop a file above to add the first one.</div>}
       {rows?.map((d) => (
         <div key={d.id} className="flex flex-wrap items-center gap-3 border border-line rounded-xl px-4 py-3">
+          {d.thumbRef
+            ? <Thumb id={d.id} token={token} kind={d.kind} />
+            : <div className="w-10 h-10 rounded-lg bg-surface3 grid place-items-center text-[9px] font-bold text-muted shrink-0" aria-hidden>{d.kind.slice(0, 3)}</div>}
           <div className="flex-1 min-w-[200px]">
             <div className="font-bold text-sm text-ink truncate">{d.title}</div>
             <div className="text-xs text-muted truncate">{d.originalName} • {fmtSize(d.sizeBytes)} • {new Date(d.createdAt).toLocaleDateString('en-AU')}</div>

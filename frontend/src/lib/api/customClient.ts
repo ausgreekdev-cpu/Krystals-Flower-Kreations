@@ -308,6 +308,15 @@ export const adminApi = {
       }
       return res.blob();
     },
+    // 160px webp preview (M2) — only rows with a thumbRef call this
+    thumb: async (id: string, token: string) => {
+      const res = await fetch(`${BASE}/api/documents/${id}/thumb`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(body.error || res.statusText);
+      }
+      return res.blob();
+    },
   },
   pos: {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),
