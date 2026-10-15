@@ -124,7 +124,7 @@ export default function DocumentCentre({ token, role }) {
         <div className="text-sm text-ink font-semibold">Drop files here or{' '}
           <button type="button" onClick={() => fileRef.current?.click()} className="text-royal-700 underline font-bold">browse</button>
         </div>
-        <div className="text-[11px] text-muted mt-1">PDF, XLSX, CSV, images &amp; more — max 25MB each. Identical files are detected and reused; category is guessed from the filename.</div>
+        <div className="text-[11px] text-muted mt-1">PDF, XLSX, CSV, images &amp; more — max 25MB each. Identical files are detected and reused; category is guessed from the filename; PDF &amp; spreadsheet text becomes searchable.</div>
         {busy && <div className="text-xs text-royal-700 font-semibold mt-2" role="status">{busy}</div>}
       </div>
 

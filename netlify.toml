@@ -26,6 +26,8 @@
     "nodemailer",
     "serverless-http",
     "sharp",
+    "unpdf",
+    "xlsx",
     "zod"
   ]
 

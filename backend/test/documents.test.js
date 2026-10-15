@@ -2,16 +2,18 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import sharp from 'sharp';
+import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
 import { startServer, api } from './helpers.js';
 
-// Smart document upload centre (M1+M2): private-bucket storage, sha256 dedup,
+// Smart document upload centre (M1–M3): private-bucket storage, sha256 dedup,
 // authed download, metadata edits, soft-delete that removes the bytes — plus
 // the two pre-existing upload bugs fixed in M1 (procedure media one-file-per-
 // request works and soft-deleting a procedure cleans storage). M2 adds
-// filename auto-categorisation, csv/md/txt text extraction + content search,
-// and 160px webp thumbnails for raster images.
+// filename auto-categorisation, text extraction + content search, and 160px
+// webp thumbnails. M3 extends extraction to PDF full-text (unpdf) and
+// XLSX/XLS rows (SheetJS).
 let srv;
 let adminToken;
 
@@ -25,6 +27,34 @@ async function uploadFile(content, name, type) {
   fd.append('file', new Blob([content], { type }), name);
   const res = await fetch(`${srv.base}/api/documents`, { method: 'POST', headers: auth(), body: fd });
   return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+// Minimal single-page PDF with a correct xref (pdf.js-repairable hand-rolled
+// PDFs are flaky; computing real offsets is deterministic). Latin-1 text only.
+function makePdf(text) {
+  const stream = `BT /F1 12 Tf 20 150 Td (${text}) Tj ET`;
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  objs.forEach((o, i) => { offsets.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) pdf += `${String(off).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+function makeXlsx(rows, sheetName = 'Stocktake') {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
 async function purgeDocs() {
@@ -256,4 +286,56 @@ test('deleting an image also removes its thumbnail bytes', async () => {
   assert.equal(del.status, 200);
   const key = doc.thumbRef.slice('business-documents/'.length);
   assert.equal(fs.existsSync(`uploads-private/${key}`), false, `thumb bytes removed from uploads-private/${key}`);
+});
+
+// ── M3: PDF full-text (unpdf) + XLSX rows (SheetJS) ─────────────────────────
+
+test('PDF full-text is extracted, auto-categorised and content-searchable', async () => {
+  const token = `pelican-${UNIQUE}`;
+  const pdf = makePdf(`Invoice body with ${token} and line items`);
+  const { status, body } = await uploadFile(pdf, `invoice-m3-${UNIQUE}.pdf`, 'application/pdf');
+  assert.equal(status, 201, JSON.stringify(body).slice(0, 200));
+  const id = body.document.id;
+  assert.equal(body.document.kind, 'PDF');
+  assert.equal(body.document.category, 'INVOICE', 'invoice keyword auto-categorised');
+  assert.ok(body.document.extractedText?.includes(token), `pdf text extracted, got: ${JSON.stringify(body.document.extractedText)?.slice(0, 120)}`);
+
+  const list = await api(srv.base, `/api/documents?q=${token}`, { headers: auth() });
+  assert.ok(list.body.documents.some((d) => d.id === id), 'content search hits the pdf');
+  globalThis.__m3PdfId = id;
+  globalThis.__m3PdfBytes = pdf;
+});
+
+test('PDF with no text layer uploads with extractedText null', async () => {
+  const { status, body } = await uploadFile(makePdf(''), `m3-empty-${UNIQUE}.pdf`, 'application/pdf');
+  assert.equal(status, 201, JSON.stringify(body).slice(0, 200));
+  assert.equal(body.document.extractedText, null, 'no text layer → null (M4 OCR territory)');
+});
+
+test('XLSX rows are extracted as csv-ish text and content-searchable', async () => {
+  const token = `kakapo-${UNIQUE}`;
+  const buf = makeXlsx([
+    ['sku', 'name', 'qty'],
+    ['PL-77', `Park Lane card ${token}`, 120],
+    ['RS-12', 'Rose sheet blush', 44],
+  ]);
+  const { status, body } = await uploadFile(buf, `stocktake-m3-${UNIQUE}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.equal(status, 201, JSON.stringify(body).slice(0, 200));
+  const id = body.document.id;
+  assert.equal(body.document.kind, 'SPREADSHEET');
+  assert.equal(body.document.category, 'STOCKTAKE', 'stocktake keyword auto-categorised');
+  assert.ok(body.document.extractedText?.includes(token), `cell text extracted, got: ${JSON.stringify(body.document.extractedText)?.slice(0, 160)}`);
+  assert.ok(body.document.extractedText?.includes('# Stocktake'), 'sheet name prefixed');
+
+  const list = await api(srv.base, `/api/documents?q=${token}`, { headers: auth() });
+  assert.ok(list.body.documents.some((d) => d.id === id), 'content search hits the xlsx');
+  globalThis.__m3XlsxId = id;
+});
+
+test('dedup hit backfills extractedText for a pre-M3 PDF row', async () => {
+  await prisma.businessDocument.update({ where: { id: globalThis.__m3PdfId }, data: { extractedText: null } });
+  const { status, body } = await uploadFile(globalThis.__m3PdfBytes, `invoice-m3-${UNIQUE}.pdf`, 'application/pdf');
+  assert.equal(status, 200);
+  assert.equal(body.deduped, true);
+  assert.ok(body.document.extractedText?.includes(`pelican-${UNIQUE}`), 'pdf text backfilled on dedup');
 });

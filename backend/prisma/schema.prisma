@@ -1188,7 +1188,7 @@ model BusinessDocument {
   kind         DocumentKind     @default(OTHER)
   category     DocumentCategory @default(OTHER)
   tags         String[]         @default([])
-  extractedText String?         @db.Text // searchable payload: csv/md/txt now; pdf/xlsx in M3
+  extractedText String?         @db.Text // searchable payload: csv/md/txt + pdf text + xlsx rows (≤256KB)
   thumbRef     String?          // private "bucket/key" webp preview for images (M2)
 
   // Plain strings (no @db.Uuid) — users/suppliers use cuid ids, procedures

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import sharp from 'sharp';
+import { extractText as pdfExtractText, getDocumentProxy } from 'unpdf';
+import * as XLSX from 'xlsx';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -106,12 +108,44 @@ function categoryFor(name, kind) {
   return 'OTHER';
 }
 
-// M2: searchable text for the cheap kinds. PDF/XLSX extraction lands in M3.
+// M2+M3: searchable text. CSV/MD/TXT are utf8 slices; PDF full-text via unpdf
+// (pdf.js, node≥20-safe pin — 1.8.x demands node 22); XLSX/XLS via SheetJS
+// (0.20.3 from cdn.sheetjs.com — npm's 0.18.5 has an unpatched prototype-
+// pollution CVE). Encrypted/corrupt PDFs and unreadable sheets → null (image-
+// only scans are M4 OCR territory). Everything clipped to EXTRACT_CAP.
 const EXTRACT_CAP = 256 * 1024; // 256KB of text per doc is plenty for search
-function extractText(kind, buffer) {
-  if (!['CSV', 'MARKDOWN', 'TEXT'].includes(kind) || !buffer.length) return null;
-  const text = buffer.subarray(0, EXTRACT_CAP).toString('utf8');
-  return text.trim() ? text : null;
+function clip(text) {
+  const t = String(text || '').trim();
+  return t ? t.slice(0, EXTRACT_CAP) : null;
+}
+async function extractPdfTextBuf(buffer) {
+  try {
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await pdfExtractText(pdf, { mergePages: true });
+    return clip(text);
+  } catch {
+    return null;
+  }
+}
+function extractSheetBuf(buffer) {
+  try {
+    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    const parts = [];
+    for (const name of wb.SheetNames.slice(0, 5)) {
+      const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+      if (csv.trim()) parts.push(`# ${name}\n${csv}`);
+    }
+    return clip(parts.join('\n'));
+  } catch {
+    return null;
+  }
+}
+async function extractText(kind, buffer) {
+  if (!buffer.length) return null;
+  if (['CSV', 'MARKDOWN', 'TEXT'].includes(kind)) return clip(buffer.subarray(0, EXTRACT_CAP).toString('utf8'));
+  if (kind === 'PDF') return extractPdfTextBuf(buffer);
+  if (kind === 'SPREADSHEET') return extractSheetBuf(buffer);
+  return null;
 }
 
 // M2: 160px webp preview for raster images (gif → first frame). SVG skipped.
@@ -212,7 +246,7 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   if (existing) {
     const patch = {};
     if (!existing.extractedText) {
-      const text = extractText(kind, file.buffer);
+      const text = await extractText(kind, file.buffer);
       if (text) patch.extractedText = text;
     }
     if (!existing.thumbRef && kind === 'IMAGE' && THUMB_MIMES.has(mime)) {
@@ -243,7 +277,7 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
     data: {
       title, originalName: String(file.originalname || title).slice(0, 255), mime: outMime,
       sizeBytes: buf.length, storageRef, sha256, kind, category: categoryFor(file.originalname, kind),
-      extractedText: extractText(kind, file.buffer), thumbRef, uploadedById: req.user.id,
+      extractedText: await extractText(kind, file.buffer), thumbRef, uploadedById: req.user.id,
     },
   });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes } });
