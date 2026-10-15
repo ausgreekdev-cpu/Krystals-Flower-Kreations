@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-export default defineConfig({
-  plugins: [react(), VitePWA({
+import { visualizer } from 'rollup-plugin-visualizer';
+
+// ANALYZE=1 npx vite build → stats.html bundle breakdown (gitignored)
+const plugins = [react(), VitePWA({
     registerType: 'autoUpdate',
     includeAssets: ['favicon.png','apple-touch-icon.png','og-cover.jpg','placeholder-bloom.svg','svg/*.svg'],
     manifest: {
@@ -29,7 +31,12 @@ export default defineConfig({
         { urlPattern: /notebooklm\.google\.com/i, handler: 'NetworkFirst', options: { cacheName: 'notebooklm', expiration: { maxEntries: 10, maxAgeSeconds: 60*60 } } }
       ]
     }
-  })],
+  })];
+
+if (process.env.ANALYZE) plugins.push(visualizer({ filename: 'stats.html', gzipSize: true, brotliSize: true }));
+
+export default defineConfig({
+  plugins,
   server: { proxy: { '/api': 'http://localhost:3001', '/uploads': 'http://localhost:3001' } },
   build: { outDir: 'dist', sourcemap: false, cssCodeSplit: true },
   preview: { port: 5173 },

@@ -4,6 +4,7 @@ import { fetchCart, cartItems, updateCartItem, clearCart, computeCartTotals, set
 import { cartApi } from '../lib/api/customClient';
 import { usePublicSettings } from '../lib/publicSettings';
 import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
+import ResponsiveImage from '../components/ResponsiveImage';
 import Btn from '../components/ui/Btn';
 import Alert from '../components/ui/Alert';
 import { Input } from '../components/ui/Field';
@@ -71,7 +72,7 @@ export default function Cart(){
       <div className="mt-6 space-y-3">
         {items.map(it=> (
           <div key={it.id} className="bg-surface2 p-4 rounded-2xl border flex gap-4 hover:shadow">
-            <img loading="lazy" src={it.product?.images?.[0]?.url || `/placeholder-bloom.svg`} alt={it.product?.title} width="80" height="80" className="w-20 h-20 rounded-xl object-cover" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} />
+            <ResponsiveImage image={it.product?.images?.[0]} alt={it.product?.title || ''} width="80" height="80" sizes="80px" className="w-20 h-20 rounded-xl object-cover" />
             <div className="flex-1">
               <div className="font-bold text-ink text-sm">{it.product?.title || it.title} {it.variant? `— ${it.variant.title}`:''}</div>
               <div className="text-sm text-muted">${Number(it.priceSnapshot).toFixed(2)} × {it.quantity} = <span className="font-bold">${ (Number(it.priceSnapshot)*it.quantity).toFixed(2) }</span></div>

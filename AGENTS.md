@@ -93,6 +93,10 @@ npm run build       # Vite build + PWA
 - `services/storage.js`: Supabase Storage (prod, bucket `product-images`) or local disk (dev). Requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (service_role key is server-side only — never expose to the frontend).
 - Browser downscales images before upload; one file per request (Netlify ~6 MB payload limit).
 - SVG/PDF rejected; images decoded by sharp then re-encoded to JPEG.
+- **Responsive product images (avif/webp variants)**: `POST /:id/images` stores an 800px-inside JPEG **master** plus 400/800w **webp + avif** siblings (`services/imageVariants.js` — `buildVariants`, avif `effort:2` so admin uploads stay fast) under keys `<base>-<w>.<ext>` next to `<base>.jpg`. Row gets `variants Json` = `{ avif: {"400": url, "800": url}, webp: {...} }` + populated `width`/`height` (CLS); sources narrower than 400w get `variants: null` (encode failure is non-fatal — master still ships). DELETE removes master **and** variant objects. The `product-images` bucket's `allowed_mime_types` now includes `image/avif`; `ensureBucket` best-effort **PATCHes** pre-existing buckets so prod accepts avif without a manual console change. Local `/uploads` static serving sets `.avif`/`.webp` content-types explicitly (Express's mime-db predates avif → `application/octet-stream`).
+- Frontend: `components/ResponsiveImage.jsx` renders `<picture>` (avif → webp → jpeg master) with `sizes` + lazy/eager + placeholder fallback; used by ProductCard, Product hero/thumbs, Cart, Post related, home tiles (Admin keeps plain `<img>`). Legacy rows without `variants` render a plain `<img>`.
+- Backfill pre-pipeline rows: `cd backend && node scripts/backfill-image-variants.mjs [--dry-run]` (skips unfetchable masters like seed placeholders; sets width/height only for <400w sources).
+- Bundle audit: `ANALYZE=1 npx vite build` (frontend) → `frontend/stats.html` (gitignored, rollup-plugin-visualizer).
 
 ## Digital goods (paid Cricut SVGs)
 

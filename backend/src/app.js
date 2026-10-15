@@ -103,7 +103,15 @@ const uploadDir = (() => {
 })();
 // Serverless filesystems (Netlify/Lambda) are read-only — never crash boot over this.
 try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'uploads dir not writable', dir: uploadDir, code: e.code })); }
-app.use('/uploads', express.static(uploadDir, { maxAge: '30d', etag: true }));
+app.use('/uploads', express.static(uploadDir, {
+  maxAge: '30d', etag: true,
+  // Express's bundled mime-db predates avif (serves application/octet-stream);
+  // set types explicitly so <picture> sources match their declared MIME.
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.avif')) res.setHeader('Content-Type', 'image/avif');
+    else if (filePath.endsWith('.webp')) res.setHeader('Content-Type', 'image/webp');
+  },
+}));
 
 // Health (no auth, no rate-limit beyond global) — probes the DB so monitors see real availability
 app.get('/api/health', asyncHandler(async (req, res) => {

@@ -33,8 +33,19 @@ async function cleanUploadRows() {
   // Storage keys embed the product id (products/<id>-<time>-<rand>.jpg) — the
   // seeded placeholder url doesn't, so this only ever matches rows this suite created.
   const rows = await prisma.productImage.findMany({ where: { productId: product?.id, url: { contains: `products/${product?.id}-` } } });
-  for (const row of rows) await deleteObjectByUrl(row.url).catch(() => {});
+  for (const row of rows) {
+    await deleteObjectByUrl(row.url).catch(() => {});
+    for (const m of Object.values(row.variants || {})) {
+      for (const u of Object.values(m || {})) await deleteObjectByUrl(u).catch(() => {});
+    }
+  }
   await prisma.productImage.deleteMany({ where: { id: { in: rows.map((r) => r.id) } } });
+}
+
+// GET an absolute-or-relative stored URL (local driver serves /uploads).
+async function headStored(url) {
+  const res = await fetch(`${srv.base}${url.startsWith('/') ? url : new URL(url).pathname}`).catch(() => null);
+  return res ? { status: res.status, type: res.headers.get('content-type') } : { status: 0, type: null };
 }
 
 before(async () => {
@@ -74,8 +85,31 @@ test('happy path: upload creates a row with sequential sortOrder', async () => {
   assert.equal(r.body.length, 1);
   assert.equal(r.body[0].sortOrder, expectedSort);
   assert.ok(r.body[0].url, 'stored url');
+  assert.equal(r.body[0].width, 4, 'dimensions recorded');
+  assert.equal(r.body[0].height, 4);
+  assert.equal(r.body[0].variants, null, 'source below 400w gets no variants');
   const after = await getProductImages();
   assert.equal(after.length, before.length + 1);
+});
+
+test('upload generates webp+avif variants at 400/800w with correct content types', async () => {
+  const big = await sharp({ create: { width: 900, height: 600, channels: 3, background: { r: 180, g: 60, b: 90 } } }).png().toBuffer();
+  const r = await uploadFiles(product.id, [{ name: `${ALT_PREFIX}var.png`, blob: new Blob([big], { type: 'image/png' }) }]);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const img = r.body[0];
+  assert.equal(img.width, 800, 'master capped at 800w');
+  assert.ok(Math.abs(img.height - 533) <= 1, `aspect preserved (got ${img.height})`);
+  for (const ext of ['webp', 'avif']) {
+    assert.ok(img.variants?.[ext]?.['400'], `${ext} 400w`);
+    assert.ok(img.variants?.[ext]?.['800'], `${ext} 800w`);
+    const v400 = await headStored(img.variants[ext]['400']);
+    assert.equal(v400.status, 200, `${ext} variant served`);
+    assert.match(v400.type || '', new RegExp(ext === 'avif' ? 'image/avif' : 'image/webp'), `${ext} content-type`);
+    // variants are siblings of the master key (products/<base>-<w>.<ext>)
+    assert.ok(img.variants[ext]['400'].startsWith(img.url.replace(/\.jpg$/, '-')), 'key derived from master');
+  }
+  const jpg = await headStored(img.url);
+  assert.equal(jpg.status, 200, 'master still served');
 });
 
 test('second upload continues the sequence (no sortOrder 0 ties)', async () => {
@@ -156,9 +190,15 @@ test('image cap: filling to 12 works, one more → 409 image_limit', async () =>
 
 test('DELETE removes the image', async () => {
   const rows = await getProductImages();
-  const target = rows.find((i) => i.alt?.startsWith(ALT_PREFIX));
-  assert.ok(target, 'an uploaded image to delete');
+  const target = rows.find((i) => i.alt?.startsWith(ALT_PREFIX) && i.variants);
+  assert.ok(target, 'an uploaded image with variants to delete');
+  const variantUrls = Object.values(target.variants).flatMap((m) => Object.values(m));
   const r = await api(srv.base, `/api/products/${product.id}/images/${target.id}`, { method: 'DELETE', headers: T(token) });
   assert.equal(r.status, 200);
   assert.equal((await getProductImages()).some((i) => i.id === target.id), false);
+  const master = await headStored(target.url);
+  assert.equal(master.status, 404, 'master removed');
+  for (const u of variantUrls) {
+    assert.equal((await headStored(u)).status, 404, `variant removed: ${u.split('/').pop()}`);
+  }
 });

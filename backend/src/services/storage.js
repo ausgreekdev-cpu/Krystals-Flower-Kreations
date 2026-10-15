@@ -61,17 +61,18 @@ function bucketSpec(bucket) {
       allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf', 'application/zip', 'model/stl', 'video/mp4', 'video/quicktime', 'text/csv', 'text/plain', 'text/markdown', 'application/json', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
     };
   }
-  return { id: bucket, name: bucket, public: true, file_size_limit: 5 * 1024 * 1024, allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'] };
+  return { id: bucket, name: bucket, public: true, file_size_limit: 5 * 1024 * 1024, allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'] };
 }
 
 const bucketMemos = new Map(); // bucket -> Promise<true>
 async function ensureBucket(cfg, bucket) {
   if (bucketMemos.has(bucket)) return bucketMemos.get(bucket);
   const p = (async () => {
+    const spec = bucketSpec(bucket);
     const res = await fetch(`${cfg.url}/storage/v1/bucket`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify(bucketSpec(bucket)),
+      body: JSON.stringify(spec),
     });
     if (!res.ok && res.status !== 409) {
       const text = await res.text().catch(() => '');
@@ -82,10 +83,11 @@ async function ensureBucket(cfg, bucket) {
         const probe = await fetch(`${cfg.url}/storage/v1/bucket/${bucket}`, {
           headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key },
         }).catch(() => null);
-        if (probe && probe.ok) return true;
+        if (probe && probe.ok) { await syncBucketSpec(cfg, spec); return true; }
         throw Object.assign(new Error(`Storage bucket setup failed (${res.status}): ${text.slice(0, 200)}`), { status: 503, code: 'storage_unavailable', expose: true });
       }
     }
+    if (!res.ok) await syncBucketSpec(cfg, spec); // pre-existing bucket — keep allowed_mime_types current (e.g. image/avif added for variants)
     return true;
   })();
   bucketMemos.set(bucket, p);
@@ -95,6 +97,17 @@ async function ensureBucket(cfg, bucket) {
     bucketMemos.delete(bucket); // allow retry on the next upload
     throw e;
   }
+}
+
+// Best-effort spec sync for buckets created before a mime/limit was added —
+// never throws (an older supabase build may reject the PATCH; uploads of the
+// new type will then fail loudly instead of silently corrupting state).
+async function syncBucketSpec(cfg, spec) {
+  await fetch(`${cfg.url}/storage/v1/bucket/${spec.id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${cfg.key}`, apikey: cfg.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(spec),
+  }).catch(() => {});
 }
 
 /**

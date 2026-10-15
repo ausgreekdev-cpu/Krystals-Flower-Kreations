@@ -6,6 +6,7 @@ import { updateSeo } from '../lib/seo';
 import { Page, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
 import Alert from '../components/ui/Alert';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { Input, Select, TextArea } from '../components/ui/Field';
 import ProductCard from '../components/ProductCard';
 
@@ -157,8 +158,8 @@ export default function Product(){
       <Breadcrumbs items={[{label:'Shop', to:'/shop'}, {label:p.title}]} />
       <div className="grid md:grid-cols-2 gap-8 items-start">
       <div className="space-y-3 md:sticky md:top-24 self-start">
-        <img loading="eager" decoding="async" src={imagesArr[0]?.url || `/placeholder-bloom.svg`} alt={p.title} width="800" height="800" className="rounded-2xl w-full border shadow-md" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} />
-        {imagesArr.length>1 && <div className="flex gap-2 overflow-auto">{imagesArr.slice(1,5).map(im=><img key={im.id} src={im.url} alt="" loading="lazy" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
+        <ResponsiveImage image={imagesArr[0]} alt={p.title} eager width="800" height="800" sizes="(min-width:768px) 50vw, 100vw" className="rounded-2xl w-full border shadow-md" />
+        {imagesArr.length>1 && <div className="flex gap-2 overflow-auto">{imagesArr.slice(1,5).map(im=><ResponsiveImage key={im.id} image={im} alt="" sizes="80px" className="w-20 h-20 rounded-xl object-cover border"/> )}</div>}
         <div className="flex flex-wrap gap-2 text-xs">
           <a href={`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`} target="_blank" rel="noreferrer" className={shareCls}>Share FB</a>
           <a href={`https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`} target="_blank" rel="noreferrer" className={shareCls}>Share X</a>

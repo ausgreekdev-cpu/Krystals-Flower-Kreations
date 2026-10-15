@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Page, Breadcrumbs } from '../components/ui/Page';
 import { CardSkeleton, ErrorState } from '../components/ui/State';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { renderMarkdown } from '../lib/markdown';
 import { usePublicSettings } from '../lib/publicSettings';
 import { updateSeo, restoreSeo } from '../lib/seo';
@@ -67,7 +68,7 @@ export default function Post(){
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {p.products.map(rp => rp.product && (
               <Link key={rp.product.id} to={`/product/${rp.product.slug}`} className="bg-surface2 border rounded-2xl p-3 hover:shadow hover:border-bloom-100 transition">
-                <img loading="lazy" src={rp.product.images?.[0]?.url || '/placeholder-bloom.svg'} alt={rp.product.title} className="w-full h-28 object-cover rounded-xl" onError={(e)=>{ e.currentTarget.src='/placeholder-bloom.svg'; }} />
+                <ResponsiveImage image={rp.product.images?.[0]} alt={rp.product.title} sizes="(min-width:640px) 33vw, 50vw" className="w-full h-28 object-cover rounded-xl" />
                 <div className="font-bold text-sm text-ink mt-2 line-clamp-2">{rp.product.title}</div>
                 <div className="text-highlight font-bold text-sm">${Number(rp.product.price).toFixed(2)}</div>
               </Link>

@@ -4,9 +4,10 @@ import { usePublicSettings } from './lib/publicSettings';
 import { currentStaffRole } from './lib/session';
 import Btn from './components/ui/Btn';
 import BloomMark from './components/ui/BloomMark';
+import ResponsiveImage from './components/ResponsiveImage';
+import { PLACEHOLDER_IMG } from './lib/assets';
 
 const FALLBACK_SHIPPING_NOTE = 'Metro $12, WA regional $18, national $22 — free over $150. Click & collect 6000.';
-const PLACEHOLDER_IMG = '/placeholder-bloom.svg';
 
 export default function App(){
   const s = usePublicSettings();
@@ -43,7 +44,7 @@ export default function App(){
   if (showWorkshops) heroCopy.push('hands-on workshops');
   const freeOver = Number(s.shipping_free_over) || 150;
 
-  const boxTiles = (featured.length ? featured.map((p) => ({ id: p.id, slug: p.slug, title: p.title, img: p.images?.[0]?.url || PLACEHOLDER_IMG })) : [
+  const boxTiles = (featured.length ? featured.map((p) => ({ id: p.id, slug: p.slug, title: p.title, image: p.images?.[0] })) : [
     { id: 'f1', title: 'Paper Roses', img: PLACEHOLDER_IMG },
     { id: 'f2', title: 'Banksia', img: PLACEHOLDER_IMG },
     { id: 'f3', title: 'Bloom Studio', img: PLACEHOLDER_IMG },
@@ -76,7 +77,7 @@ export default function App(){
               <div className="mt-4 grid grid-cols-3 gap-3">
                 {boxTiles.map((t) => (
                   <div key={t.id} className="bg-surface rounded-2xl overflow-hidden group">
-                    {t.slug ? <Link to={`/product/${t.slug}`} className="block"><img src={t.img} alt={t.title} loading="lazy" onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMG; }} className="w-full h-28 md:h-32 object-cover group-hover:scale-105 transition duration-300" /></Link>
+                    {t.slug ? <Link to={`/product/${t.slug}`} className="block"><ResponsiveImage image={t.image} alt={t.title} sizes="(min-width:768px) 25vw, 50vw" className="w-full h-28 md:h-32 object-cover group-hover:scale-105 transition duration-300" /></Link>
                       : <img src={t.img} alt={t.title} loading="lazy" onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMG; }} className="w-full h-28 md:h-32 object-cover" />}
                     <div className="p-2 text-center"><div className="text-[11px] font-bold text-ink truncate">{t.title}</div></div>
                   </div>

@@ -293,6 +293,9 @@ model ProductImage {
   sortOrder Int     @default(0)
   width     Int?
   height    Int?
+  // Responsive variants generated at upload: { avif: { "400": url, "800": url }, webp: {...} }
+  // null = legacy row or source smaller than the smallest variant width.
+  variants  Json?
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 

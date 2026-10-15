@@ -10,6 +10,7 @@ import { rateLimit } from '../middleware/rate-limit.js';
 import sharp from 'sharp';
 import crypto from 'crypto';
 import { putObject, deleteObjectByUrl } from '../services/storage.js';
+import { buildVariants, masterDimensions } from '../services/imageVariants.js';
 import { audit } from '../lib/audit.js';
 import { registerFieldRoutes, validateCustomFields } from '../lib/fieldDefs.js';
 const requireAuth = authenticate;
@@ -176,13 +177,37 @@ router.post('/:id/images', requireAuth, requireRole('admin','developer','maker',
   let seq = (agg._max.sortOrder ?? -1) + 1;
   const created = [];
   for (const { file, buf: resized } of processed) {
-    const key = `products/${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.jpg`;
-    const url = await putObject(key, resized, 'image/jpeg');
+    // Master JPEG (old-browser fallback) + responsive webp/avif variants.
+    const base = `products/${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+    let built = [];
+    try {
+      built = await buildVariants(resized);
+    } catch (e) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'image variant encode failed', err: e?.message })); // master still ships
+    }
+    const uploads = [
+      { key: `${base}.jpg`, buf: resized, contentType: 'image/jpeg' },
+      ...built.map((v) => ({ key: `${base}-${v.width}.${v.ext}`, buf: v.buf, contentType: v.contentType })),
+    ];
+    const urls = [];
+    try {
+      for (const u of uploads) urls.push(await putObject(u.key, u.buf, u.contentType));
+    } catch (e) {
+      await Promise.all(urls.map((u) => deleteObjectByUrl(u).catch(() => {})));
+      throw e;
+    }
+    const [masterUrl, ...variantUrls] = urls;
+    let variants = null;
+    if (built.length) {
+      variants = {};
+      built.forEach((v, i) => { variants[v.ext] = { ...(variants[v.ext] || {}), [String(v.width)]: variantUrls[i] }; });
+    }
+    const { width, height } = await masterDimensions(resized).catch(() => ({ width: null, height: null }));
     let img;
     try {
-      img = await prisma.productImage.create({ data: { productId, url, alt: file.originalname.slice(0,200), sortOrder: seq } });
+      img = await prisma.productImage.create({ data: { productId, url: masterUrl, alt: file.originalname.slice(0, 200), sortOrder: seq, width, height, variants } });
     } catch (e) {
-      await deleteObjectByUrl(url); // don't leak the object if the row write failed
+      await Promise.all(urls.map((u) => deleteObjectByUrl(u).catch(() => {}))); // don't leak objects if the row write failed
       throw e;
     }
     created.push(img);
@@ -221,6 +246,11 @@ router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','d
   if (image.productId !== req.params.productId) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   await prisma.productImage.delete({ where: { id: image.id } });
   await deleteObjectByUrl(image.url);
+  // Responsive variants share the master's key prefix — remove them too.
+  const variantUrls = image.variants && typeof image.variants === 'object'
+    ? Object.values(image.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean)
+    : [];
+  await Promise.all(variantUrls.map((u) => deleteObjectByUrl(u).catch(() => {})));
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_image_delete', entityType: 'product', entityId: req.params.productId, details: { imageId: image.id } });
   res.json({ ok: true });
 }));
