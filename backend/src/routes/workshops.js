@@ -6,6 +6,7 @@ import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { sendWorkshopConfirmation } from '../services/email.js';
 import { getSettings } from '../lib/settingsSchema.js';
+import { publicCache, noStore } from '../lib/http-cache.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -19,6 +20,7 @@ router.get('/', asyncHandler(async (req, res) => {
     if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   }
   const workshops = await prisma.workshop.findMany({ where: all ? {} : { isActive: true }, include: { sessions: { orderBy: { startsAt: 'asc' } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+  if (all) noStore(res); else publicCache(res);
   res.json(workshops);
 }));
 
@@ -27,6 +29,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
   const w = await prisma.workshop.findUnique({ where: { slug }, include: { sessions: { orderBy: { startsAt: 'asc' } } } });
   if (!w) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  publicCache(res);
   res.json(w);
 }));
 

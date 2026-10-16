@@ -13,6 +13,7 @@ import { putObject, deleteObjectByUrl } from '../services/storage.js';
 import { buildVariants, masterDimensions } from '../services/imageVariants.js';
 import { hardenSvg } from '../services/svgSafe.js';
 import { publicProduct, publicProducts } from '../lib/publicProduct.js';
+import { publicCache, noStore } from '../lib/http-cache.js';
 import { audit } from '../lib/audit.js';
 import { registerFieldRoutes, validateCustomFields } from '../lib/fieldDefs.js';
 const requireAuth = authenticate;
@@ -80,6 +81,7 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
     include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, collections: { include: { collection: true } } },
   });
   // Staff view keeps internal fields (svgUrl, cost); public responses strip them.
+  if (staffView) noStore(res); else publicCache(res);
   res.json({ products: staffView ? products : publicProducts(products), nextCursor: products.length === take ? products[products.length - 1].id : null });
 }));
 
@@ -91,17 +93,22 @@ registerFieldRoutes(router, { entityType: 'product', roles: ['admin', 'developer
 router.get('/:slug', optionalAuth, asyncHandler(async (req, res) => {
   const slug = String(req.params.slug).slice(0,200);
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
-  const product = await prisma.product.findUnique({
-    where: { slug, deletedAt: null },
-    include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
-  });
+  // Product fetch ∥ default inventory location (isDefault first, any location
+  // as fallback) — one round trip less than the old sequential findFirst chain.
+  const [product, loc] = await Promise.all([
+    prisma.product.findUnique({
+      where: { slug, deletedAt: null },
+      include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
+    }),
+    prisma.inventoryLocation.findFirst({ orderBy: { isDefault: 'desc' } }),
+  ]);
   if (!product) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   // Staff (any role) see internal fields (svgUrl, cost); public responses strip them.
   const staffView = !!req.user && ['admin','developer','maker','staff'].includes(req.user.role);
+  if (staffView) noStore(res); else publicCache(res);
   // Tracked products without variants hold stock in the default-location
   // InventoryLevel — expose it so the storefront can show/enable Add to Cart.
   if (product.stockMode === 'tracked' && product.variants.length === 0) {
-    const loc = await prisma.inventoryLocation.findFirst({ where: { isDefault: true } }) || await prisma.inventoryLocation.findFirst();
     const level = loc ? await prisma.inventoryLevel.findFirst({ where: { productId: product.id, variantId: null, locationId: loc.id } }) : null;
     const payload = { ...product, availableQty: level ? level.onHand : 0 };
     return res.json(staffView ? payload : publicProduct(payload));

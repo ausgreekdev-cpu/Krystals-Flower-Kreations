@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { publicCache } from '../lib/http-cache.js';
 import prisma from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
@@ -11,6 +12,7 @@ const router = Router();
 // Public-safe subset of settings (no secrets) for the storefront.
 // Filter + defaults derive from settingsSchema.js so it can never drift.
 router.get('/', asyncHandler(async (req, res) => {
+  publicCache(res);
   res.json(await getSettings({ onlyPublic: true }));
 }));
 

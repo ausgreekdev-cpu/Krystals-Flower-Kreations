@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { publicNestedProducts } from '../lib/publicProduct.js';
+import { publicCache, noStore } from '../lib/http-cache.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -22,6 +23,7 @@ router.get('/', asyncHandler(async (req, res) => {
     if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   }
   const cols = await prisma.collection.findMany({ where: all ? { deletedAt: null } : { isActive: true, deletedAt: null }, orderBy: { sortOrder: 'asc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
+  if (all) noStore(res); else publicCache(res);
   res.json(all ? cols : cols.map(publicCollection));
 }));
 
@@ -31,6 +33,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
   const col = await prisma.collection.findUnique({ where: { slug, deletedAt: null }, include: { products: { include: { product: { include: { images: true } } } } } });
   if (!col || !col.isActive) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  publicCache(res);
   res.json(publicCollection(col));
 }));
 

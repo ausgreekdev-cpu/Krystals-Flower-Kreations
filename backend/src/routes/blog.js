@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { publicNestedProducts } from '../lib/publicProduct.js';
+import { publicCache } from '../lib/http-cache.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -32,6 +33,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (q) where.OR = [{ title: { contains: q, mode: 'insensitive' } }, { excerpt: { contains: q, mode: 'insensitive' } }];
   if (tag) where.tags = { contains: tag, mode: 'insensitive' };
   const posts = await prisma.post.findMany({ where, orderBy: { publishedAt: 'desc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
+  publicCache(res);
   res.json(posts.map(publicPost));
 }));
 
@@ -42,6 +44,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   if (!post) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   // bump view async (don't block)
   prisma.post.update({ where: { id: post.id }, data: { viewCount: { increment: 1 } } }).catch(()=>{});
+  publicCache(res);
   res.json(publicPost(post));
 }));
 

@@ -21,7 +21,7 @@ export async function api(base, path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
   const body = await res.json().catch(() => null);
-  return { status: res.status, body };
+  return { status: res.status, body, headers: res.headers };
 }
 
 // Workshop bookings created by tests used to accumulate forever: bookedCount

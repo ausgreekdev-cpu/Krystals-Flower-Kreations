@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { publicNestedProducts } from '../lib/publicProduct.js';
+import { noStore } from '../lib/http-cache.js';
 
 const router = Router();
 
@@ -43,6 +44,7 @@ function stockError(available, requested) {
 
 router.get('/', asyncHandler(async (req, res) => {
   const cartId = getCartId(req);
+  noStore(res);
   if (!cartId) return res.json({ cart: null, items: [] });
   const cart = await prisma.cart.findUnique({ where: { id: cartId }, include: { items: { include: { product: { include: { images: true } }, variant: true } } } });
   res.json(publicCart(cart) || { cart: null, items: [] });

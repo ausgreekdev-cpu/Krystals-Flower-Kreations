@@ -162,3 +162,53 @@
 [[edge_functions]]
   path = "/loyalty"
   function = "meta"
+
+# ── Public-API edge cache (netlify/edge-functions/apiCache.ts) ──
+# Caches anonymous GET responses at the CDN (60s + SWR) — the function↔DB
+# latency (US functions, Sydney DB) makes uncached reads 2-7s. Authed/cookie
+# requests and non-GETs bypass; cart/checkout/auth/orders are not registered.
+# cache = "manual" opts in; the handler adds Netlify-CDN-Cache-Control.
+[[edge_functions]]
+  path = "/api/products"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/products/*"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/posts"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/posts/*"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/collections"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/collections/*"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/workshops"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/workshops/*"
+  function = "apiCache"
+  cache = "manual"
+
+[[edge_functions]]
+  path = "/api/settings"
+  function = "apiCache"
+  cache = "manual"
