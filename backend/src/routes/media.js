@@ -68,6 +68,46 @@ async function prepareMaster(mime, buffer) {
 
 const EXT_FOR = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
 
+// Move an asset's bytes between buckets (library ⇄ staff archive) and rebuild
+// variants/thumb for the destination. Used by the single PATCH and bulk ops.
+async function moveAssetVisibility(asset, visibility) {
+  const bytes = await getObject(asset.storageRef);
+  const bucket = bucketFor(visibility);
+  const ext = EXT_FOR[asset.mime] || 'bin';
+  const base = `${keyPrefixFor(visibility)}/${asset.id}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+  const returned = await putObject(`${base}.${ext}`, bytes, asset.mime, { bucket });
+  let variants = null;
+  let thumbRef = null;
+  if (visibility === 'LIBRARY') {
+    try {
+      const built = await buildVariants(bytes);
+      const vals = [];
+      for (const v of built) vals.push(await putObject(`${base}-${v.width}.${v.ext}`, v.buf, v.contentType, { bucket }));
+      if (built.length) {
+        variants = {};
+        built.forEach((v, i) => { variants[v.ext] = { ...(variants[v.ext] || {}), [String(v.width)]: vals[i] }; });
+      }
+    } catch { /* variants best-effort */ }
+  } else {
+    const tbuf = await makeThumb(bytes);
+    if (tbuf) {
+      await putObject(`${base}-thumb.webp`, tbuf, 'image/webp', { bucket });
+      thumbRef = `${bucket}/${base}-thumb.webp`;
+    }
+  }
+  await deleteObjectByUrl(asset.storageRef).catch(() => {});
+  if (asset.variants && typeof asset.variants === 'object') {
+    const old = Object.values(asset.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean);
+    await Promise.all(old.map((u) => deleteObjectByUrl(String(u)).catch(() => {})));
+  }
+  if (asset.thumbRef) await deleteObjectByUrl(asset.thumbRef).catch(() => {});
+  return prisma.mediaAsset.update({
+    where: { id: asset.id },
+    data: { visibility, storageRef: `${bucket}/${base}.${ext}`, publicUrl: visibility === 'LIBRARY' ? returned : null, variants, thumbRef },
+    select: META_SELECT,
+  });
+}
+
 // ── Folders (Editor+) ──────────────────────────────────────────────────────
 const folderCreate = z.object({ name: z.string().trim().min(1).max(80), parentId: z.string().uuid().nullable().optional() });
 const folderPatch = z.object({ name: z.string().trim().min(1).max(80).optional(), parentId: z.string().uuid().nullable().optional() });
@@ -314,6 +354,94 @@ router.delete('/attachments/:id', authenticate, requireRole(...EDITOR_ROLES), as
   res.json({ ok: true });
 }));
 
+// ── Bulk operations (Editor+): tag/move/visibility/trash/restore/purge ─────
+const bulkIds = z.array(z.string().uuid()).min(1).max(100);
+const bulkUpdate = z.object({
+  ids: bulkIds,
+  patch: z.object({
+    tagsAdd: z.array(z.string().trim().min(1).max(32)).max(10).optional(),
+    tagsRemove: z.array(z.string().trim().min(1).max(32)).max(10).optional(),
+    folderId: z.string().uuid().nullable().optional(),
+    visibility: z.enum(['LIBRARY', 'STAFF']).optional(),
+  }),
+});
+
+router.post('/bulk/update', authenticate, requireRole(...EDITOR_ROLES), validate(bulkUpdate), asyncHandler(async (req, res) => {
+  const { ids, patch } = req.validated;
+  const rows = await prisma.mediaAsset.findMany({ where: { id: { in: ids } }, select: { id: true, visibility: true, tags: true } });
+  const found = new Set(rows.map((r) => r.id));
+  const missing = ids.filter((i) => !found.has(i));
+
+  if (patch.folderId) {
+    const folder = await prisma.mediaFolder.findUnique({ where: { id: patch.folderId } });
+    if (!folder) return res.status(404).json({ error: 'Folder not found', code: 'not_found' });
+  }
+  // Promotion to the public library is admin-only — fail loud rather than
+  // silently promoting some of the selection.
+  if (patch.visibility === 'LIBRARY' && rows.some((r) => r.visibility === 'STAFF') && !ADMIN_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Promoting staff assets to the public library requires admin', code: 'forbidden' });
+  }
+
+  // Visibility changes move bytes per asset — reuse the shared helper
+  // (bulk selections are ≤100, sequential keeps bucket traffic predictable).
+  if (patch.visibility) {
+    for (const row of rows) {
+      if (row.visibility === patch.visibility) continue;
+      const asset = await prisma.mediaAsset.findUnique({ where: { id: row.id } });
+      await moveAssetVisibility(asset, patch.visibility);
+    }
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_bulk_visibility', entityType: 'media_asset', entityId: 'bulk', details: { ids, to: patch.visibility } });
+  }
+
+  for (const row of rows) {
+    const data = {};
+    if (patch.folderId !== undefined) data.folderId = patch.folderId;
+    if (patch.tagsAdd?.length || patch.tagsRemove?.length) {
+      const next = new Set(row.tags || []);
+      for (const t of patch.tagsAdd || []) next.add(t);
+      for (const t of patch.tagsRemove || []) next.delete(t);
+      data.tags = [...next].slice(0, 10);
+    }
+    if (Object.keys(data).length) await prisma.mediaAsset.update({ where: { id: row.id }, data });
+  }
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_bulk_update', entityType: 'media_asset', entityId: 'bulk', details: { ids, patch: { ...patch, visibility: undefined } } });
+  res.json({ updated: rows.length, missing });
+}));
+
+router.post('/bulk/delete', authenticate, requireRole(...EDITOR_ROLES), validate(z.object({ ids: bulkIds })), asyncHandler(async (req, res) => {
+  const { ids } = req.validated;
+  const { count } = await prisma.mediaAsset.updateMany({ where: { id: { in: ids }, deletedAt: null }, data: { deletedAt: new Date() } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_bulk_soft_delete', entityType: 'media_asset', entityId: 'bulk', details: { ids } });
+  res.json({ trashed: count });
+}));
+
+router.post('/bulk/restore', authenticate, requireRole(...EDITOR_ROLES), validate(z.object({ ids: bulkIds })), asyncHandler(async (req, res) => {
+  const { ids } = req.validated;
+  const { count } = await prisma.mediaAsset.updateMany({ where: { id: { in: ids }, deletedAt: { not: null } }, data: { deletedAt: null } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_bulk_restore', entityType: 'media_asset', entityId: 'bulk', details: { ids } });
+  res.json({ restored: count });
+}));
+
+router.post('/bulk/purge', authenticate, requireRole(...ADMIN_ROLES), validate(z.object({ ids: bulkIds })), asyncHandler(async (req, res) => {
+  const { ids } = req.validated;
+  const rows = await prisma.mediaAsset.findMany({ where: { id: { in: ids } }, include: { attachments: true } });
+  const purged = [];
+  const skipped = [];
+  for (const asset of rows) {
+    if (asset.attachments.length) { skipped.push({ id: asset.id, reason: 'attached' }); continue; }
+    await deleteObjectByUrl(asset.storageRef).catch(() => {});
+    if (asset.variants && typeof asset.variants === 'object') {
+      const urls = Object.values(asset.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean);
+      await Promise.all(urls.map((u) => deleteObjectByUrl(String(u)).catch(() => {})));
+    }
+    if (asset.thumbRef) await deleteObjectByUrl(asset.thumbRef).catch(() => {});
+    await prisma.mediaAsset.delete({ where: { id: asset.id } });
+    purged.push(asset.id);
+  }
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_bulk_purge', entityType: 'media_asset', entityId: 'bulk', details: { purged: purged.length, skipped: skipped.length } });
+  res.json({ purged, skipped });
+}));
+
 // ── Read one / bytes / thumb (Editor+) ─────────────────────────────────────
 router.get('/:id', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0, 100);
@@ -387,43 +515,10 @@ router.patch('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(patchS
     if (data.visibility === 'LIBRARY' && !ADMIN_ROLES.includes(req.user.role)) {
       return res.status(403).json({ error: 'Promoting an asset to the public library requires admin', code: 'forbidden' });
     }
-    const bytes = await getObject(asset.storageRef);
-    const bucket = bucketFor(data.visibility);
-    const ext = EXT_FOR[asset.mime] || 'bin';
-    const base = `${keyPrefixFor(data.visibility)}/${id}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
-    const returned = await putObject(`${base}.${ext}`, bytes, asset.mime, { bucket });
-    let variants = null;
-    let thumbRef = null;
-    if (data.visibility === 'LIBRARY') {
-      try {
-        const built = await buildVariants(bytes);
-        const vals = [];
-        for (const v of built) vals.push(await putObject(`${base}-${v.width}.${v.ext}`, v.buf, v.contentType, { bucket }));
-        if (built.length) {
-          variants = {};
-          built.forEach((v, i) => { variants[v.ext] = { ...(variants[v.ext] || {}), [String(v.width)]: vals[i] }; });
-        }
-      } catch { /* variants best-effort */ }
-    } else {
-      const tbuf = await makeThumb(bytes);
-      if (tbuf) {
-        await putObject(`${base}-thumb.webp`, tbuf, 'image/webp', { bucket });
-        thumbRef = `${bucket}/${base}-thumb.webp`;
-      }
-    }
-    // Remove the old bytes (master + variants + thumb) after the copy landed.
-    await deleteObjectByUrl(asset.storageRef).catch(() => {});
-    if (asset.variants && typeof asset.variants === 'object') {
-      const old = Object.values(asset.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean);
-      await Promise.all(old.map((u) => deleteObjectByUrl(String(u)).catch(() => {})));
-    }
-    if (asset.thumbRef) await deleteObjectByUrl(asset.thumbRef).catch(() => {});
-    Object.assign(data, {
-      storageRef: `${bucket}/${base}.${ext}`,
-      publicUrl: data.visibility === 'LIBRARY' ? returned : null,
-      variants, thumbRef,
-    });
-    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_visibility_change', entityType: 'media_asset', entityId: id, details: { from: asset.visibility, to: data.visibility } });
+    const moved = await moveAssetVisibility(asset, data.visibility);
+    delete data.visibility; // applied inside moveAssetVisibility
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_visibility_change', entityType: 'media_asset', entityId: id, details: { from: asset.visibility, to: moved.visibility } });
+    if (Object.keys(data).length === 0) return res.json(moved);
   }
 
   const updated = await prisma.mediaAsset.update({ where: { id }, data, select: META_SELECT });

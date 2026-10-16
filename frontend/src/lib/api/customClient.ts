@@ -348,6 +348,10 @@ export const adminApi = {
     attachments: (token: string, attachableType: string, attachableId: string) =>
       req<any[]>(`/api/media/attachments?attachableType=${encodeURIComponent(attachableType)}&attachableId=${encodeURIComponent(attachableId)}`, { token }),
     detach: (id: string, token: string) => req<any>(`/api/media/attachments/${id}`, { method: 'DELETE', token }),
+    bulkUpdate: (token: string, body: any) => req<any>('/api/media/bulk/update', { method: 'POST', body: JSON.stringify(body), token }),
+    bulkDelete: (token: string, ids: string[]) => req<any>('/api/media/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }), token }),
+    bulkRestore: (token: string, ids: string[]) => req<any>('/api/media/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }), token }),
+    bulkPurge: (token: string, ids: string[]) => req<any>('/api/media/bulk/purge', { method: 'POST', body: JSON.stringify({ ids }), token }),
     // Auth'd blob fetch (img src can't carry the Bearer token)
     blob: async (id: string, token: string, kind: 'thumb' | 'file' = 'thumb') => {
       const res = await fetch(`${BASE}/api/media/${id}/${kind}`, { headers: { Authorization: `Bearer ${token}` } });

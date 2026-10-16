@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../../../lib/api/customClient';
 import { useToast } from '../Toast';
+import BulkBar from './BulkBar';
 import FolderSidebar from './FolderSidebar';
 import MediaCard from './MediaCard';
 import MediaDrawer from './MediaDrawer';
@@ -52,6 +53,25 @@ export default function MediaLibrary({ token, role }) {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+
+  const bulkAction = async (action, value) => {
+    const ids = [...selected];
+    try {
+      if (action === 'tagAdd') await adminApi.media.bulkUpdate(token, { ids, patch: { tagsAdd: value } });
+      else if (action === 'tagRemove') await adminApi.media.bulkUpdate(token, { ids, patch: { tagsRemove: value } });
+      else if (action === 'move') await adminApi.media.bulkUpdate(token, { ids, patch: { folderId: value === '__root' ? null : value } });
+      else if (action === 'visibility') await adminApi.media.bulkUpdate(token, { ids, patch: { visibility: value } });
+      else if (action === 'trash') await adminApi.media.bulkDelete(token, ids);
+      else if (action === 'restore') await adminApi.media.bulkRestore(token, ids);
+      else if (action === 'purge') {
+        const r = await adminApi.media.bulkPurge(token, ids);
+        if (r.skipped?.length) toast(`${r.skipped.length} skipped — still attached to content`, 'error');
+      }
+      toast('Bulk action applied');
+      setSelected(new Set());
+      refresh();
+    } catch (e) { toast(e.message, 'error'); }
+  };
 
   const refresh = () => { setParams((p) => ({ ...p })); loadFolders(); };
 
@@ -105,6 +125,15 @@ export default function MediaLibrary({ token, role }) {
           )}
 
           {assets && assets.length > 0 && (
+            <label className="flex items-center gap-2 text-xs text-muted">
+              <input type="checkbox" className="h-4 w-4 rounded border-line-strong"
+                checked={selected.size === assets.length && assets.length > 0}
+                onChange={(e) => setSelected(e.target.checked ? new Set(assets.map((a) => a.id)) : new Set())}
+                aria-label="Select all on this page" />
+              Select all on this page
+            </label>
+          )}
+          {assets && assets.length > 0 && (
             <div className="flex items-center justify-between text-xs text-muted pt-1">
               <span>{total} asset{total === 1 ? '' : 's'}{params.trashed ? ' in trash' : ''}</span>
               <div className="flex items-center gap-2">
@@ -120,6 +149,11 @@ export default function MediaLibrary({ token, role }) {
           )}
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <BulkBar count={selected.size} trashed={params.trashed} folders={folders} role={role}
+          onAction={bulkAction} onClear={() => setSelected(new Set())} />
+      )}
 
       {lightbox >= 0 && assets?.[lightbox] && (
         <MediaLightbox assets={assets} index={lightbox} token={token}

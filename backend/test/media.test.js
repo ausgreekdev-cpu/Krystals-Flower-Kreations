@@ -290,3 +290,79 @@ test('post delete clears leftover cover attachments', async () => {
   const purged = await api(srv.base, `/api/media/${up.body.asset.id}/purge`, { method: 'DELETE', headers: auth(adminToken) });
   assert.equal(purged.status, 200, 'cover attachment cleared with the post');
 });
+
+// ── Phase C: bulk operations ───────────────────────────────────────────────
+
+test('bulk update: tag add/remove + folder move', async () => {
+  const a = await upload(adminToken, { title: 'Media T BulkA', tags: 'keep' });
+  const b = await upload(adminToken, { title: 'Media T BulkB' });
+  const folder = await api(srv.base, '/api/media/folders', {
+    method: 'POST', headers: auth(adminToken), body: JSON.stringify({ name: 'Media T BulkFolder' }),
+  });
+  const ids = [a.body.asset.id, b.body.asset.id];
+
+  const tagged = await api(srv.base, '/api/media/bulk/update', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ ids, patch: { tagsAdd: ['bulk'], tagsRemove: ['keep'], folderId: folder.body.id } }),
+  });
+  assert.equal(tagged.status, 200, JSON.stringify(tagged.body).slice(0, 200));
+  assert.equal(tagged.body.updated, 2);
+
+  const check = await api(srv.base, `/api/media/${b.body.asset.id}`, { headers: auth(adminToken) });
+  assert.deepEqual(check.body.tags, ['bulk']);
+  assert.equal(check.body.folderId, folder.body.id);
+  const checkA = await api(srv.base, `/api/media/${a.body.asset.id}`, { headers: auth(adminToken) });
+  assert.deepEqual(checkA.body.tags, ['bulk'], 'keep removed, bulk added');
+});
+
+test('bulk trash → restore, and bulk purge skips attached assets', async () => {
+  const products = await api(srv.base, '/api/products?limit=5');
+  const product = products.body.products.find((p) => p.slug === 'eucalyptus-paper-rose-bouquet-blush');
+  const a = await upload(adminToken, { title: 'Media T BulkTrash' });
+  const b = await upload(adminToken, { title: 'Media T BulkPurge' });
+
+  // attach one — bulk purge must skip it
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: a.body.asset.id, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' }),
+  });
+  assert.equal(att.status, 201);
+
+  const trashed = await api(srv.base, '/api/media/bulk/delete', {
+    method: 'POST', headers: auth(adminToken), body: JSON.stringify({ ids: [a.body.asset.id, b.body.asset.id] }),
+  });
+  assert.equal(trashed.body.trashed, 2);
+  const restored = await api(srv.base, '/api/media/bulk/restore', {
+    method: 'POST', headers: auth(adminToken), body: JSON.stringify({ ids: [a.body.asset.id, b.body.asset.id] }),
+  });
+  assert.equal(restored.body.restored, 2);
+
+  const purged = await api(srv.base, '/api/media/bulk/purge', {
+    method: 'POST', headers: auth(adminToken), body: JSON.stringify({ ids: [a.body.asset.id, b.body.asset.id] }),
+  });
+  assert.equal(purged.status, 200, JSON.stringify(purged.body).slice(0, 200));
+  assert.deepEqual(purged.body.purged, [b.body.asset.id], 'attached asset skipped');
+  assert.deepEqual(purged.body.skipped, [{ id: a.body.asset.id, reason: 'attached' }]);
+
+  // cleanup: detach then purge the survivor
+  await api(srv.base, `/api/media/attachments/${att.body.attachment.id}`, { method: 'DELETE', headers: auth(adminToken) });
+  await api(srv.base, `/api/media/${a.body.asset.id}/purge`, { method: 'DELETE', headers: auth(adminToken) });
+});
+
+test('bulk visibility promotion is admin-only', async () => {
+  const up = await upload(adminToken, { title: 'Media T BulkPromo', visibility: 'STAFF' });
+  const forbidden = await api(srv.base, '/api/media/bulk/update', {
+    method: 'POST', headers: auth(staffToken),
+    body: JSON.stringify({ ids: [up.body.asset.id], patch: { visibility: 'LIBRARY' } }),
+  });
+  assert.equal(forbidden.status, 403, JSON.stringify(forbidden.body));
+
+  const done = await api(srv.base, '/api/media/bulk/update', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ ids: [up.body.asset.id], patch: { visibility: 'LIBRARY' } }),
+  });
+  assert.equal(done.status, 200);
+  const check = await api(srv.base, `/api/media/${up.body.asset.id}`, { headers: auth(adminToken) });
+  assert.equal(check.body.visibility, 'LIBRARY');
+  assert.ok(check.body.publicUrl, 'bytes moved to the public bucket');
+});
