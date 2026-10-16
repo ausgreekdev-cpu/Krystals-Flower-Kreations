@@ -257,12 +257,18 @@ router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','d
   if (!image) return res.status(404).json({ error: 'Image not found', code: 'not_found' });
   if (image.productId !== req.params.productId) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   await prisma.productImage.delete({ where: { id: image.id } });
-  await deleteObjectByUrl(image.url);
-  // Responsive variants share the master's key prefix — remove them too.
-  const variantUrls = image.variants && typeof image.variants === 'object'
-    ? Object.values(image.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean)
-    : [];
-  await Promise.all(variantUrls.map((u) => deleteObjectByUrl(u).catch(() => {})));
+  if (image.mediaAssetId) {
+    // Attached from the media library — the bytes belong to the asset (may be
+    // reused elsewhere); only the snapshot row + provenance go away.
+    await prisma.mediaAttachment.deleteMany({ where: { assetId: image.mediaAssetId, attachableType: 'PRODUCT', attachableId: image.productId } }).catch(() => {});
+  } else {
+    await deleteObjectByUrl(image.url);
+    // Responsive variants share the master's key prefix — remove them too.
+    const variantUrls = image.variants && typeof image.variants === 'object'
+      ? Object.values(image.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean)
+      : [];
+    await Promise.all(variantUrls.map((u) => deleteObjectByUrl(u).catch(() => {})));
+  }
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_image_delete', entityType: 'product', entityId: req.params.productId, details: { imageId: image.id } });
   res.json({ ok: true });
 }));

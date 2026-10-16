@@ -221,6 +221,99 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   res.status(201).json({ asset: row, deduped: false });
 }));
 
+// ── Attachments: "upload once, attach anywhere" ────────────────────────────
+// Attaching snapshots the asset onto the target (ProductImage row for
+// products, coverImageUrl for posts) and records a MediaAttachment for
+// provenance/detach. Public surfaces only accept LIBRARY assets; ORDER
+// reference photos may point at STAFF assets.
+const attachSchema = z.object({
+  assetId: z.string().uuid(),
+  attachableType: z.enum(['PRODUCT', 'POST', 'ORDER', 'PAGE']),
+  attachableId: z.string().min(8).max(100),
+  role: z.enum(['cover', 'gallery', 'reference']).default('gallery'),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+
+// NOTE: registered before GET /:id — "/attachments" must not be read as an id.
+router.get('/attachments', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
+  const type = ['PRODUCT', 'POST', 'ORDER', 'PAGE'].includes(req.query.attachableType) ? req.query.attachableType : null;
+  const targetId = String(req.query.attachableId || '').slice(0, 100);
+  if (!type || !targetId) return res.status(400).json({ error: 'attachableType and attachableId are required', code: 'validation_failed' });
+  const rows = await prisma.mediaAttachment.findMany({
+    where: { attachableType: type, attachableId: targetId },
+    include: { asset: { select: META_SELECT } },
+    orderBy: [{ role: 'asc' }, { sortOrder: 'asc' }],
+  });
+  noStore(res);
+  res.json(rows);
+}));
+
+router.post('/attach', authenticate, requireRole(...EDITOR_ROLES), validate(attachSchema), asyncHandler(async (req, res) => {
+  const { assetId, attachableType, attachableId, role, sortOrder } = req.validated;
+  const asset = await prisma.mediaAsset.findUnique({ where: { id: assetId } });
+  if (!asset || asset.deletedAt) return res.status(404).json({ error: 'Media asset not found', code: 'not_found' });
+  if (attachableType !== 'ORDER' && (asset.visibility !== 'LIBRARY' || !asset.publicUrl)) {
+    return res.status(409).json({ error: 'Only Library assets can be attached to public content — promote the asset first', code: 'asset_not_public' });
+  }
+  const existing = await prisma.mediaAttachment.findUnique({
+    where: { assetId_attachableType_attachableId_role: { assetId, attachableType, attachableId, role } },
+  });
+  if (existing) return res.status(200).json({ attachment: existing, deduped: true });
+
+  if (attachableType === 'PRODUCT') {
+    const product = await prisma.product.findUnique({ where: { id: attachableId } });
+    if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
+    const agg = await prisma.productImage.aggregate({ where: { productId: attachableId }, _max: { sortOrder: true } });
+    const seq = sortOrder ?? ((agg._max.sortOrder ?? -1) + 1);
+    const productImage = await prisma.productImage.create({
+      data: {
+        productId: attachableId, url: asset.publicUrl,
+        alt: asset.altText || asset.title, sortOrder: seq,
+        width: asset.width, height: asset.height,
+        variants: asset.variants ?? undefined, mediaAssetId: asset.id,
+      },
+    });
+    const attachment = await prisma.mediaAttachment.create({ data: { assetId, attachableType, attachableId, role, sortOrder: seq } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_attach', entityType: 'media_asset', entityId: assetId, details: { attachableType, attachableId, role } });
+    return res.status(201).json({ attachment, productImage });
+  }
+
+  if (attachableType === 'POST') {
+    const post = await prisma.post.findUnique({ where: { id: attachableId } });
+    if (!post) return res.status(404).json({ error: 'Post not found', code: 'not_found' });
+    if (role === 'cover') {
+      await prisma.post.update({ where: { id: attachableId }, data: { coverImageUrl: asset.publicUrl } });
+      await prisma.mediaAttachment.deleteMany({ where: { attachableType: 'POST', attachableId, role: 'cover' } });
+    }
+    const attachment = await prisma.mediaAttachment.create({ data: { assetId, attachableType, attachableId, role, sortOrder: sortOrder ?? 0 } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_attach', entityType: 'media_asset', entityId: assetId, details: { attachableType, attachableId, role } });
+    return res.status(201).json({ attachment });
+  }
+
+  // ORDER / PAGE: provenance row only (reference photos etc.)
+  const attachment = await prisma.mediaAttachment.create({ data: { assetId, attachableType, attachableId, role, sortOrder: sortOrder ?? 0 } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_attach', entityType: 'media_asset', entityId: assetId, details: { attachableType, attachableId, role } });
+  res.status(201).json({ attachment });
+}));
+
+router.delete('/attachments/:id', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const att = await prisma.mediaAttachment.findUnique({ where: { id }, include: { asset: true } });
+  if (!att) return res.status(404).json({ error: 'Attachment not found', code: 'not_found' });
+  if (att.attachableType === 'PRODUCT') {
+    // Remove the snapshot image created at attach time.
+    await prisma.productImage.deleteMany({ where: { productId: att.attachableId, mediaAssetId: att.assetId } });
+  } else if (att.attachableType === 'POST' && att.role === 'cover') {
+    const post = await prisma.post.findUnique({ where: { id: att.attachableId } });
+    if (post && att.asset?.publicUrl && post.coverImageUrl === att.asset.publicUrl) {
+      await prisma.post.update({ where: { id: att.attachableId }, data: { coverImageUrl: null } });
+    }
+  }
+  await prisma.mediaAttachment.delete({ where: { id } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_detach', entityType: 'media_asset', entityId: att.assetId, details: { attachableType: att.attachableType, attachableId: att.attachableId } });
+  res.json({ ok: true });
+}));
+
 // ── Read one / bytes / thumb (Editor+) ─────────────────────────────────────
 router.get('/:id', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0, 100);

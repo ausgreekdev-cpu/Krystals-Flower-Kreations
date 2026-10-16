@@ -179,3 +179,94 @@ test('non-editor roles cannot reach the media API', async () => {
   const res = await api(srv.base, '/api/media', { headers: auth(reg.body.token) });
   assert.equal(res.status, 403);
 });
+
+// ── Phase B: attach anywhere ───────────────────────────────────────────────
+
+test('attach library asset to a product snapshots a ProductImage', async () => {
+  const products = await api(srv.base, '/api/products?limit=5');
+  const product = products.body.products.find((p) => p.slug === 'eucalyptus-paper-rose-bouquet-blush');
+  assert.ok(product, 'seeded product available');
+
+  const up = await upload(adminToken, { title: 'Media T Attach' });
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: up.body.asset.id, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' }),
+  });
+  assert.equal(att.status, 201, JSON.stringify(att.body).slice(0, 300));
+  assert.ok(att.body.productImage, 'ProductImage snapshot created');
+  assert.equal(att.body.productImage.mediaAssetId, up.body.asset.id);
+  assert.equal(att.body.productImage.url, up.body.asset.publicUrl);
+
+  // idempotent second attach
+  const again = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: up.body.asset.id, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' }),
+  });
+  assert.equal(again.status, 200);
+  assert.equal(again.body.deduped, true);
+
+  // detach removes the snapshot row and the provenance
+  const det = await api(srv.base, `/api/media/attachments/${att.body.attachment.id}`, { method: 'DELETE', headers: auth(adminToken) });
+  assert.equal(det.status, 200);
+  const detail = await api(srv.base, `/api/media/${up.body.asset.id}`, { headers: auth(adminToken) });
+  assert.equal(detail.body.attachments.length, 0, 'provenance row removed');
+  const check = await api(srv.base, `/api/products/${product.slug}`);
+  assert.ok(!check.body.images.some((i) => i.id === att.body.productImage.id), 'snapshot image removed');
+});
+
+test('staff assets cannot attach to public content', async () => {
+  const products = await api(srv.base, '/api/products?limit=5');
+  const product = products.body.products.find((p) => p.slug === 'eucalyptus-paper-rose-bouquet-blush');
+  const up = await upload(adminToken, { title: 'Media T PrivAttach', visibility: 'STAFF' });
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: up.body.asset.id, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' }),
+  });
+  assert.equal(att.status, 409, JSON.stringify(att.body));
+  assert.equal(att.body.code, 'asset_not_public');
+});
+
+test('attach library asset as post cover sets coverImageUrl; detach clears it', async () => {
+  const bslug = `media-cover-${Date.now()}`;
+  const post = await api(srv.base, '/api/posts', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ title: 'Media T Cover Post', slug: bslug, status: 'draft' }),
+  });
+  assert.equal(post.status, 201, JSON.stringify(post.body).slice(0, 200));
+
+  const up = await upload(adminToken, { title: 'Media T Cover' });
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: up.body.asset.id, attachableType: 'POST', attachableId: post.body.id, role: 'cover' }),
+  });
+  assert.equal(att.status, 201, JSON.stringify(att.body).slice(0, 200));
+  const read = await api(srv.base, `/api/posts/${bslug}`, { headers: auth(adminToken) });
+  assert.equal(read.body.coverImageUrl, up.body.asset.publicUrl);
+
+  const det = await api(srv.base, `/api/media/attachments/${att.body.attachment.id}`, { method: 'DELETE', headers: auth(adminToken) });
+  assert.equal(det.status, 200);
+  const after = await api(srv.base, `/api/posts/${bslug}`, { headers: auth(adminToken) });
+  assert.equal(after.body.coverImageUrl, null);
+  await api(srv.base, `/api/posts/${post.body.id}`, { method: 'DELETE', headers: auth(adminToken) }).catch(() => {});
+});
+
+test('product image delete keeps library bytes and clears provenance', async () => {
+  const products = await api(srv.base, '/api/products?limit=5');
+  const product = products.body.products.find((p) => p.slug === 'eucalyptus-paper-rose-bouquet-blush');
+  const up = await upload(adminToken, { title: 'Media T KeepBytes' });
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: up.body.asset.id, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' }),
+  });
+  assert.equal(att.status, 201);
+
+  const del = await api(srv.base, `/api/products/${product.id}/images/${att.body.productImage.id}`, { method: 'DELETE', headers: auth(adminToken) });
+  assert.equal(del.status, 200);
+
+  // the library asset must still serve bytes (shared files survive)
+  const file = await fetch(`${srv.base}/api/media/${up.body.asset.id}/file`, { headers: auth(adminToken), redirect: 'manual' });
+  assert.equal(file.status, 302, 'library bytes intact after image delete');
+  // and the asset is no longer "in use"
+  const purged = await api(srv.base, `/api/media/${up.body.asset.id}/purge`, { method: 'DELETE', headers: auth(adminToken) });
+  assert.equal(purged.status, 200, 'asset purgeable once detached');
+});

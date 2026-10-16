@@ -343,6 +343,11 @@ export const adminApi = {
     remove: (id: string, token: string) => req<any>(`/api/media/${id}`, { method: 'DELETE', token }),
     restore: (id: string, token: string) => req<any>(`/api/media/${id}/restore`, { method: 'POST', token }),
     purge: (id: string, token: string) => req<any>(`/api/media/${id}/purge`, { method: 'DELETE', token }),
+    attach: (token: string, body: { assetId: string; attachableType: string; attachableId: string; role?: string; sortOrder?: number }) =>
+      req<any>('/api/media/attach', { method: 'POST', body: JSON.stringify(body), token }),
+    attachments: (token: string, attachableType: string, attachableId: string) =>
+      req<any[]>(`/api/media/attachments?attachableType=${encodeURIComponent(attachableType)}&attachableId=${encodeURIComponent(attachableId)}`, { token }),
+    detach: (id: string, token: string) => req<any>(`/api/media/attachments/${id}`, { method: 'DELETE', token }),
     // Auth'd blob fetch (img src can't carry the Bearer token)
     blob: async (id: string, token: string, kind: 'thumb' | 'file' = 'thumb') => {
       const res = await fetch(`${BASE}/api/media/${id}/${kind}`, { headers: { Authorization: `Bearer ${token}` } });

@@ -13,6 +13,7 @@ import PackingSlipModal from '../components/admin/PackingSlipModal';
 import InventoryDetail from '../components/admin/InventoryDetail';
 import DocumentCentre from '../components/admin/DocumentCentre';
 import MediaLibrary from '../components/admin/media/MediaLibrary';
+import MediaPickerModal from '../components/admin/media/MediaPickerModal';
 import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
@@ -1415,6 +1416,7 @@ function ProductModal({ product, onClose, onSaved, onChanged, token }) {
   const [manageFields, setManageFields] = useState(false);
   const [newField, setNewField] = useState({ label: '', type: 'text' });
   const [images, setImages] = useState(() => product?.images || []);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [svgUploading, setSvgUploading] = useState(false);
   const [svgUrl, setSvgUrl] = useState(() => product?.svgUrl || null);
   const isDigitalForm = form.stockMode === 'digital' || form.type === 'digital_template';
@@ -1644,9 +1646,12 @@ function ProductModal({ product, onClose, onSaved, onChanged, token }) {
           </div>
         </div>
       )}
-      {product && images.length > 0 && (
+      {product && (
         <div className="mt-4">
-          <label className="block text-xs font-semibold text-muted mb-1">Images — alt text saves on blur</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-semibold text-muted">Images — alt text saves on blur</label>
+            <button type="button" onClick={() => setPickerOpen(true)} className="text-xs font-semibold border border-royal-200 text-royal-700 rounded-xl px-2.5 py-1 hover:bg-royal-50">＋ From library</button>
+          </div>
           <div className="flex flex-wrap gap-3">
             {images.map((img, i) => (
               <div key={img.id} className="relative group w-24">
@@ -1665,7 +1670,20 @@ function ProductModal({ product, onClose, onSaved, onChanged, token }) {
               </div>
             ))}
           </div>
+          {images.length === 0 && <div className="text-xs text-muted">No images yet — upload from the product list or pick one from the library.</div>}
         </div>
+      )}
+      {pickerOpen && (
+        <MediaPickerModal token={token} onClose={() => setPickerOpen(false)}
+          onPick={async (asset) => {
+            setPickerOpen(false);
+            try {
+              const r = await adminApi.media.attach(token, { assetId: asset.id, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' });
+              setImages((prev) => [...prev, r.productImage || asset]);
+              onChanged?.();
+              toast('Image added from the library');
+            } catch (e) { toast(e.message, 'error'); }
+          }} />
       )}
       <div className="mt-5 flex justify-end gap-2">
         <Btn color="ghost" onClick={onClose}>Cancel</Btn>
@@ -2225,7 +2243,9 @@ function Blog({ data, reload, token }) {
 }
 function PostModal({ post, onClose, onSaved, token }) {
   const toast = useToast();
-  const [form, setForm] = useState({ title: post?.title || '', slug: post?.slug || '', excerpt: post?.excerpt || '', content: post?.content || '', status: post?.status || 'draft', tags: post?.tags || '', metaTitle: post?.metaTitle || '', metaDescription: post?.metaDescription || '' });
+  const [form, setForm] = useState({ title: post?.title || '', slug: post?.slug || '', excerpt: post?.excerpt || '', content: post?.content || '', status: post?.status || 'draft', tags: post?.tags || '', metaTitle: post?.metaTitle || '', metaDescription: post?.metaDescription || '', coverImageUrl: post?.coverImageUrl || '' });
+  const [coverAssetId, setCoverAssetId] = useState(null);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
@@ -2236,8 +2256,13 @@ function PostModal({ post, onClose, onSaved, token }) {
       const tags = (Array.isArray(form.tags) ? form.tags.join(', ') : String(form.tags || ''))
         .split(',').map((t) => t.trim()).filter(Boolean).join(', ');
       const body = { ...form, tags, metaTitle: form.metaTitle.trim() || null, metaDescription: form.metaDescription.trim() || null };
-      if (post) await adminApi.posts.update(post.id, body, token);
-      else await adminApi.posts.create(body, token);
+      const saved = post ? await adminApi.posts.update(post.id, body, token) : await adminApi.posts.create(body, token);
+      // Library cover provenance (best-effort) — attach records the link and
+      // pins coverImageUrl to the asset's public URL.
+      const targetId = post?.id || saved?.id;
+      if (coverAssetId && targetId) {
+        await adminApi.media.attach(token, { assetId: coverAssetId, attachableType: 'POST', attachableId: targetId, role: 'cover' }).catch(() => {});
+      }
       onSaved();
     } catch (e) { toast(e.message, 'error'); }
     finally { setBusy(false); }
@@ -2254,8 +2279,27 @@ function PostModal({ post, onClose, onSaved, token }) {
         <div><label className={label}>Meta description (SEO ≤200)</label><input className={input} maxLength={200} value={form.metaDescription} onChange={(e) => setForm({ ...form, metaDescription: e.target.value })} placeholder="Short summary for search results" /></div>
       </div>
       <div><label className={label}>Tags (comma-separated)</label><input className={input} value={Array.isArray(form.tags) ? form.tags.join(', ') : form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
+      <div>
+        <label className={label}>Cover image</label>
+        <div className="flex items-center gap-3">
+          {form.coverImageUrl
+            ? <img src={form.coverImageUrl} alt="" className="w-24 h-16 rounded-lg object-cover border border-line" />
+            : <div className="w-24 h-16 rounded-lg bg-surface3 border border-line grid place-items-center text-[10px] text-muted">none</div>}
+          <input className={input} value={form.coverImageUrl} onChange={(e) => { setForm({ ...form, coverImageUrl: e.target.value }); setCoverAssetId(null); }} placeholder="https://… or pick from library" />
+          <button type="button" onClick={() => setCoverPickerOpen(true)} className="text-xs font-semibold border border-royal-200 text-royal-700 rounded-xl px-2.5 py-1.5 hover:bg-royal-50 whitespace-nowrap">From library</button>
+          {form.coverImageUrl && <button type="button" onClick={() => { setForm({ ...form, coverImageUrl: '' }); setCoverAssetId(null); }} className="text-xs text-red-600 hover:underline whitespace-nowrap">Clear</button>}
+        </div>
+      </div>
       <div><label className={label}>Content (markdown: ## heading, **bold**, - lists)</label><textarea rows={8} className={input} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
     </div>
+    {coverPickerOpen && (
+      <MediaPickerModal token={token} onClose={() => setCoverPickerOpen(false)}
+        onPick={(asset) => {
+          setForm((f) => ({ ...f, coverImageUrl: asset.publicUrl }));
+          setCoverAssetId(asset.id);
+          setCoverPickerOpen(false);
+        }} />
+    )}
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !form.title}>{busy ? 'Saving…' : post ? 'Save changes' : 'Create post'}</Btn></div>
   </Modal>;
 }

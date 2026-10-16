@@ -296,10 +296,14 @@ model ProductImage {
   // Responsive variants generated at upload: { avif: { "400": url, "800": url }, webp: {...} }
   // null = legacy row or source smaller than the smallest variant width.
   variants  Json?
+  // Set when this image was attached from the media library (provenance —
+  // lets detach clean up the row and keeps library assets purge-safe).
+  mediaAssetId String?
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+  @@index([mediaAssetId])
   @@map("product_images")
 }
 
