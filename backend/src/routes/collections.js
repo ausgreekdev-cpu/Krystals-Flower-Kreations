@@ -4,9 +4,15 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { publicNestedProducts } from '../lib/publicProduct.js';
 
 const router = Router();
 const requireAuth = authenticate;
+
+// Embedded products are public-shaped (svgUrl/cost stripped) unless the
+// staff `all` view asks for the raw rows.
+const publicCollection = (col) =>
+  col ? { ...col, products: publicNestedProducts(col.products) } : col;
 
 router.get('/', asyncHandler(async (req, res) => {
   const all = req.query.all === '1' || req.query.all === 'true';
@@ -16,7 +22,7 @@ router.get('/', asyncHandler(async (req, res) => {
     if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
   }
   const cols = await prisma.collection.findMany({ where: all ? { deletedAt: null } : { isActive: true, deletedAt: null }, orderBy: { sortOrder: 'asc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
-  res.json(cols);
+  res.json(all ? cols : cols.map(publicCollection));
 }));
 
 // Public: single collection by slug (active only)
@@ -25,7 +31,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
   const col = await prisma.collection.findUnique({ where: { slug, deletedAt: null }, include: { products: { include: { product: { include: { images: true } } } } } });
   if (!col || !col.isActive) return res.status(404).json({ error: 'Not found', code: 'not_found' });
-  res.json(col);
+  res.json(publicCollection(col));
 }));
 
 const collectionSchema = z.object({

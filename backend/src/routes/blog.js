@@ -4,9 +4,14 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { publicNestedProducts } from '../lib/publicProduct.js';
 
 const router = Router();
 const requireAuth = authenticate;
+
+// Embedded products are always public-shaped (svgUrl/cost stripped).
+const publicPost = (post) =>
+  post ? { ...post, products: publicNestedProducts(post.products) } : post;
 
 router.get('/', asyncHandler(async (req, res) => {
   const status = String(req.query.status || 'published').slice(0,20);
@@ -27,7 +32,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (q) where.OR = [{ title: { contains: q, mode: 'insensitive' } }, { excerpt: { contains: q, mode: 'insensitive' } }];
   if (tag) where.tags = { contains: tag, mode: 'insensitive' };
   const posts = await prisma.post.findMany({ where, orderBy: { publishedAt: 'desc' }, take: 100, include: { products: { include: { product: { include: { images: true } } } } } });
-  res.json(posts);
+  res.json(posts.map(publicPost));
 }));
 
 router.get('/:slug', asyncHandler(async (req, res) => {
@@ -37,7 +42,7 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   if (!post) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   // bump view async (don't block)
   prisma.post.update({ where: { id: post.id }, data: { viewCount: { increment: 1 } } }).catch(()=>{});
-  res.json(post);
+  res.json(publicPost(post));
 }));
 
 const schema = z.object({

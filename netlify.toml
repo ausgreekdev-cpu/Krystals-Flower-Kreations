@@ -30,6 +30,7 @@
     "nodemailer",
     "serverless-http",
     "sharp",
+    "svgo",
     "tesseract.js",
     "tesseract.js-core",
     "unpdf",

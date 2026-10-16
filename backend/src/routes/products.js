@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
-import { authenticate, requireRole } from '../lib/auth.js';
+import { authenticate, optionalAuth, requireRole } from '../lib/auth.js';
 import { validate, querySchemas } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { upload, uploadDocs, docMimeLooksReal } from '../middleware/upload.js';
@@ -11,6 +11,8 @@ import sharp from 'sharp';
 import crypto from 'crypto';
 import { putObject, deleteObjectByUrl } from '../services/storage.js';
 import { buildVariants, masterDimensions } from '../services/imageVariants.js';
+import { hardenSvg } from '../services/svgSafe.js';
+import { publicProduct, publicProducts } from '../lib/publicProduct.js';
 import { audit } from '../lib/audit.js';
 import { registerFieldRoutes, validateCustomFields } from '../lib/fieldDefs.js';
 const requireAuth = authenticate;
@@ -46,18 +48,17 @@ const productSchema = z.object({
 const productPatchSchema = productSchema.partial().strict();
 
 // Public: list + search — validated query, finite limit, length-capped search
-router.get('/', asyncHandler(async (req, res) => {
+router.get('/', optionalAuth, asyncHandler(async (req, res) => {
   const raw = querySchemas.products.safeParse(req.query);
   if (!raw.success) return res.status(400).json({ error: 'Invalid query', code: 'invalid_query', details: raw.error.flatten() });
   const { q, collection, featured, type, flowerType, colourFamily, occasion, limit, cursor, all } = raw.data;
   const take = limit;
   const where = {};
+  const staffView = !!req.user && ['admin','developer','maker','staff'].includes(req.user.role);
   if (all === '1' || all === 'true') {
-    // `all` (includes inactive) is staff-only — run auth inline so the public
-    // route stays public for normal browsing
-    let authed = false;
-    try { await new Promise((resolve, reject) => requireAuth(req, res, (err) => err ? reject(err) : resolve())); if (req.user && ['admin','developer','maker','staff'].includes(req.user.role)) authed = true; } catch {}
-    if (!authed) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+    // `all` (includes inactive) is staff-only — the public route stays public
+    // for normal browsing (optionalAuth above never blocks anonymous callers)
+    if (!staffView) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
     where.deletedAt = null;
   } else {
     where.isActive = true;
@@ -78,7 +79,8 @@ router.get('/', asyncHandler(async (req, res) => {
     orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
     include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, collections: { include: { collection: true } } },
   });
-  res.json({ products, nextCursor: products.length === take ? products[products.length - 1].id : null });
+  // Staff view keeps internal fields (svgUrl, cost); public responses strip them.
+  res.json({ products: staffView ? products : publicProducts(products), nextCursor: products.length === take ? products[products.length - 1].id : null });
 }));
 
 // ── Custom field definitions ─────────────────────────────────────────────
@@ -86,7 +88,7 @@ router.get('/', asyncHandler(async (req, res) => {
 // Shared CRUD lives in lib/fieldDefs.js — product list is public (storefront).
 registerFieldRoutes(router, { entityType: 'product', roles: ['admin', 'developer'], publicList: true });
 
-router.get('/:slug', asyncHandler(async (req, res) => {
+router.get('/:slug', optionalAuth, asyncHandler(async (req, res) => {
   const slug = String(req.params.slug).slice(0,200);
   if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid slug', code: 'validation_failed' });
   const product = await prisma.product.findUnique({
@@ -94,14 +96,17 @@ router.get('/:slug', asyncHandler(async (req, res) => {
     include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
   });
   if (!product) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  // Staff (any role) see internal fields (svgUrl, cost); public responses strip them.
+  const staffView = !!req.user && ['admin','developer','maker','staff'].includes(req.user.role);
   // Tracked products without variants hold stock in the default-location
   // InventoryLevel — expose it so the storefront can show/enable Add to Cart.
   if (product.stockMode === 'tracked' && product.variants.length === 0) {
     const loc = await prisma.inventoryLocation.findFirst({ where: { isDefault: true } }) || await prisma.inventoryLocation.findFirst();
     const level = loc ? await prisma.inventoryLevel.findFirst({ where: { productId: product.id, variantId: null, locationId: loc.id } }) : null;
-    return res.json({ ...product, availableQty: level ? level.onHand : 0 });
+    const payload = { ...product, availableQty: level ? level.onHand : 0 };
+    return res.json(staffView ? payload : publicProduct(payload));
   }
-  res.json(product);
+  res.json(staffView ? product : publicProduct(product));
 }));
 
 // Admin: CRUD — strict, finite, audit
@@ -272,13 +277,21 @@ router.post('/:id/svg', requireAuth, requireRole('admin','developer','maker','st
   if (file.mimetype !== 'image/svg+xml') return res.status(415).json({ error: 'SVG files only', code: 'unsupported_media_type' });
   if (file.size > SVG_CAP_BYTES) return res.status(413).json({ error: 'SVG too large (2MB max)', code: 'file_too_large' });
   if (!docMimeLooksReal(file.buffer, 'image/svg+xml')) return res.status(400).json({ error: 'File is not a real SVG', code: 'invalid_file' });
+  // Strip active content + editor debris (geometry/ids/viewBox untouched —
+  // cutting-machine files must stay byte-stable there). See services/svgSafe.js.
+  let svg;
+  try { svg = hardenSvg(file.buffer.toString('utf8')); } catch {
+    return res.status(400).json({ error: 'File is not a real SVG', code: 'invalid_file' });
+  }
+  const bytes = Buffer.byteLength(svg);
+  if (bytes > SVG_CAP_BYTES) return res.status(413).json({ error: 'SVG too large (2MB max)', code: 'file_too_large' });
   const key = `${productId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.svg`;
   // putObject returns "digital-assets/<key>" for private buckets
-  const ref = await putObject(key, file.buffer, 'image/svg+xml', { bucket: 'digital-assets' });
+  const ref = await putObject(key, Buffer.from(svg), 'image/svg+xml', { bucket: 'digital-assets' });
   const previous = product.svgUrl;
   const updated = await prisma.product.update({ where: { id: productId }, data: { svgUrl: ref } });
   if (previous && previous !== ref) deleteObjectByUrl(previous).catch(() => {});
-  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_svg_upload', entityType: 'product', entityId: productId, details: { title: product.title, bytes: file.size } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'product_svg_upload', entityType: 'product', entityId: productId, details: { title: product.title, bytes, rawBytes: file.size } });
   res.status(201).json({ svgUrl: updated.svgUrl, product: updated });
 }));
 

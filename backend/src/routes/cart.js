@@ -4,8 +4,14 @@ import prisma from '../lib/prisma.js';
 import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { publicNestedProducts } from '../lib/publicProduct.js';
 
 const router = Router();
+
+// Cart lines embed the full product row — strip internal fields (svgUrl, cost)
+// before they reach the storefront.
+const publicCart = (cart) =>
+  cart && typeof cart === 'object' ? { ...cart, items: publicNestedProducts(cart.items) } : cart;
 
 // Per-cart stricter limit: 20/min per IP
 const cartAddLimit = rateLimit('cart_add', 20, 1);
@@ -39,7 +45,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const cartId = getCartId(req);
   if (!cartId) return res.json({ cart: null, items: [] });
   const cart = await prisma.cart.findUnique({ where: { id: cartId }, include: { items: { include: { product: { include: { images: true } }, variant: true } } } });
-  res.json(cart || { cart: null, items: [] });
+  res.json(publicCart(cart) || { cart: null, items: [] });
 }));
 
 router.post('/add', cartAddLimit, validate(z.object({ productId: z.string().min(8).max(100), variantId: z.string().min(8).max(100).optional().nullable(), quantity: z.number().int().finite().min(1).max(99).default(1), cartId: z.string().min(8).max(100).optional().nullable() })), asyncHandler(async (req, res) => {
@@ -78,7 +84,7 @@ router.post('/add', cartAddLimit, validate(z.object({ productId: z.string().min(
   }
   await touchCart(cartId);
   const full = await prisma.cart.findUnique({ where: { id: cartId }, include: { items: { include: { product: { include: { images: true } }, variant: true } } } });
-  res.json({ cartId, cart: full });
+  res.json({ cartId, cart: publicCart(full) });
 }));
 
 router.post('/update', validate(z.object({ itemId: z.string().min(8).max(100), cartId: z.string().min(8).max(100), quantity: z.number().int().finite().min(0).max(99) })), asyncHandler(async (req, res) => {

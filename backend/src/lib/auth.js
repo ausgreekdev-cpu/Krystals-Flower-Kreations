@@ -69,6 +69,23 @@ export async function comparePassword(plain, hash) {
   return bcrypt.compare(plain, hash);
 }
 
+// Optional variant for public routes that show extra fields to staff: sets
+// req.user when a valid Bearer token is present, never writes a response.
+export async function optionalAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try {
+      const payload = verifyToken(header.slice(7));
+      const user = await prisma.user.findUnique({ where: { id: payload.id }, select: { id: true, email: true, role: true, name: true } });
+      if (user) {
+        req.user = user;
+        req.tokenPayload = payload;
+      }
+    } catch {}
+  }
+  next();
+}
+
 // Authenticate: header-only, no query.token (prevents log leak), DB lookup to ensure user still exists
 export async function authenticate(req, res, next) {
   const header = req.headers.authorization;
