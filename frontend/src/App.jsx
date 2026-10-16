@@ -6,6 +6,7 @@ import Btn from './components/ui/Btn';
 import BloomMark from './components/ui/BloomMark';
 import ResponsiveImage from './components/ResponsiveImage';
 import { PLACEHOLDER_IMG } from './lib/assets';
+import { realAbn } from './lib/business';
 
 const FALLBACK_SHIPPING_NOTE = 'Metro $12, WA regional $18, national $22 — free over $150. Click & collect 6000.';
 
@@ -36,6 +37,7 @@ export default function App(){
     logo: s.logo_url ? (s.logo_url.startsWith('http') ? s.logo_url : `${window.location.origin}${s.logo_url}`) : undefined,
     sameAs: [s.instagram_url, s.facebook_url, s.tiktok_url, s.etsy_url].filter(Boolean) || undefined,
     contactPoint: s.contact_phone ? { '@type': 'ContactPoint', telephone: s.contact_phone, contactType: 'customer service', areaServed: 'AU' } : undefined,
+    taxID: realAbn(s.abn) || undefined,
   };
   if (!orgLd.sameAs?.length) orgLd.sameAs = undefined;
 

@@ -120,8 +120,13 @@ async function main() {
   const w2 = await prisma.workshop.upsert({ where: { slug: 'origami-bouquet-masterclass' }, update: {}, create: { title: 'Origami Bouquet Masterclass', slug: 'origami-bouquet-masterclass', description: 'Fold roses, lilies & leaves — assemble a full bouquet. Paper kit included.', location: 'Perth Studio, WA', price: 165, capacity: 10, durationMinutes: 240, level: 'intermediate' } });
   const nextSat = new Date(); nextSat.setDate(nextSat.getDate() + (6 - nextSat.getDay() + 7) % 7); nextSat.setHours(10,0,0,0);
   for (const w of [w1, w2]) {
-    const exists = await prisma.workshopSession.findFirst({ where: { workshopId: w.id } });
-    if (!exists) {
+    // Seed runs on long-lived DBs too — only skip when a FUTURE session exists,
+    // otherwise stale past sessions would block refresh forever.
+    const hasFuture = await prisma.workshopSession.findFirst({ where: { workshopId: w.id, startsAt: { gt: new Date() } } });
+    if (!hasFuture) {
+      // tidy stale past dates (unbooked demo sessions) so the catalogue only
+      // advertises upcoming workshops
+      await prisma.workshopSession.deleteMany({ where: { workshopId: w.id, startsAt: { lt: new Date() }, bookedCount: 0 } }).catch(() => {});
       await prisma.workshopSession.create({ data: { workshopId: w.id, startsAt: nextSat, endsAt: new Date(nextSat.getTime() + w.durationMinutes * 60000), capacity: w.capacity } });
       const following = new Date(nextSat); following.setDate(following.getDate() + 7);
       await prisma.workshopSession.create({ data: { workshopId: w.id, startsAt: following, endsAt: new Date(following.getTime() + w.durationMinutes * 60000), capacity: w.capacity } });
@@ -182,7 +187,7 @@ async function main() {
   await prisma.setting.upsert({ where: { key: 'tax_gst_rate' }, update: { value: '0.10' }, create: { key: 'tax_gst_rate', value: '0.10' } });
   await prisma.setting.upsert({ where: { key: 'labour_rate_per_hour' }, update: { value: '55' }, create: { key: 'labour_rate_per_hour', value: '55' } });
   await prisma.setting.upsert({ where: { key: 'bom_margin' }, update: { value: '1.30' }, create: { key: 'bom_margin', value: '1.30' } });
-  await prisma.setting.upsert({ where: { key: 'abn' }, update: { value: 'XX XXX XXX XXX' }, create: { key: 'abn', value: 'XX XXX XXX XXX' } });
+  await prisma.setting.upsert({ where: { key: 'abn' }, update: { value: '84 098 778 250' }, create: { key: 'abn', value: '84 098 778 250' } });
   await prisma.setting.upsert({ where: { key: 'business_name' }, update: { value: "Krystal's Flower Kreations" }, create: { key: 'business_name', value: "Krystal's Flower Kreations" } });
   await prisma.setting.upsert({ where: { key: 'business_address' }, update: { value: 'Perth WA 6000' }, create: { key: 'business_address', value: 'Perth WA 6000' } });
   await prisma.setting.upsert({ where: { key: 'shipping_perth_metro' }, update: { value: '12' }, create: { key: 'shipping_perth_metro', value: '12' } });

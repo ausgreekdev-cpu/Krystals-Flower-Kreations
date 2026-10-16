@@ -1,4 +1,5 @@
 import { usePublicSettings } from '../lib/publicSettings';
+import { realAbn } from '../lib/business';
 import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
 
@@ -7,6 +8,7 @@ const FALLBACK_STORY = 'Krystals Flower Creations is a small paper-flower studio
 export default function About() {
   const s = usePublicSettings();
   const name = s.business_name || 'Krystals Flower Creations';
+  const abn = realAbn(s.abn);
   const socials = [
     { label: 'Instagram', url: s.instagram_url },
     { label: 'Facebook', url: s.facebook_url },
@@ -24,7 +26,7 @@ export default function About() {
           <div className="font-bold text-ink text-sm">Studio</div>
           <p className="text-sm text-muted mt-2">
             {s.business_address || 'Perth, Western Australia'}
-            {s.abn ? <><br />ABN {s.abn}</> : null}
+            {abn ? <><br />ABN {abn}</> : null}
             {s.opening_hours ? <><br />{s.opening_hours}</> : null}
           </p>
         </div>

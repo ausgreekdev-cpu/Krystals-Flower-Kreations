@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, api, cleanupTestBookings } from './helpers.js';
 import prisma from '../src/lib/prisma.js';
+import { __clearRateLimits } from '../src/middleware/rate-limit.js';
 
 // End-to-end behaviour of the settings features: checkout terms/notes,
 // reset + test-email endpoints, maintenance mode, loyalty bonuses and floors,
@@ -260,4 +261,24 @@ test('new orders alert the studio and status changes email the customer', async 
   const quiet = await prisma.emailQueue.findFirst({ where: { template: 'admin_order_alert', payload: { path: ['orderNumber'], equals: res2.body.order.orderNumber } } });
   assert.equal(quiet, null, 'no studio alert while the toggle is off');
   await putSettings({ admin_order_alert_enabled: '1', customer_status_emails_enabled: '1' });
+});
+
+test('order confirmation carries the ABN only when it is real', async () => {
+  // earlier checkouts in this file share the 5/min limiter — clear it so the
+  // two checkouts below never race the window
+  const clearCheckoutLimit = () => __clearRateLimits();
+  await putSettings({ abn: '84 098 778 250' });
+  await clearCheckoutLimit();
+  const res = await checkout();
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const confirm = await prisma.emailQueue.findFirst({ where: { template: 'order_confirmation', payload: { path: ['orderNumber'], equals: res.body.order.orderNumber } } });
+  assert.ok(confirm?.text.includes('ABN 84 098 778 250'), `real ABN on the invoice email, got: ${confirm?.text?.slice(-120)}`);
+
+  await putSettings({ abn: 'XX XXX XXX XXX' });
+  await clearCheckoutLimit();
+  const res2 = await checkout();
+  assert.equal(res2.status, 200);
+  const confirm2 = await prisma.emailQueue.findFirst({ where: { template: 'order_confirmation', payload: { path: ['orderNumber'], equals: res2.body.order.orderNumber } } });
+  assert.ok(confirm2 && !confirm2.text.includes('ABN'), 'placeholder ABN never renders');
+  await putSettings({ abn: '' });
 });

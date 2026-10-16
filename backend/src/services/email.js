@@ -92,9 +92,13 @@ export async function drainEmailQueue(limit = 50) {
 }
 
 // Shared sign-off: business identity + admin-configured email signature.
+// The ABN lands on every outbound email — order confirmations double as the
+// tax invoice, and AU GST-registered suppliers must show an ABN there.
+const hasRealAbn = (v) => String(v || '').replace(/\D/g, '').length >= 8;
 async function signatureBlock(s = {}) {
   const lines = [`— ${s.business_name || "Krystals Flower Creations"}, Perth WA`];
   if (s.business_address) lines.push(s.business_address);
+  if (hasRealAbn(s.abn)) lines.push(`ABN ${String(s.abn).trim()}`);
   if (s.email_signature) lines.push(String(s.email_signature).trim());
   return lines.join('\n');
 }

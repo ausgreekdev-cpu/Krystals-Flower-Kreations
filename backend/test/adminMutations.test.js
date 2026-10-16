@@ -28,6 +28,10 @@ before(async () => {
 
 after(async () => {
   if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
+  // Bookings FK-lock their workshops — clear them first or the deleteMany
+  // below silently fails and test workshops pile up (they eventually push the
+  // seeded ones out of the public list's take:100 window).
+  await prisma.booking.deleteMany({ where: { email: `bk-${uniq}@example.com` } }).catch(() => {});
   await prisma.workshop.deleteMany({ where: { title: { startsWith: `AdmMut ${uniq}` } } }).catch(() => {});
   await prisma.supplier.deleteMany({ where: { name: { startsWith: `PO Sup ${uniq}` } } }).catch(() => {});
   await srv.close();

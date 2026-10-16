@@ -114,4 +114,10 @@ export async function purgeExpiredRateLimits() {
   return count;
 }
 
+/** Test hook: clear in-memory limiter state (and DB buckets when that store is active). */
+export async function __clearRateLimits() {
+  mem.clear();
+  await prisma.rateLimitBucket.deleteMany({}).catch(() => {});
+}
+
 export default globalRateLimit;

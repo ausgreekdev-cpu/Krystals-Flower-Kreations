@@ -35,10 +35,9 @@ test('GET /api/workshops lists the two seeded workshops', async () => {
 test('workshops carry future sessions', async () => {
   const { body } = await api(srv.base, '/api/workshops');
   const arr = Array.isArray(body) ? body : body.workshops;
-  const withSessions = arr.find((w) => (w.sessions || []).length > 0);
-  assert.ok(withSessions, 'at least one workshop has sessions');
-  const session = withSessions.sessions[0];
-  assert.ok(new Date(session.startsAt).getTime() > Date.now(), 'session is in the future');
+  const withSessions = arr.find((w) => (w.sessions || []).some((s) => new Date(s.startsAt).getTime() > Date.now()));
+  assert.ok(withSessions, 'at least one workshop has an upcoming session');
+  const session = withSessions.sessions.find((s) => new Date(s.startsAt).getTime() > Date.now());
   assert.ok(session.capacity > 0);
 });
 

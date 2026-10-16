@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { usePublicSettings } from '../../lib/publicSettings';
+import { realAbn } from '../../lib/business';
 import BloomMark from '../ui/BloomMark';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
@@ -56,7 +57,7 @@ export default function SiteFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t py-4 text-center text-xs text-muted">© {new Date().getFullYear()} {businessName} — Perth WA • GST inclusive • ABN {s.abn || import.meta.env.VITE_ABN || 'XX XXX XXX XXX'} on invoices</div>
+      <div className="border-t py-4 text-center text-xs text-muted">© {new Date().getFullYear()} {businessName} — Perth WA • GST inclusive{realAbn(s.abn || import.meta.env.VITE_ABN) ? ` • ABN ${realAbn(s.abn || import.meta.env.VITE_ABN)} on invoices` : ''}</div>
     </footer>
   );
 }

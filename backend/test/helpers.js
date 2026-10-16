@@ -45,4 +45,17 @@ export async function cleanupTestBookings() {
       await prisma.workshopSession.update({ where: { id: s.id }, data: { bookedCount: confirmed, waitlistCount: waitlisted } });
     }
   }
+  // Test-created workshops must not accumulate either — the public workshop
+  // list takes the 100 newest, so leftovers eventually push the two seeded
+  // workshops out of the window and break `GET /api/workshops` assertions.
+  // Bookings are gone by now, so the session/workshop deletes can't hit FKs.
+  const noise = await prisma.workshop.findMany({
+    where: { OR: [{ slug: { startsWith: 'enforce-ws-' } }, { slug: { startsWith: 'admmut-' } }, { slug: { startsWith: 'ws-vis-' } }] },
+    select: { id: true },
+  });
+  if (noise.length) {
+    const ids = noise.map((w) => w.id);
+    await prisma.workshopSession.deleteMany({ where: { workshopId: { in: ids } } }).catch(() => {});
+    await prisma.workshop.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+  }
 }
