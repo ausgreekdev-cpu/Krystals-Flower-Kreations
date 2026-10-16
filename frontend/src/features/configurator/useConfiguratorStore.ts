@@ -4,17 +4,21 @@ export interface ConfiguratorSpecState {
   paperColor: string; paperTexture: string; weight: string; stemCount: number; armatureHeightMm: number; templateId: string; addGreenery: boolean; vaseIncluded: boolean; domeIncluded: boolean; ledIncluded: boolean; palette: string | null; notes: string;
 }
 export const DEFAULT_SPEC: ConfiguratorSpecState = { paperColor: 'Blush', paperTexture: 'textured', weight: '65lb', stemCount: 7, armatureHeightMm: 350, templateId: 'wattle-sprig', addGreenery: true, vaseIncluded: false, domeIncluded: false, ledIncluded: false, palette: null, notes: '' };
-export const useConfiguratorStore = create<{ spec: ConfiguratorSpecState; unitPrice: number; totalPrice: number; estimatedMinutes: number; setSpec: (p: Partial<ConfiguratorSpecState>)=>void }>()(persist((set)=>({
-  spec: DEFAULT_SPEC, unitPrice: 89, totalPrice: 89, estimatedMinutes: 45,
+// Only the spec persists — prices are always derived live (estimateLocalPrice).
+export const useConfiguratorStore = create<{ spec: ConfiguratorSpecState; setSpec: (p: Partial<ConfiguratorSpecState>)=>void }>()(persist((set)=>({
+  spec: DEFAULT_SPEC,
   setSpec: (patch)=> set(s=> ({ spec: { ...s.spec, ...patch } }))
 }), {
-  // Draft recovery: the design survives reload/navigation. Prices stay
-  // derived from live settings (estimateLocalPrice) — never persisted.
+  // Draft recovery: the design survives reload/navigation.
   name: 'kfk_cfg_spec',
   partialize: (s) => ({ spec: s.spec }),
 }));
 // Local price estimate. Prices come from the storefront settings
 // (configurator_floor / per_stem / vase / greenery) so admin edits show up here.
+// NOTE: the server re-prices at order creation (customOrders.js) — it takes
+// max(floor + stems×per_stem, BOM cost × margin) + add-ons, so the final total
+// can differ from this estimate when a BOM recipe exists. The armature/weight
+// surcharges below are quote-side only (the server does not bill them).
 export function estimateLocalPrice(spec: ConfiguratorSpecState, s: Record<string, string | undefined> = {}){
   const num = (v: string | undefined, d: number) => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
   const base = num(s.configurator_floor, 45);

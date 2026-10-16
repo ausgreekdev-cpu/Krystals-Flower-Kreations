@@ -41,6 +41,10 @@ const BOUQUET_PRESETS = [
 const CHIP = 'px-3 py-1.5 rounded-full text-xs border transition';
 const CHIP_ON = 'bg-bloom-500 text-white border-bloom-500';
 const CHIP_OFF = 'bg-surface2 hover:bg-surface3';
+// A bouquet preset reads as active when its headline fields match the spec.
+const isPresetActive = (spec, apply) =>
+  spec.templateId === apply.templateId && spec.stemCount === apply.stemCount
+  && spec.armatureHeightMm === apply.armatureHeightMm && spec.paperColor === apply.paperColor;
 
 export default function Configurator(){
   const { spec, setSpec } = useConfiguratorStore();
@@ -58,7 +62,7 @@ export default function Configurator(){
   const activeTemplate = TEMPLATES.find(t=>t.id===spec.templateId);
   useEffect(()=>{
     setPairs([]); setPairMsg('');
-    const ft = activeTemplate?.flowerType;
+    const ft = TEMPLATES.find(t=>t.id===spec.templateId)?.flowerType;
     if(!ft) return;
     let alive = true;
     fetch(`/api/products?flowerType=${encodeURIComponent(ft)}&limit=6`)
@@ -66,7 +70,7 @@ export default function Configurator(){
       .then(d=>{ const arr=(Array.isArray(d)?d:(Array.isArray(d?.products)?d.products:[])); if(alive) setPairs(arr.slice(0,3)); })
       .catch(()=>{});
     return ()=>{ alive=false; };
-  }, [spec.templateId, activeTemplate]);
+  }, [spec.templateId]);
   async function addPair(p){
     setPairBusy(p.id); setPairMsg('');
     try{
@@ -75,12 +79,11 @@ export default function Configurator(){
     }catch(e){ setPairMsg(e.message || 'Could not add — try the product page'); }
     finally{ setPairBusy(''); }
   }
-  useEffect(()=>{ /* pricing derived */ }, [spec]);
   async function submit(){
     setErr(''); setMsg('');
     const email = form.email.trim(); const name = form.name.trim() || 'Perth Customer'; const postcode = form.postcode.trim() || '6000';
     if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ setErr('Valid email required'); return; }
-    if(!/^6000|6\d{3}$/.test(postcode) && !/^\d{4}$/.test(postcode)){ setErr('Postcode must be 4 digits (e.g., 6000)'); return; }
+    if(!/^\d{4}$/.test(postcode)){ setErr('Postcode must be 4 digits (e.g., 6000)'); return; }
     if(name.length<2){ setErr('Full name required'); return; }
     try{
       const order = await ordersApi.customCreate({ customerEmail: email, customerName: name, spec, shippingPostcode: postcode });
@@ -93,11 +96,11 @@ export default function Configurator(){
         lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'} />
       <div className="space-y-3 sm:space-y-4 mt-6 pb-24 sm:pb-0">
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-          <h3 className="font-bold flex items-center gap-2">Start from a look</h3>
+          <h2 className="font-bold flex items-center gap-2">Start from a look</h2>
           <p className="text-xs text-muted mt-1">One tap sets the whole bouquet — fine-tune anything after.</p>
           <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Bouquet presets">
             {BOUQUET_PRESETS.map(p=> (
-              <button key={p.id} onClick={()=>setSpec({ ...p.apply })} aria-pressed={spec.templateId===p.apply.templateId && spec.stemCount===p.apply.stemCount && spec.armatureHeightMm===p.apply.armatureHeightMm && spec.paperColor===p.apply.paperColor} className={`${CHIP} text-left ${spec.templateId===p.apply.templateId && spec.stemCount===p.apply.stemCount && spec.armatureHeightMm===p.apply.armatureHeightMm && spec.paperColor===p.apply.paperColor?CHIP_ON:CHIP_OFF}`}>
+              <button key={p.id} onClick={()=>setSpec({ ...p.apply })} aria-pressed={isPresetActive(spec, p.apply)} className={`${CHIP} text-left ${isPresetActive(spec, p.apply)?CHIP_ON:CHIP_OFF}`}>
                 {p.label}<span className="block text-[10px] font-normal opacity-80">{p.hint}</span>
               </button>
             ))}
@@ -105,17 +108,17 @@ export default function Configurator(){
           </div>
         </section>
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-        <h3 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Paper Colour</h3>
+        <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Paper Colour</h2>
         <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper palette">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} aria-pressed={spec.palette===p.id} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
         <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper colour">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} aria-pressed={spec.paperColor===c && !spec.palette} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
         </section>
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-        <h3 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Texture &amp; Weight</h3>
+        <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Texture &amp; Weight</h2>
         <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper texture">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} aria-pressed={spec.paperTexture===t} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
         <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
         </section>
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border space-y-3">
-          <h3 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Armature</h3>
+          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Armature</h2>
           <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-stems" className="shrink-0">Stems</label> <input id="cfg-stems" type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.stemCount} stems`} /> <span aria-hidden="true" className="shrink-0 w-6 text-right">{spec.stemCount}</span></div>
           <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-armature" className="shrink-0">Armature mm</label> <input id="cfg-armature" type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.armatureHeightMm} millimetres`} /> <span aria-hidden="true" className="shrink-0 w-8 text-right">{spec.armatureHeightMm}</span></div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Add-ons">
@@ -126,7 +129,7 @@ export default function Configurator(){
           </div>
         </section>
         {s.show_cricut === '1' && <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-          <h3 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Cricut Template — free preview</h3>
+          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Cricut Template — free preview</h2>
           <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Cricut template">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} aria-pressed={spec.templateId===t.id} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
           <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
             <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
@@ -138,7 +141,7 @@ export default function Configurator(){
         {pairs.length>0 && (
           <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms & templates</h3>
+              <h2 className="font-bold">Pairs well with — ready-made {activeTemplate?.flowerType} blooms & templates</h2>
               {pairMsg && <span className="text-[11px] text-success-800">{pairMsg} — <Link to="/cart" className="underline font-semibold">view cart</Link></span>}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
@@ -155,7 +158,7 @@ export default function Configurator(){
         )}
         <NotebookPanel query={`${spec.templateId} ${spec.paperColor} ${spec.weight} Perth humidity`} />
         <div id="cfg-order" className="bg-surface2 border rounded-2xl p-3 sm:p-4 space-y-3 scroll-mt-24">
-          <h3 className="font-bold">Your details — for custom order</h3>
+          <h2 className="font-bold">Your details — for custom order</h2>
           <Input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com" type="email" label="Email" labelVisible size="sm" className="w-full" />
           <Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name" label="Full name" labelVisible size="sm" className="w-full" />
           <Input value={form.postcode} onChange={e=>setForm({...form,postcode:e.target.value})} placeholder="6000 Perth metro" label="Postcode" labelVisible size="sm" className="w-full" />
@@ -163,8 +166,7 @@ export default function Configurator(){
           {msg && <Alert tone="ok" className="text-xs">{msg}</Alert>}
         </div>
         <div className="bg-bloom-700 text-white rounded-2xl p-5">
-          <div className="flex justify-between"><span>Unit</span><span className="font-bold">${est.unitPrice.toFixed(2)} AUD</span></div>
-          <div className="flex justify-between mt-1"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)} AUD</span></div>
           <div className="flex justify-between mt-1 text-sm opacity-80"><span>Est. craft time</span><span>{est.estimatedMinutes} min</span></div>
           <div className="text-xs opacity-60 mt-2">Live price — materials + craft time. Earn 1 Bloom pt per $1.</div>
           <Btn onClick={submit} className="w-full mt-4" variant="primary" size="lg">Create Custom Order → Drafting/Proofing</Btn>

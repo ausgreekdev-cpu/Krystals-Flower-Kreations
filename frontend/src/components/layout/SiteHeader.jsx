@@ -92,7 +92,7 @@ export default function SiteHeader() {
   );
 
   return (
-    <div>
+    <header>
       {/* Top bar for desktop */}
       <div className="hidden md:block bg-bloom-700 text-white text-xs">
         <div className="max-w-7xl mx-auto px-4 py-1.5 flex justify-between gap-4">
@@ -104,7 +104,7 @@ export default function SiteHeader() {
           <span className="flex gap-4 shrink-0"><a href={`tel:${phone}`} className="hover:underline">{phone}</a><a href={`mailto:${email}`} className="hover:underline">{email}</a></span>
         </div>
       </div>
-      <header className="bg-surface2/95 backdrop-blur border-b sticky top-0 z-20">
+      <div className="bg-surface2/95 backdrop-blur border-b sticky top-0 z-20">
         {/* [logo] [search centred] [nav/actions] — explicit columns keep actions right when the centre is hidden */}
         <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 md:gap-4">
           <Link to="/" className="col-start-1 font-black text-ink text-xl tracking-tight flex items-center gap-2 shrink-0" aria-label={`${businessName} — home`}>
@@ -182,7 +182,7 @@ export default function SiteHeader() {
             </div>
           </div>
         )}
-      </header>
-    </div>
+      </div>
+    </header>
   );
 }
