@@ -52,7 +52,12 @@ async function fetchJson(path: string, base: URL): Promise<Record<string, unknow
   try {
     const res = await fetch(new URL(path, base), {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
+      // Prod API latency is high (functions in us-east, DB in ap-southeast-2 —
+      // each Prisma relation include is a hemisphere round trip; /api/products/:slug
+      // measures ~6-7s). 5s aborted every product/post fetch; 15s stays well
+      // inside the 40s edge response-header timeout and fetch wait does not
+      // count against the 50ms CPU budget.
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
     return await res.json();

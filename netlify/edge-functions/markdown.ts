@@ -61,7 +61,10 @@ async function fetchJson(path: string, base: URL): Promise<unknown> {
   try {
     const res = await fetch(new URL(path, base), {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
+      // Prod API latency is high (us-east functions vs ap-southeast-2 DB —
+      // /api/products/:slug measures ~6-7s), so 5s aborted every product
+      // enrich; 15s stays inside the 40s edge response-header timeout.
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
     return await res.json();
