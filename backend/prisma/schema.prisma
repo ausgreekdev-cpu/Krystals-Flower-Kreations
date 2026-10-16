@@ -1210,3 +1210,88 @@ model BusinessDocument {
   @@index([deletedAt, createdAt])
   @@map("business_documents")
 }
+
+// ── Media library (reusable images + staff photo archive) ───────────────────
+// LIBRARY assets live in the PUBLIC `media` bucket (publicUrl set, variants
+// like ProductImage) and can be attached to products/posts. STAFF assets live
+// in the PRIVATE `staff-media` bucket (order/reference photos) and are only
+// served through the authed GET /api/media/:id/file route. Folders organise
+// both. Attachments are recorded with a denormalized snapshot on the target.
+enum MediaVisibility {
+  LIBRARY
+  STAFF
+}
+
+enum MediaSource {
+  UPLOAD
+  CAMERA
+  IMPORT
+}
+
+enum MediaAttachable {
+  PRODUCT
+  POST
+  ORDER
+  PAGE
+}
+
+model MediaFolder {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @db.VarChar(80)
+  parentId  String?      @db.Uuid
+  parent    MediaFolder? @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  MediaFolder[] @relation("FolderTree")
+  assets    MediaAsset[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([parentId])
+  @@map("media_folders")
+}
+
+model MediaAsset {
+  id           String          @id @default(uuid()) @db.Uuid
+  title        String          @db.VarChar(200)
+  altText      String?         @db.VarChar(255)
+  caption      String?         @db.VarChar(500)
+  mime         String
+  sizeBytes    Int
+  storageRef   String // "media/<key>" | "staff-media/<key>" (deleteObjectByUrl contract)
+  publicUrl    String? // LIBRARY only — absolute URL or /uploads path
+  sha256       String
+  width        Int?
+  height       Int?
+  variants     Json? // LIBRARY only — same shape as ProductImage.variants (400/800 webp+avif)
+  thumbRef     String? // STAFF only — "staff-media/<key>-thumb.webp"
+  visibility   MediaVisibility @default(LIBRARY)
+  source       MediaSource     @default(UPLOAD)
+  folderId     String?         @db.Uuid
+  folder       MediaFolder?    @relation(fields: [folderId], references: [id])
+  tags         String[]        @default([])
+  uploadedById String? // cuid users — plain string, no FK (repo convention)
+  deletedAt    DateTime? // soft delete → trash; purge removes bytes too
+  attachments  MediaAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([visibility, deletedAt, createdAt])
+  @@index([folderId, deletedAt])
+  @@index([sha256])
+  @@map("media_assets")
+}
+
+model MediaAttachment {
+  id             String         @id @default(uuid()) @db.Uuid
+  assetId        String         @db.Uuid
+  asset          MediaAsset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  attachableType MediaAttachable
+  attachableId   String // target id (cuid/uuid — plain string, no FK)
+  role           String         @default("gallery") // cover | gallery | reference
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  @@unique([assetId, attachableType, attachableId, role])
+  @@index([attachableType, attachableId])
+  @@map("media_attachments")
+}

@@ -33,6 +33,18 @@ export const uploadDocs = multer({
   },
 });
 
+// Media library — raster images only (no SVG: public bucket + inline XSS
+// surface; product SVGs keep using the dedicated sanitized :id/svg route).
+export const MEDIA_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+export const uploadMedia = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (MEDIA_MIME.has(file.mimetype)) return cb(null, true);
+    cb(Object.assign(new Error('Only JPEG, PNG, WebP, GIF or AVIF images are allowed'), { status: 415, code: 'unsupported_media_type' }));
+  },
+});
+
 // Business document centre — spec-pack types PLUS office/text files
 // (CSV stocktakes, XLSX sheets, markdown/text exports). Extension accepted as
 // a fallback when the browser omits/mistypes the mimetype; callers MUST still

@@ -39,10 +39,24 @@ export function storageDriver() {
 // and are only reachable through the tokenized /api/dl/:token route.
 // business-documents is PRIVATE too — stocktakes/supplier exports may hold PII
 // and cost data; served only via the authed /api/documents/:id/file route.
-const PRIVATE_BUCKETS = new Set(['digital-assets', 'business-documents']);
+const PRIVATE_BUCKETS = new Set(['digital-assets', 'business-documents', 'staff-media']);
 export function isPrivateBucket(bucket) { return PRIVATE_BUCKETS.has(bucket); }
 
 function bucketSpec(bucket) {
+  if (bucket === 'media') {
+    // Public media library (reusable storefront/marketing images).
+    return {
+      id: bucket, name: bucket, public: true, file_size_limit: 10 * 1024 * 1024,
+      allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'],
+    };
+  }
+  if (bucket === 'staff-media') {
+    // Private staff photo archive (order/reference photos) — authed route only.
+    return {
+      id: bucket, name: bucket, public: false, file_size_limit: 10 * 1024 * 1024,
+      allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'],
+    };
+  }
   if (bucket === 'procedure-media') {
     return {
       id: bucket, name: bucket, public: true, file_size_limit: 25 * 1024 * 1024,
@@ -198,12 +212,12 @@ export async function deleteObjectByUrl(url) {
     try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
     return;
   }
-  // Private-bucket ref: "digital-assets/<key>"
+  // Bucket/key ref ("digital-assets/<key>", "staff-media/<key>", "media/<key>")
   const slash = url.indexOf('/');
   if (slash > 0) {
     const bucket = url.slice(0, slash);
     const key = url.slice(slash + 1);
-    if (!isPrivateBucket(bucket) || !SAFE_KEY.test(key) || key.includes('..')) return;
+    if (!SAFE_BUCKET.test(bucket) || !SAFE_KEY.test(key) || key.includes('..')) return;
     if (cfg) {
       await fetch(`${cfg.url}/storage/v1/object/${bucket}/${key}`, {
         method: 'DELETE',
@@ -211,7 +225,8 @@ export async function deleteObjectByUrl(url) {
       }).catch(() => {});
       return;
     }
-    const file = path.join(path.dirname(LOCAL_ROOT), 'uploads-private', key);
+    const root = isPrivateBucket(bucket) ? path.join(path.dirname(LOCAL_ROOT), 'uploads-private') : LOCAL_ROOT;
+    const file = path.join(root, key);
     try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   }
 }

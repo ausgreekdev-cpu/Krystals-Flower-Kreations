@@ -12,6 +12,7 @@ import LabelPrintModal from '../components/admin/LabelPrintModal';
 import PackingSlipModal from '../components/admin/PackingSlipModal';
 import InventoryDetail from '../components/admin/InventoryDetail';
 import DocumentCentre from '../components/admin/DocumentCentre';
+import MediaLibrary from '../components/admin/media/MediaLibrary';
 import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
@@ -34,6 +35,7 @@ const TABS = [
   { id: 'blog', label: 'Blog', icon: '📝' },
   { id: 'procedures', label: 'Procedures', icon: '📐' },
   { id: 'documents', label: 'Documents', icon: '📁' },
+  { id: 'media', label: 'Media', icon: '🖼️' },
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'meta', label: 'Meta Sync', icon: '🔗' },
   { id: 'pos', label: 'POS', icon: '💳' },
@@ -310,6 +312,7 @@ function AdminInner({ user }) {
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
                   {tab === 'procedures' && <Procedures token={token} role={user?.role} />}
                   {tab === 'documents' && <DocumentCentre token={token} role={user?.role} />}
+                  {tab === 'media' && <MediaLibrary token={token} role={user?.role} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}

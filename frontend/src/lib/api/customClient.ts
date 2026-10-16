@@ -1,6 +1,6 @@
 // Shared frontend API client — custom backend (mirrors mobile/core/api/customClient.ts)
 // On Netlify, VITE_API_URL is empty and relative /api goes via /.netlify/functions/api redirect
-const BASE = import.meta.env.VITE_API_URL || '';
+export const BASE = import.meta.env.VITE_API_URL || '';
 
 export interface ApiError extends Error {
   code?: string;
@@ -322,6 +322,36 @@ export const adminApi = {
       req<{ document: any; ocr: { chars: number; confidence: number } }>(
         `/api/documents/${id}/ocr${force ? '?force=1' : ''}`, { method: 'POST', token },
       ),
+  },
+  media: {
+    folders: (token: string) => req<any[]>('/api/media/folders', { token }),
+    createFolder: (token: string, body: { name: string; parentId?: string | null }) =>
+      req<any>('/api/media/folders', { method: 'POST', body: JSON.stringify(body), token }),
+    updateFolder: (id: string, body: any, token: string) => req<any>(`/api/media/folders/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    deleteFolder: (id: string, token: string) => req<any>(`/api/media/folders/${id}`, { method: 'DELETE', token }),
+    list: (token: string, params: Record<string, string | number | boolean | undefined> = {}) => {
+      const q = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === '' || v === false) continue;
+        q.set(k, v === true ? '1' : String(v));
+      }
+      const s = q.toString();
+      return req<any>(`/api/media${s ? `?${s}` : ''}`, { token });
+    },
+    get: (id: string, token: string) => req<any>(`/api/media/${id}`, { token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/media/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/media/${id}`, { method: 'DELETE', token }),
+    restore: (id: string, token: string) => req<any>(`/api/media/${id}/restore`, { method: 'POST', token }),
+    purge: (id: string, token: string) => req<any>(`/api/media/${id}/purge`, { method: 'DELETE', token }),
+    // Auth'd blob fetch (img src can't carry the Bearer token)
+    blob: async (id: string, token: string, kind: 'thumb' | 'file' = 'thumb') => {
+      const res = await fetch(`${BASE}/api/media/${id}/${kind}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(body.error || res.statusText);
+      }
+      return res.blob();
+    },
   },
   pos: {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),
