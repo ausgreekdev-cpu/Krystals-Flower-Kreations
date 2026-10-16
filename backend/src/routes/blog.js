@@ -96,6 +96,9 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker'), vali
 }));
 
 router.delete('/:id', requireAuth, requireRole('admin','developer'), asyncHandler(async (req, res) => {
+  // Cover attachments are provenance only — clear them with the post so
+  // media assets don't stay "in use" forever (blocks their purge).
+  await prisma.mediaAttachment.deleteMany({ where: { attachableType: 'POST', attachableId: String(req.params.id).slice(0, 100) } }).catch(() => {});
   await prisma.post.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }));

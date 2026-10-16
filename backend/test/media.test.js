@@ -270,3 +270,23 @@ test('product image delete keeps library bytes and clears provenance', async () 
   const purged = await api(srv.base, `/api/media/${up.body.asset.id}/purge`, { method: 'DELETE', headers: auth(adminToken) });
   assert.equal(purged.status, 200, 'asset purgeable once detached');
 });
+
+test('post delete clears leftover cover attachments', async () => {
+  const bslug = `media-delpost-${Date.now()}`;
+  const post = await api(srv.base, '/api/posts', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ title: 'Media T DelPost', slug: bslug, status: 'draft' }),
+  });
+  assert.equal(post.status, 201);
+  const up = await upload(adminToken, { title: 'Media T DelCover' });
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: up.body.asset.id, attachableType: 'POST', attachableId: post.body.id, role: 'cover' }),
+  });
+  assert.equal(att.status, 201);
+
+  const del = await api(srv.base, `/api/posts/${post.body.id}`, { method: 'DELETE', headers: auth(adminToken) });
+  assert.equal(del.status, 200);
+  const purged = await api(srv.base, `/api/media/${up.body.asset.id}/purge`, { method: 'DELETE', headers: auth(adminToken) });
+  assert.equal(purged.status, 200, 'cover attachment cleared with the post');
+});
