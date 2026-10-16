@@ -20,7 +20,7 @@ import { putObject, getObject, deleteObjectByUrl } from '../services/storage.js'
 import { buildVariants } from '../services/imageVariants.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { audit } from '../lib/audit.js';
-import { publicCache, noStore } from '../lib/http-cache.js';
+import { noStore } from '../lib/http-cache.js';
 
 const router = Router();
 const EDITOR_ROLES = ['admin', 'developer', 'maker', 'staff'];
