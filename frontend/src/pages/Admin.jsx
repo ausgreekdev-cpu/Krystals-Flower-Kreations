@@ -226,7 +226,7 @@ function AdminInner({ user }) {
               if (!tabs.length) return null;
               return (
                 <div key={g.label || 'top'}>
-                  {g.label && <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-white/40">{g.label}</div>}
+                  {g.label && <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-white/70">{g.label}</div>}
                   <div className="space-y-1">
                     {tabs.map((t) => (
                       <button key={t.id} onClick={() => { setTab(t.id); setNavQ(''); }}
@@ -238,12 +238,12 @@ function AdminInner({ user }) {
                 </div>
               );
             })}
-            {!NAV_GROUPS.some((g) => groupTabs(g).length > 0) && <div className="px-3 text-xs text-white/40">No match</div>}
+            {!NAV_GROUPS.some((g) => groupTabs(g).length > 0) && <div className="px-3 text-xs text-white/70">No match</div>}
           </nav>
           <Link to="/" className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-white/70 hover:bg-white/10 hover:text-white border border-white/10">🏠 View storefront</Link>
           <div className="mt-6 border-t border-white/10 pt-4 px-2">
             <div className="text-white text-xs font-semibold truncate">{user?.name || user?.email}</div>
-            <div className="text-white/50 text-[10px] truncate">{user?.email} • {user?.role}</div>
+            <div className="text-white/70 text-[10px] truncate">{user?.email} • {user?.role}</div>
             <button onClick={toggleColorMode} title={`Click for ${nextModeLabel}`}
               className="mt-2 w-full text-xs text-white/70 hover:text-white border border-white/20 rounded-lg px-2 py-1.5">
               {colorMode === 'system' ? '🖥️' : colorMode === 'light' ? '☀️' : '🌙'} {colorMode} → {nextModeLabel}
@@ -252,11 +252,11 @@ function AdminInner({ user }) {
           </div>
         </aside>
 
-        <div className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0">
           <header className="bg-surface2 border-b border-line px-6 py-4 flex items-center justify-between lg:hidden">
             <div className="flex items-center gap-2">
               <Link to="/" className="text-xs border border-line-strong rounded-full px-3 py-1.5 text-muted">🏠 Home</Link>
-              <h1 className="font-black text-royal-700">Studio Manager</h1>
+              <h1 className="font-black text-royal-700 dark:text-royal-300">Studio Manager</h1>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={toggleColorMode} title={`Click for ${nextModeLabel}`}
@@ -273,10 +273,11 @@ function AdminInner({ user }) {
                 <p className="text-xs text-muted mt-0.5">Krystals Flower Creations — Perth WA studio</p>
               </div>
               <div className="flex items-center gap-2">
-                <Link to="/" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">🏠 Storefront</Link>
-                <a href="/api/health" target="_blank" rel="noreferrer" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-muted">Health</a>
+                <Link to="/" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-ink">🏠 Storefront</Link>
+                <a href="/api/health" target="_blank" rel="noreferrer" className="text-xs border border-line-strong rounded-full px-3 py-1.5 hover:bg-surface3 text-ink">Health</a>
               </div>
             </div>
+          <h2 className="sr-only">{TABS.find((t) => t.id === tab)?.label || 'Studio Manager'}</h2>
             {err && <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{err}</div>}
 
             {/* mobile tab strip — grouped, filtered */}
@@ -326,7 +327,7 @@ function AdminInner({ user }) {
               )}
             </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
@@ -406,19 +407,19 @@ function Overview({ data, onOpen }) {
         <Stat label="Supplier spend" value={`$${totalSpend.toFixed(2)}`} accent />
       </div>
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card title="Recent orders" actions={<button onClick={() => onOpen('orders')} className="text-xs text-royal-700 hover:underline font-semibold">View all</button>}>
+        <Card title="Recent orders" actions={<button onClick={() => onOpen('orders')} className="text-xs text-royal-700 dark:text-royal-300 hover:underline font-semibold">View all</button>}>
           <div className="space-y-1.5">
             {orders.slice(0, 6).map((o) => <div key={o.id} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{o.orderNumber} <span className="text-muted">• {o.email}</span></span><StatusBadge value={o.status} /></div>)}
             {orders.length === 0 && <div className="text-xs text-muted py-4 text-center">No orders yet</div>}
           </div>
         </Card>
-        <Card title="Low stock" actions={<button onClick={() => onOpen('inventory')} className="text-xs text-royal-700 hover:underline font-semibold">Manage</button>}>
+        <Card title="Low stock" actions={<button onClick={() => onOpen('inventory')} className="text-xs text-royal-700 dark:text-royal-300 hover:underline font-semibold">Manage</button>}>
           <div className="space-y-1.5">
-            {low.slice(0, 6).map((m) => <div key={m.id || m.sku} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{m.name || m.sku}</span><span className="text-amber-600 font-semibold">{m.onHand}/{m.lowThreshold}</span></div>)}
+            {low.slice(0, 6).map((m) => <div key={m.id || m.sku} className="flex justify-between text-xs border-b border-line py-1.5"><span className="font-medium text-ink">{m.name || m.sku}</span><span className="text-amber-700 dark:text-amber-400">{m.onHand}/{m.lowThreshold}</span></div>)}
             {low.length === 0 && <div className="text-xs text-muted py-4 text-center">All stocked ✓</div>}
           </div>
         </Card>
-        <Card title="Open purchase orders" actions={<button onClick={() => onOpen('inventory')} className="text-xs text-royal-700 hover:underline font-semibold">Manage</button>}>
+        <Card title="Open purchase orders" actions={<button onClick={() => onOpen('inventory')} className="text-xs text-royal-700 dark:text-royal-300 hover:underline font-semibold">Manage</button>}>
           <div className="space-y-1.5">
             {openPos.slice(0, 5).map((p) => (
               <div key={p.id} className="flex justify-between items-center text-xs border-b border-line py-1.5">
@@ -429,7 +430,7 @@ function Overview({ data, onOpen }) {
             {openPos.length === 0 && <div className="text-xs text-muted py-4 text-center">No open POs ✓</div>}
           </div>
         </Card>
-        <Card title="Upcoming workshops" actions={<button onClick={() => onOpen('workshops')} className="text-xs text-royal-700 hover:underline font-semibold">View all</button>}>
+        <Card title="Upcoming workshops" actions={<button onClick={() => onOpen('workshops')} className="text-xs text-royal-700 dark:text-royal-300 hover:underline font-semibold">View all</button>}>
           <div className="space-y-1.5">
             {upcoming.map((s) => (
               <div key={s.id} className="flex justify-between items-center text-xs border-b border-line py-1.5">
@@ -445,9 +446,10 @@ function Overview({ data, onOpen }) {
   );
 }
 function Stat({ label, value, warn, accent }) {
-  return <div className={`p-4 rounded-2xl border ${warn ? 'bg-amber-50 border-amber-200' : accent ? 'bg-royal-50 border-royal-100' : 'bg-surface3 border-line'}`}>
-    <div className="text-xs text-muted">{label}</div>
-    <div className={`text-xl font-black mt-0.5 ${warn ? 'text-amber-600' : accent ? 'text-royal-700' : 'text-ink'}`}>{value}</div>
+  // warning-* is a dark-safe ramp (index.css); royal tints need dark: flips
+  return <div className={`p-4 rounded-2xl border ${warn ? 'bg-warning-50 border-warning-200' : accent ? 'bg-royal-50 border-royal-100 dark:bg-royal-900 dark:border-royal-800' : 'bg-surface3 border-line'}`}>
+    <div className="text-xs text-ink">{label}</div>
+    <div className={`text-xl font-black mt-0.5 ${warn ? 'text-warning-800' : accent ? 'text-royal-700 dark:text-royal-300' : 'text-ink'}`}>{value}</div>
   </div>;
 }
 
@@ -1715,7 +1717,7 @@ function Workshops({ data, reload, token }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center gap-3 flex-wrap">
-        <div className="text-xs text-muted">{workshops.length} workshops{hiddenCount > 0 && visFilter !== 'hidden' && <> • <span className="text-amber-600 font-semibold">{hiddenCount} hidden</span></>}</div>
+        <div className="text-xs text-muted">{workshops.length} workshops{hiddenCount > 0 && visFilter !== 'hidden' && <> • <span className="text-amber-700 dark:text-amber-400">{hiddenCount} hidden</span></>}</div>
         <div className="flex gap-2 items-center flex-wrap">
           <div className="flex rounded-xl border border-line-strong overflow-hidden text-xs font-semibold">
             {[['all', 'All'], ['visible', 'Visible'], ['hidden', 'Hidden']].map(([k, label]) => (
@@ -3172,7 +3174,7 @@ function Reports({ data }) {
   return <div><div className="text-xs text-muted mb-3">Loyalty leaderboard (top 10)</div>
     <div className="space-y-1.5">{board.map((b, i) => (
       <div key={i} className="flex items-center gap-3 border border-line rounded-xl px-4 py-2.5 text-sm">
-        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${i < 3 ? 'bg-royal-600 text-white' : 'bg-surface3 text-muted'}`}>{i + 1}</span>
+        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${i < 3 ? 'bg-royal-600 text-white' : 'bg-surface3 text-ink'}`}>{i + 1}</span>
         <span className="font-medium text-ink flex-1 truncate">{b.email}</span>
         <span className="text-xs text-muted">{b.tier}</span><span className="font-bold text-royal-700">{b.points} pts</span>
       </div>))}
@@ -3427,7 +3429,7 @@ function Settings({ reload, token }) {
             )}
             <span className="text-xs text-muted">
               {fields.length} setting{fields.length === 1 ? '' : 's'}
-              {!q && dirtyInSection(section) && <span className="text-amber-600 font-semibold"> • unsaved changes</span>}
+              {!q && dirtyInSection(section) && <span className="text-amber-700 dark:text-amber-400"> • unsaved changes</span>}
             </span>
           </div>
         </Card>

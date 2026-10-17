@@ -50,9 +50,9 @@ export default function MediaPickerModal({ token, onPick, onClose }) {
             <button type="button" onClick={onClose} className="text-xs text-muted hover:underline">Close</button>
           </div>
         </div>
-        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="sr-only"
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label="Upload new library image" className="sr-only"
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadNew(f); }} />
-        {busy && <div className="text-xs text-royal-700" role="status">{busy}</div>}
+        {busy && <div className="text-xs text-royal-700 dark:text-royal-300" role="status">{busy}</div>}
         {err && <div className="text-xs text-red-600">{err}</div>}
         {assets === null && <div className="text-xs text-muted py-8 text-center">Loading…</div>}
         {assets?.length === 0 && <div className="text-xs text-muted py-8 text-center">No library assets yet — use “Upload new”.</div>}

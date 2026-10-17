@@ -84,7 +84,7 @@ export default function OcrDrawer({ doc, token, onClose, onSaved }) {
         <div className="flex flex-wrap gap-2">
           {canOcr && (
             <button type="button" onClick={() => runOcr(false)} disabled={!!busy}
-              className="text-xs font-semibold border border-royal-200 text-royal-700 rounded-xl px-3 py-1.5 hover:bg-royal-50 disabled:opacity-50">
+              className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-1.5 hover:bg-royal-50 disabled:opacity-50">
               {text ? 'Re-run OCR' : 'Run OCR'}
             </button>
           )}
@@ -97,7 +97,7 @@ export default function OcrDrawer({ doc, token, onClose, onSaved }) {
           value={text} onChange={(e) => { setText(e.target.value); setDirty(true); }}
           placeholder={canOcr ? 'No text extracted yet — run OCR.' : 'No text extracted for this file type.'}
           aria-label="Extracted text" />
-        {busy && <div className="text-xs text-royal-700" role="status">{busy}</div>}
+        {busy && <div className="text-xs text-royal-700 dark:text-royal-300" role="status">{busy}</div>}
         {err && <div className="text-xs text-red-600">{err}</div>}
         <div className="text-[10px] text-muted">Edits here are searchable — content search and the AI markdown summaries read this text.</div>
       </div>

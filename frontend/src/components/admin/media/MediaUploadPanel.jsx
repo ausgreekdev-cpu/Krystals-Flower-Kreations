@@ -68,9 +68,9 @@ export default function MediaUploadPanel({ token, folderId, onDone, onClose }) {
       </div>
       <div className="text-[11px] text-muted">JPEG, PNG, WebP, GIF or AVIF — max 10MB each. Library images get responsive webp/avif variants automatically; Staff assets stay private.</div>
 
-      <input ref={fileRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="sr-only"
+      <input ref={fileRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" aria-label="Upload images" className="sr-only"
         onChange={(e) => { const files = e.target.files; e.target.value = ''; addFiles(files); }} />
-      <input ref={camRef} type="file" accept="image/*" capture="environment" className="sr-only"
+      <input ref={camRef} type="file" accept="image/*" capture="environment" aria-label="Capture image with camera" className="sr-only"
         onChange={(e) => { const files = e.target.files; e.target.value = ''; addFiles(files, 'CAMERA'); }} />
 
       {queue.length === 0 && (

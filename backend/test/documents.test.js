@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
-import { __setOcrRecognize } from '../src/services/ocr.js';
+import { __setOcrRecognize, prepareForOcr } from '../src/services/ocr.js';
 import { startServer, api } from './helpers.js';
 
 // Smart document upload centre (M1–M4): private-bucket storage, sha256 dedup,
@@ -449,4 +449,31 @@ test('OCR persists confidence + timestamp and list rows carry hasText', async ()
   const afterRow = after.body.documents.find((d) => d.id === id);
   assert.equal(afterRow.hasText, true, 'list rows flag extracted text');
   assert.equal(afterRow.extractedText, undefined, 'list rows do not ship the text body');
+});
+
+// ── Phase E: OCR preprocessing pipeline ────────────────────────────────────
+
+test('prepareForOcr trims borders, grayscales and upscales small scans', async () => {
+  // 400x300 white page with a small black block inside — borders must go.
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="white"/><rect x="120" y="100" width="160" height="100" fill="black"/></svg>';
+  const small = await sharp(Buffer.from(svg)).png().toBuffer();
+  const out = await prepareForOcr(small);
+  const meta = await sharp(out).metadata();
+  assert.ok(meta.width > 300, `tiny input upscaled, got ${meta.width}px wide`);
+  assert.ok(out.length > 0);
+
+  // grayscale output (tesseract prefers single-channel)
+  const grayMeta = await sharp(out).metadata();
+  assert.ok(grayMeta.channels === 1 || grayMeta.space === 'b-w', `grayscale output, got ${grayMeta.channels} channels / ${grayMeta.space}`);
+
+  // busy photo-like input survives the pipeline untouched in spirit
+  const photo = await sharp({ create: { width: 900, height: 700, channels: 3, background: { r: 120, g: 80, b: 40 } } }).png().toBuffer();
+  const out2 = await prepareForOcr(photo);
+  const meta2 = await sharp(out2).metadata();
+  assert.ok(meta2.width > 0 && meta2.height > 0, 'photo path returns a readable image');
+});
+
+test('prepareForOcr never throws on garbage bytes', async () => {
+  const out = await prepareForOcr(Buffer.from('not-an-image'));
+  assert.ok(Buffer.isBuffer(out), 'falls back to the original buffer');
 });

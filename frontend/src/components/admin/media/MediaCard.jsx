@@ -14,13 +14,13 @@ export default function MediaCard({ asset, token, selected, onToggle, onOpen, on
       <label className="absolute top-2 left-2 flex items-center">
         <input type="checkbox" checked={selected} onChange={() => onToggle(asset.id)} className="h-4 w-4 rounded border-line-strong" aria-label={`Select ${asset.title}`} />
       </label>
-      <span className={`absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${asset.visibility === 'STAFF' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-royal-50 text-royal-700 border-royal-100'}`}>
+      <span className={`absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${asset.visibility === 'STAFF' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-royal-50 text-royal-700 dark:text-royal-300 border-royal-100'}`}>
         {asset.visibility === 'STAFF' ? 'Staff' : 'Library'}
       </span>
       <div className="p-2">
         <div className="text-xs font-semibold text-ink truncate" title={asset.title}>{asset.title}</div>
         <div className="text-[10px] text-muted truncate">{fmtSize(asset.sizeBytes)}{asset.width ? ` · ${asset.width}×${asset.height}` : ''}</div>
-        <button type="button" onClick={() => onEdit(asset)} className="mt-1 text-[11px] font-semibold text-royal-700 hover:underline">Edit</button>
+        <button type="button" onClick={() => onEdit(asset)} className="mt-1 text-[11px] font-semibold text-royal-700 dark:text-royal-300 hover:underline">Edit</button>
       </div>
     </div>
   );

@@ -144,15 +144,15 @@ export default function DocumentCentre({ token, role }) {
         onDrop={(e) => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files); }}
         className={`border-2 border-dashed rounded-2xl p-5 text-center transition ${dragOver ? 'border-royal-500 bg-royal-50' : 'border-line bg-surface2'}`}
       >
-        <input ref={fileRef} type="file" multiple accept={ACCEPT} className="sr-only"
+        <input ref={fileRef} type="file" multiple accept={ACCEPT} aria-label="Upload documents" className="sr-only"
           onChange={(e) => { const files = e.target.files; e.target.value = ''; uploadFiles(files); }} />
         <div className="text-sm text-ink font-semibold">Drop files here or{' '}
-          <button type="button" onClick={() => fileRef.current?.click()} className="text-royal-700 underline font-bold">browse</button>
+          <button type="button" onClick={() => fileRef.current?.click()} className="text-royal-700 dark:text-royal-300 underline font-bold">browse</button>
           {' '}or{' '}
-          <button type="button" onClick={() => setScanning(true)} className="text-royal-700 underline font-bold">📷 scan</button>
+          <button type="button" onClick={() => setScanning(true)} className="text-royal-700 dark:text-royal-300 underline font-bold">📷 scan</button>
         </div>
         <div className="text-[11px] text-muted mt-1">PDF, XLSX, CSV, images &amp; more — max 25MB each. Identical files are detected and reused; category is guessed from the filename; PDF &amp; spreadsheet text becomes searchable.</div>
-        {busy && <div className="text-xs text-royal-700 font-semibold mt-2" role="status">{busy}</div>}
+        {busy && <div className="text-xs text-royal-700 dark:text-royal-300 font-semibold mt-2" role="status">{busy}</div>}
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -169,7 +169,7 @@ export default function DocumentCentre({ token, role }) {
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select></div>
         <button type="button" onClick={runBatchOcr} disabled={!!batch}
-          className="text-xs font-semibold border border-royal-200 text-royal-700 rounded-xl px-3 py-2 hover:bg-royal-50 disabled:opacity-50">
+          className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-2 hover:bg-royal-50 disabled:opacity-50">
           {batch ? 'OCR running…' : 'Batch OCR (page)'}
         </button>
       </div>
@@ -182,7 +182,7 @@ export default function DocumentCentre({ token, role }) {
           </div>
           {batch.map((b) => (
             <div key={b.id} className="flex items-center gap-2 text-[11px]">
-              <span className={`w-16 shrink-0 font-semibold ${b.status === 'done' ? 'text-emerald-600' : b.status === 'error' ? 'text-red-600' : b.status === 'running' ? 'text-royal-700' : 'text-muted'}`}>{b.status}</span>
+              <span className={`w-16 shrink-0 font-semibold ${b.status === 'done' ? 'text-emerald-600' : b.status === 'error' ? 'text-red-600' : b.status === 'running' ? 'text-royal-700 dark:text-royal-300' : 'text-muted'}`}>{b.status}</span>
               <span className="truncate flex-1 text-ink">{b.title}</span>
               {b.message && <span className="text-muted truncate max-w-[200px]">{b.message}</span>}
             </div>
@@ -203,12 +203,12 @@ export default function DocumentCentre({ token, role }) {
             <div className="text-xs text-muted truncate">{d.originalName} • {fmtSize(d.sizeBytes)} • {new Date(d.createdAt).toLocaleDateString('en-AU')}</div>
           </div>
           <span className={KIND_CHIP}>{d.kind}</span>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 text-royal-700 border-royal-100">{d.category}</span>
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 text-royal-700 dark:text-royal-300 border-royal-100">{d.category}</span>
           {d.tags?.length > 0 && <span className="text-[10px] text-muted hidden md:inline">{d.tags.slice(0, 3).join(' · ')}</span>}
           <button onClick={() => download(d)} className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Download</button>
           {(d.kind === 'IMAGE' || d.kind === 'PDF') && (
             <button onClick={() => setOcrDoc(d)}
-              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 hover:bg-royal-50">
+              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 dark:text-royal-300 hover:bg-royal-50">
               {d.hasText ? 'View text' : 'OCR'}
             </button>
           )}

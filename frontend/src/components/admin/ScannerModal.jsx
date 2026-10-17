@@ -122,7 +122,7 @@ export default function ScannerModal({ token, onDone, onClose }) {
               ? (
                 <div className="space-y-2">
                   <div className="text-xs text-muted">Camera unavailable ({camErr}) — capture straight from a phone camera input instead:</div>
-                  <input type="file" accept="image/*" capture="environment" className="block w-full text-xs" onChange={(e) => pickFile(e.target.files?.[0])} />
+                  <input type="file" accept="image/*" capture="environment" aria-label="Scan from device camera" className="block w-full text-xs" onChange={(e) => pickFile(e.target.files?.[0])} />
                 </div>
               ) : (
                 <>
