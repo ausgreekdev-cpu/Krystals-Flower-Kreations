@@ -403,3 +403,50 @@ test('text-less PDF OCR returns 422 guidance; SVG is refused', async () => {
   assert.equal(svgOcr.status, 415);
   assert.match(svgOcr.body.error, /SVG/i);
 });
+
+// ── Phase D: OCR drawer + batch groundwork ─────────────────────────────────
+
+test('extractedText is editable via PATCH (OCR drawer save)', async () => {
+  const csv = await uploadFile(`a,b\n1,2\n# drawer ${UNIQUE}\n`, `m5drawer-${UNIQUE}.csv`, 'text/csv');
+  assert.equal(csv.status, 201, JSON.stringify(csv.body).slice(0, 200));
+  const id = csv.body.document.id;
+
+  const saved = await api(srv.base, `/api/documents/${id}`, {
+    method: 'PATCH', headers: auth(),
+    body: JSON.stringify({ extractedText: `Edited by the OCR drawer ${UNIQUE}` }),
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body).slice(0, 200));
+  assert.equal(saved.body.extractedText, `Edited by the OCR drawer ${UNIQUE}`);
+
+  const read = await api(srv.base, `/api/documents/${id}`, { headers: auth() });
+  assert.equal(read.body.extractedText, `Edited by the OCR drawer ${UNIQUE}`);
+
+  // clearing works (nullable)
+  const cleared = await api(srv.base, `/api/documents/${id}`, {
+    method: 'PATCH', headers: auth(), body: JSON.stringify({ extractedText: null }),
+  });
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.body.extractedText, null);
+});
+
+test('OCR persists confidence + timestamp and list rows carry hasText', async () => {
+  const png = await sharp({ create: { width: 220, height: 120, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+  const up = await uploadFile(png, `m5ocr-${UNIQUE}.png`, 'image/png');
+  assert.equal(up.status, 201, JSON.stringify(up.body).slice(0, 200));
+  const id = up.body.document.id;
+
+  const before = await api(srv.base, '/api/documents?kind=IMAGE&limit=50', { headers: auth() });
+  const beforeRow = before.body.documents.find((d) => d.id === id);
+  assert.equal(beforeRow.hasText, false, 'fresh image has no text');
+
+  const ocr = await api(srv.base, `/api/documents/${id}/ocr`, { method: 'POST', headers: auth() });
+  assert.equal(ocr.status, 200, JSON.stringify(ocr.body).slice(0, 200));
+  assert.equal(ocr.body.ocr.confidence, 88);
+  assert.ok(ocr.body.document.ocrAt, 'ocrAt persisted');
+  assert.equal(ocr.body.document.ocrConfidence, 88);
+
+  const after = await api(srv.base, '/api/documents?kind=IMAGE&limit=50', { headers: auth() });
+  const afterRow = after.body.documents.find((d) => d.id === id);
+  assert.equal(afterRow.hasText, true, 'list rows flag extracted text');
+  assert.equal(afterRow.extractedText, undefined, 'list rows do not ship the text body');
+});

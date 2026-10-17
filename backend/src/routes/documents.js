@@ -33,7 +33,7 @@ const META_SELECT = {
 const uploadLimit = rateLimit('document_upload', 30, 5);
 const downloadLimit = rateLimit('document_download', 60, 1);
 const thumbLimit = rateLimit('document_thumb', 120, 5);
-const ocrLimit = rateLimit('document_ocr', 10, 10);
+const ocrLimit = rateLimit('document_ocr', 60, 10); // batch OCR queues run sequentially
 
 function kindFor(mime, name) {
   const m = String(mime || '').toLowerCase();
@@ -166,6 +166,8 @@ const patchSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(32)).max(10).optional(),
   linkedSupplierId: z.string().uuid().nullable().optional(),
   linkedProcedureId: z.string().uuid().nullable().optional(),
+  // OCR drawer edits the extracted text directly (256KB cap matches EXTRACT_CAP).
+  extractedText: z.string().max(262144).nullable().optional(),
 });
 
 // ── List (Editor+): search over title/name/tags + kind/category filters ─────
@@ -190,7 +192,13 @@ router.get('/', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (
     prisma.businessDocument.count({ where }),
     prisma.businessDocument.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit, select: META_SELECT }),
   ]);
-  res.json({ documents, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+  // hasText (without shipping extractedText in the list): second tiny query.
+  const withText = await prisma.businessDocument.findMany({
+    where: { id: { in: documents.map((d) => d.id) }, extractedText: { not: null } },
+    select: { id: true },
+  });
+  const textIds = new Set(withText.map((d) => d.id));
+  res.json({ documents: documents.map((d) => ({ ...d, hasText: textIds.has(d.id) })), total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
 }));
 
 // ── Detail (Editor+) ─────────────────────────────────────────────────────────
@@ -299,6 +307,7 @@ router.patch('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(patchS
   if (body.tags !== undefined) data.tags = [...new Set(body.tags.map((t) => t.toLowerCase()))];
   if (body.linkedSupplierId !== undefined) data.linkedSupplierId = body.linkedSupplierId;
   if (body.linkedProcedureId !== undefined) data.linkedProcedureId = body.linkedProcedureId;
+  if (body.extractedText !== undefined) data.extractedText = body.extractedText;
   const updated = await prisma.businessDocument.update({ where: { id }, data });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_update', entityType: 'business_document', entityId: id, details: { fields: Object.keys(data) } });
   res.json(updated);
@@ -354,7 +363,10 @@ router.post('/:id/ocr', authenticate, requireRole(...EDITOR_ROLES), ocrLimit, as
     confidence = out.confidence;
     if (!text) return res.status(422).json({ error: 'OCR found no readable text in this image', code: 'no_text_found' });
   }
-  const updated = await prisma.businessDocument.update({ where: { id }, data: { extractedText: text } });
+  const updated = await prisma.businessDocument.update({
+    where: { id },
+    data: { extractedText: text, ocrConfidence: confidence, ocrAt: new Date() },
+  });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_ocr', entityType: 'business_document', entityId: id, details: { chars: text.length, confidence, kind: doc.kind } });
   res.json({ document: updated, ocr: { chars: text.length, confidence } });
 }));

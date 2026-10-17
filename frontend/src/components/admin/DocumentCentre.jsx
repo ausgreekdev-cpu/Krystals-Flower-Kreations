@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
+import OcrDrawer from './OcrDrawer';
+import ScannerModal from './ScannerModal';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -41,7 +43,9 @@ export default function DocumentCentre({ token, role }) {
   const [dragOver, setDragOver] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
-  const [ocrBusy, setOcrBusy] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [ocrDoc, setOcrDoc] = useState(null);
+  const [batch, setBatch] = useState(null);
   const fileRef = useRef(null);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
@@ -112,22 +116,24 @@ export default function DocumentCentre({ token, role }) {
     catch (e) { toast(e.message, 'error'); }
   }
 
-  // M4: on-demand OCR for images (tesseract) / no-text-layer PDF retry.
-  async function runOcr(d, force = false) {
-    setOcrBusy(d.id);
-    try {
-      const r = await adminApi.documents.ocr(d.id, token, force);
-      const conf = r.ocr.confidence ? ` — ${Math.round(r.ocr.confidence)}% confidence` : '';
-      toast(`OCR complete: ${r.ocr.chars} characters extracted${conf}`);
-      refresh();
-    } catch (e) {
-      if (!force && String(e.message).includes('already has extracted text')
-        && window.confirm(`"${d.title}" already has extracted text. Re-run OCR anyway?`)) {
-        setOcrBusy('');
-        return runOcr(d, true);
+  // Batch OCR (Phase D): sequential queue over the visible IMAGE/PDF rows
+  // without text — per-item progress, skips already-OCR'd rows.
+  async function runBatchOcr() {
+    const targets = (rows || []).filter((d) => (d.kind === 'IMAGE' || d.kind === 'PDF') && !d.hasText && d.mime !== 'image/svg+xml');
+    if (!targets.length) { toast('No un-OCR’d images or PDFs on this page'); return; }
+    setBatch(targets.map((d) => ({ id: d.id, title: d.title, status: 'queued' })));
+    for (const t of targets) {
+      setBatch((q) => q.map((x) => (x.id === t.id ? { ...x, status: 'running' } : x)));
+      try {
+        const r = await adminApi.documents.ocr(t.id, token, false);
+        setBatch((q) => q.map((x) => (x.id === t.id ? { ...x, status: 'done', message: `${r.ocr?.chars ?? 0} chars` } : x)));
+      } catch (e) {
+        const msg = e.message || 'failed';
+        const skipped = /already has/i.test(msg);
+        setBatch((q) => q.map((x) => (x.id === t.id ? { ...x, status: skipped ? 'skipped' : 'error', message: msg } : x)));
       }
-      toast(e.message, 'error');
-    } finally { setOcrBusy(''); }
+    }
+    refresh();
   }
 
   return (
@@ -142,6 +148,8 @@ export default function DocumentCentre({ token, role }) {
           onChange={(e) => { const files = e.target.files; e.target.value = ''; uploadFiles(files); }} />
         <div className="text-sm text-ink font-semibold">Drop files here or{' '}
           <button type="button" onClick={() => fileRef.current?.click()} className="text-royal-700 underline font-bold">browse</button>
+          {' '}or{' '}
+          <button type="button" onClick={() => setScanning(true)} className="text-royal-700 underline font-bold">📷 scan</button>
         </div>
         <div className="text-[11px] text-muted mt-1">PDF, XLSX, CSV, images &amp; more — max 25MB each. Identical files are detected and reused; category is guessed from the filename; PDF &amp; spreadsheet text becomes searchable.</div>
         {busy && <div className="text-xs text-royal-700 font-semibold mt-2" role="status">{busy}</div>}
@@ -160,7 +168,27 @@ export default function DocumentCentre({ token, role }) {
             <option value="">All</option>
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select></div>
+        <button type="button" onClick={runBatchOcr} disabled={!!batch}
+          className="text-xs font-semibold border border-royal-200 text-royal-700 rounded-xl px-3 py-2 hover:bg-royal-50 disabled:opacity-50">
+          {batch ? 'OCR running…' : 'Batch OCR (page)'}
+        </button>
       </div>
+
+      {batch && (
+        <div className="border border-line rounded-xl p-3 bg-surface2 space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-bold text-ink">OCR queue</div>
+            <button type="button" onClick={() => setBatch(null)} className="text-[11px] text-muted hover:underline">Hide</button>
+          </div>
+          {batch.map((b) => (
+            <div key={b.id} className="flex items-center gap-2 text-[11px]">
+              <span className={`w-16 shrink-0 font-semibold ${b.status === 'done' ? 'text-emerald-600' : b.status === 'error' ? 'text-red-600' : b.status === 'running' ? 'text-royal-700' : 'text-muted'}`}>{b.status}</span>
+              <span className="truncate flex-1 text-ink">{b.title}</span>
+              {b.message && <span className="text-muted truncate max-w-[200px]">{b.message}</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {err && <div className="text-xs text-red-600">{err}</div>}
       {rows === null && <div className="text-xs text-muted py-6 text-center">Loading…</div>}
@@ -179,9 +207,9 @@ export default function DocumentCentre({ token, role }) {
           {d.tags?.length > 0 && <span className="text-[10px] text-muted hidden md:inline">{d.tags.slice(0, 3).join(' · ')}</span>}
           <button onClick={() => download(d)} className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Download</button>
           {(d.kind === 'IMAGE' || d.kind === 'PDF') && (
-            <button onClick={() => runOcr(d)} disabled={ocrBusy === d.id}
-              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 hover:bg-royal-50 disabled:opacity-50">
-              {ocrBusy === d.id ? 'Reading…' : 'OCR'}
+            <button onClick={() => setOcrDoc(d)}
+              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 hover:bg-royal-50">
+              {d.hasText ? 'View text' : 'OCR'}
             </button>
           )}
           <button onClick={() => setEditing({ id: d.id, title: d.title, category: d.category, tags: (d.tags || []).join(', ') })}
@@ -199,6 +227,16 @@ export default function DocumentCentre({ token, role }) {
             <button disabled={params.page >= pages} onClick={() => setParams((p) => ({ ...p, page: p.page + 1 }))} className="border border-line-strong rounded-xl px-2.5 py-1 disabled:opacity-50">Next</button>
           </div>
         </div>
+      )}
+
+      {scanning && (
+        <ScannerModal token={token} onClose={() => setScanning(false)}
+          onDone={(doc, note) => { setScanning(false); toast(`${doc.title}: ${note || 'uploaded'}`); refresh(); }} />
+      )}
+
+      {ocrDoc && (
+        <OcrDrawer doc={ocrDoc} token={token} onClose={() => setOcrDoc(null)}
+          onSaved={() => { toast('Text saved'); refresh(); }} />
       )}
 
       {editing && (
