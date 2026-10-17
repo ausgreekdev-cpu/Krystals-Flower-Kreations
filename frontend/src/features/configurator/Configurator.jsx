@@ -168,7 +168,7 @@ export default function Configurator(){
         <div className="bg-bloom-700 text-white rounded-2xl p-5">
           <div className="flex justify-between"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${est.totalPrice.toFixed(2)} AUD</span></div>
           <div className="flex justify-between mt-1 text-sm opacity-80"><span>Est. craft time</span><span>{est.estimatedMinutes} min</span></div>
-          <div className="text-xs opacity-60 mt-2">Live price — materials + craft time. Earn 1 Bloom pt per $1.</div>
+          <div className="text-xs opacity-60 mt-2">Estimate — final price confirmed at proofing. Earn 1 Bloom pt per $1.</div>
           <Btn onClick={submit} className="w-full mt-4" variant="primary" size="lg">Create Custom Order → Drafting/Proofing</Btn>
         </div>
       </div>
