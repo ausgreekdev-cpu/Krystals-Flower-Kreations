@@ -19,7 +19,7 @@ function DraggableCard({ order, onCheckIn }){
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="border rounded-xl p-3 bg-surface2 cursor-grab active:cursor-grabbing hover:shadow">
       <div className="font-bold text-sm">{order.orderNumber}</div>
       <div className="text-xs text-muted">{order.customerName} • {order.spec?.paperColor} • {order.spec?.stemCount} stems</div>
-      <div className="text-xs mt-1">${Number(order.totalPrice).toFixed(2)} • {order.estimatedMinutes}m • {order.spec?.armatureHeightMm}mm</div>
+      <div className="text-xs mt-1">${Number(order.totalPrice).toFixed(2)} • {order.estimatedMinutes}m • {order.spec?.heightMm}mm</div>
       {order.ticket?.qrPayload && <div className="text-[10px] font-mono bg-surface3 rounded px-2 py-1 mt-1 break-all">{order.ticket.qrPayload}</div>}
       <div className="flex gap-1 mt-2 flex-wrap" onPointerDown={e=>e.stopPropagation()}>
         {order.ticket?.qrPayload && <button onClick={()=>onCheckIn(order.ticket.qrPayload)} className="text-xs border px-2 py-1 rounded hover:bg-surface3">QR Check-in</button>}

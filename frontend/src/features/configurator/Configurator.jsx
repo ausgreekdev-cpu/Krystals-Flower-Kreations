@@ -26,17 +26,17 @@ const TEMPLATES = [
   { id: 'banksia-petal', label: 'Banksia Petal', flowerType: 'banksia' },
   { id: 'origami-lily', label: 'Origami Lily', flowerType: 'lily' },
 ];
-// Full-bouquet presets — one-tap starting points (template + palette + stems + armature + add-ons).
+// Full-bouquet presets — one-tap starting points (template + palette + stems + heightAdj + add-ons).
 // Every field is still adjustable afterwards; apply = the spec after tapping the preset.
 const BOUQUET_PRESETS = [
   { id: 'table-centrepiece', label: 'Table centrepiece', hint: 'Paper roses · 9 stems · vase',
-    apply: { templateId: 'paper-rose', palette: 'romantic-blush', paperColor: 'Blush', paperTexture: 'pearl', weight: '80lb', stemCount: 9, armatureHeightMm: 350, addGreenery: true, vaseIncluded: true, domeIncluded: false, ledIncluded: false, notes: '' } },
+    apply: { templateId: 'paper-rose', palette: 'romantic-blush', paperColor: 'Blush', paperTexture: 'pearl', weight: '80lb', stemCount: 9, heightMm: 350, addGreenery: true, vaseIncluded: true, domeIncluded: false, ledIncluded: false, notes: '' } },
   { id: 'native-posy', label: 'Native posy', hint: 'Banksia · 7 stems · greenery',
-    apply: { templateId: 'banksia-petal', palette: 'native-australian', paperColor: 'Eucalyptus', paperTexture: 'linen', weight: '110lb', stemCount: 7, armatureHeightMm: 300, addGreenery: true, vaseIncluded: false, domeIncluded: false, ledIncluded: false, notes: '' } },
+    apply: { templateId: 'banksia-petal', palette: 'native-australian', paperColor: 'Eucalyptus', paperTexture: 'linen', weight: '110lb', stemCount: 7, heightMm: 300, addGreenery: true, vaseIncluded: false, domeIncluded: false, ledIncluded: false, notes: '' } },
   { id: 'tall-statement', label: 'Tall statement', hint: 'Origami lilies · 15 stems · dome + lights',
-    apply: { templateId: 'origami-lily', palette: 'classic-ivory', paperColor: 'Ivory', paperTexture: 'smooth', weight: '65lb', stemCount: 15, armatureHeightMm: 550, addGreenery: false, vaseIncluded: false, domeIncluded: true, ledIncluded: true, notes: '' } },
+    apply: { templateId: 'origami-lily', palette: 'classic-ivory', paperColor: 'Ivory', paperTexture: 'smooth', weight: '65lb', stemCount: 15, heightMm: 550, addGreenery: false, vaseIncluded: false, domeIncluded: true, ledIncluded: true, notes: '' } },
   { id: 'mini-gift', label: 'Mini gift', hint: 'Wattle sprig · 3 stems',
-    apply: { templateId: 'wattle-sprig', palette: 'classic-ivory', paperColor: 'Ivory', paperTexture: 'smooth', weight: '65lb', stemCount: 3, armatureHeightMm: 250, addGreenery: false, vaseIncluded: false, domeIncluded: false, ledIncluded: false, notes: '' } },
+    apply: { templateId: 'wattle-sprig', palette: 'classic-ivory', paperColor: 'Ivory', paperTexture: 'smooth', weight: '65lb', stemCount: 3, heightMm: 250, addGreenery: false, vaseIncluded: false, domeIncluded: false, ledIncluded: false, notes: '' } },
 ];
 const CHIP = 'px-3 py-1.5 rounded-full text-xs border transition';
 const CHIP_ON = 'bg-bloom-500 text-white border-bloom-500';
@@ -44,7 +44,7 @@ const CHIP_OFF = 'bg-surface2 hover:bg-surface3';
 // A bouquet preset reads as active when its headline fields match the spec.
 const isPresetActive = (spec, apply) =>
   spec.templateId === apply.templateId && spec.stemCount === apply.stemCount
-  && spec.armatureHeightMm === apply.armatureHeightMm && spec.paperColor === apply.paperColor;
+  && spec.heightMm === apply.heightMm && spec.paperColor === apply.paperColor;
 
 export default function Configurator(){
   const { spec, setSpec } = useConfiguratorStore();
@@ -93,7 +93,7 @@ export default function Configurator(){
   return (
     <Page>
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Configurator'}]} />} title="Custom Bouquet Configurator"
-        lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • armature • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • armature — live AUD price + Perth ETA.'} />
+        lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • height • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • height — live AUD price + Perth ETA.'} />
       <div className="space-y-3 sm:space-y-4 mt-6 pb-24 sm:pb-0">
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
           <h2 className="font-bold flex items-center gap-2">Start from a look</h2>
@@ -118,9 +118,9 @@ export default function Configurator(){
         <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
         </section>
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border space-y-3">
-          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Armature</h2>
+          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Height</h2>
           <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-stems" className="shrink-0">Stems</label> <input id="cfg-stems" type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.stemCount} stems`} /> <span aria-hidden="true" className="shrink-0 w-6 text-right">{spec.stemCount}</span></div>
-          <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-armature" className="shrink-0">Armature mm</label> <input id="cfg-armature" type="range" min={150} max={600} step={50} value={spec.armatureHeightMm} onChange={e=>setSpec({armatureHeightMm: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.armatureHeightMm} millimetres`} /> <span aria-hidden="true" className="shrink-0 w-8 text-right">{spec.armatureHeightMm}</span></div>
+          <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-height" className="shrink-0">Height mm</label> <input id="cfg-height" type="range" min={150} max={600} step={50} value={spec.heightMm} onChange={e=>setSpec({heightMm: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.heightMm} millimetres`} /> <span aria-hidden="true" className="shrink-0 w-8 text-right">{spec.heightMm}</span></div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Add-ons">
             <button type="button" onClick={()=>setSpec({addGreenery:!spec.addGreenery})} aria-pressed={spec.addGreenery} className={`${CHIP} ${spec.addGreenery?CHIP_ON:CHIP_OFF}`}>Greenery <span aria-hidden="true">+${greeneryPrice}</span></button>
             <button type="button" onClick={()=>setSpec({vaseIncluded:!spec.vaseIncluded})} aria-pressed={spec.vaseIncluded} className={`${CHIP} ${spec.vaseIncluded?CHIP_ON:CHIP_OFF}`}>Vase <span aria-hidden="true">+${vasePrice}</span></button>

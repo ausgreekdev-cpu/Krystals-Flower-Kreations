@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
+import DocumentViewer from './DocumentViewer';
 import DuplicateDialog from './DuplicateDialog';
 import OcrDrawer from './OcrDrawer';
 import ScannerModal from './ScannerModal';
@@ -49,6 +50,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
   const [batch, setBatch] = useState(null);
   const [dup, setDup] = useState(null);
   const dupResolve = useRef(null);
+  const [viewerIdx, setViewerIdx] = useState(-1);
   const fileRef = useRef(null);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
@@ -68,6 +70,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
   }, [params, token]);
 
   const setF = (patch) => setParams((p) => ({ ...p, ...patch, page: 1 }));
+  const imageRows = (rows || []).filter((d) => d.kind === 'IMAGE');
   const refresh = () => setParams((p) => ({ ...p }));
 
   // Exact-duplicate inspection: pause the queue on a 409 `duplicate`, let the
@@ -240,7 +243,15 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
       {rows?.map((d) => (
         <div key={d.id} className="flex flex-wrap items-center gap-3 border border-line rounded-xl px-4 py-3">
           {d.thumbRef
-            ? <Thumb id={d.id} token={token} kind={d.kind} />
+            ? (
+              d.kind === 'IMAGE'
+                ? (
+                  <button type="button" onClick={() => setViewerIdx(imageRows.findIndex((x) => x.id === d.id))} className="shrink-0" aria-label={`View ${d.title}`}>
+                    <Thumb id={d.id} token={token} kind={d.kind} />
+                  </button>
+                )
+                : <Thumb id={d.id} token={token} kind={d.kind} />
+            )
             : <div className="w-10 h-10 rounded-lg bg-surface3 grid place-items-center text-[9px] font-bold text-muted shrink-0" aria-hidden>{d.kind.slice(0, 3)}</div>}
           <div className="flex-1 min-w-[200px]">
             <div className="font-bold text-sm text-ink truncate">{d.title}</div>
@@ -249,6 +260,10 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
           <span className={KIND_CHIP}>{d.kind}</span>
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 text-royal-700 dark:text-royal-300 border-royal-100">{d.category}</span>
           {d.tags?.length > 0 && <span className="text-[10px] text-muted hidden md:inline">{d.tags.slice(0, 3).join(' · ')}</span>}
+          {d.kind === 'IMAGE' && (
+            <button onClick={() => setViewerIdx(imageRows.findIndex((x) => x.id === d.id))}
+              className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">View</button>
+          )}
           <button onClick={() => download(d)} className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Download</button>
           {(d.kind === 'IMAGE' || d.kind === 'PDF') && (
             <button onClick={() => setOcrDoc(d)}
@@ -275,6 +290,12 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             <button disabled={params.page >= pages} onClick={() => setParams((p) => ({ ...p, page: p.page + 1 }))} className="border border-line-strong rounded-xl px-2.5 py-1 disabled:opacity-50">Next</button>
           </div>
         </div>
+      )}
+
+      {viewerIdx >= 0 && imageRows[viewerIdx] && (
+        <DocumentViewer docs={imageRows} index={viewerIdx} token={token}
+          onNavigate={(i) => setViewerIdx(i >= 0 && i < imageRows.length ? i : viewerIdx)}
+          onClose={() => setViewerIdx(-1)} />
       )}
 
       {dup && (

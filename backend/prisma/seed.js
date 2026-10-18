@@ -42,7 +42,7 @@ async function main() {
 
   const collections = [
     { title: 'Paper Bouquets', slug: 'paper-bouquets', description: 'Handcrafted paper blooms — everlasting beauty', sortOrder: 1 },
-    { title: 'Armature Art', slug: 'armature-art', description: 'Sculptural wire & paper armatures', sortOrder: 2 },
+    { title: 'Sculptural Art', slug: 'sculptural-art', description: 'Sculptural wire & paper sculptures', sortOrder: 2 },
     { title: 'Cricut Templates', slug: 'cricut-templates', description: 'SVG cut files for your Maker', sortOrder: 3 },
     { title: 'Origami', slug: 'origami', description: 'Folded paper creations', sortOrder: 4 },
     { title: 'Workshop Kits', slug: 'workshop-kits', description: 'Take-home kits with materials + guide', sortOrder: 5 },
@@ -53,19 +53,19 @@ async function main() {
 
   const products = [
     { title: 'Eucalyptus Paper Rose Bouquet — Blush', slug: 'eucalyptus-paper-rose-bouquet-blush', description: '12-stem blush paper roses with eucalyptus, 250gsm textured cardstock. Made to order 3-5 days. Cricut-compatible petals.', price: 89, sku: 'KFK-ROSE-BLUSH-12', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 5, paperStock: '250gsm Canson blush + sage', cricutCompatible: true, isFeatured: true, weightGrams: 450, flowerType: 'rose', colourFamily: 'blush', stemLengthMm: 400, occasions: ['birthday', 'anniversary', 'mothers-day'], careInstructions: 'Keep dry and away from direct sun; dust gently with a soft brush.' },
-    { title: 'Banksia Armature — Large', slug: 'banksia-armature-large', description: 'Sculptural banksia on wire armature, 45cm. Each piece unique — armature art workshop technique.', price: 195, sku: 'KFK-ARM-BANKSIA-L', type: 'physical', stockMode: 'tracked', isFeatured: true, weightGrams: 800, flowerType: 'banksia', colourFamily: 'mixed', stemLengthMm: 450, occasions: ['wedding', 'anniversary'], careInstructions: 'Dust gently; keep indoors away from moisture.' },
+    { title: 'Banksia Statement Sculpture', slug: 'banksia-statement-sculpture', description: 'Sculptural banksia on wire frame, 45cm. Each piece unique — sculptural art workshop technique.', price: 195, sku: 'KFK-SCULPT-BANKSIA-L', type: 'physical', stockMode: 'tracked', isFeatured: true, weightGrams: 800, flowerType: 'banksia', colourFamily: 'mixed', stemLengthMm: 450, occasions: ['wedding', 'anniversary'], careInstructions: 'Dust gently; keep indoors away from moisture.' },
     { title: 'Cricut SVG — Wattle Sprig (Digital)', slug: 'cricut-svg-wattle-sprig', description: 'Instant download — layered SVG + PNG for Cricut Maker. Includes 3 sizes + assembly guide PDF. For personal use.', price: 14.95, sku: 'KFK-SVG-WATTLE-01', type: 'digital_template', stockMode: 'digital', cricutCompatible: true, weightGrams: 0, flowerType: 'wattle', colourFamily: 'mixed' },
     { title: 'Origami Crane Mobile — Pastel', slug: 'origami-crane-mobile-pastel', description: '25 hand-folded cranes on driftwood, pastel palette. Nursery-ready.', price: 65, sku: 'KFK-ORIGAMI-CRANE-MOB', type: 'physical', stockMode: 'tracked', weightGrams: 320 },
     { title: 'Paper Peony — Single Stem (Ivory)', slug: 'paper-peony-ivory-single', description: 'Single peony stem, ivory 220gsm + wire. Perfect for adding to bouquets.', price: 18, sku: 'KFK-PEONY-IVORY-1', type: 'physical', stockMode: 'tracked', weightGrams: 40, flowerType: 'peony', colourFamily: 'ivory', stemLengthMm: 300, occasions: ['wedding', 'mothers-day'], careInstructions: 'Keep dry; store upright in a vase without water.' },
     { title: 'Workshop Ticket — Cricut Blooms 101 (Perth)', slug: 'workshop-cricut-blooms-101', description: '3hr beginner workshop — Perth Studio. Make a 7-stem bouquet to take home. All materials included. Max 12. Next: see sessions.', price: 135, sku: 'KFK-WS-CRICUT-101', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
     { title: 'Workshop Ticket — Origami Bouquet Masterclass', slug: 'workshop-origami-bouquet-masterclass', description: '4hr intermediate — folded roses + lilies + assembly. Kit posted if you join online.', price: 165, sku: 'KFK-WS-ORIGAMI-MAST', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
-    { title: 'Everlasting Native Bundle — Table Centre', slug: 'native-bundle-table-centre', description: 'Low centrepiece — paper natives + dried eucalyptus on armature base. 30cm wide.', price: 125, sku: 'KFK-NATIVE-CENTRE-30', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 7, isFeatured: true, weightGrams: 600, flowerType: 'mixed', colourFamily: 'eucalyptus', stemLengthMm: 300, occasions: ['wedding', 'sympathy'], careInstructions: 'Dust gently; keep away from moisture and direct sun.' },
+    { title: 'Everlasting Native Bundle — Table Centre', slug: 'native-bundle-table-centre', description: 'Low centrepiece — paper natives + dried eucalyptus on sculpted base. 30cm wide.', price: 125, sku: 'KFK-NATIVE-CENTRE-30', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 7, isFeatured: true, weightGrams: 600, flowerType: 'mixed', colourFamily: 'eucalyptus', stemLengthMm: 300, occasions: ['wedding', 'sympathy'], careInstructions: 'Dust gently; keep away from moisture and direct sun.' },
   ];
   // Test barcodes (UPC-A style) so the USB scanner works out of the box —
   // real-world labels are editable in Admin → Catalog → Products.
   const TEST_BARCODES = {
     'eucalyptus-paper-rose-bouquet-blush': '200000000001',
-    'banksia-armature-large': '200000000002',
+    'banksia-statement-sculpture': '200000000002',
     'cricut-svg-wattle-sprig': '200000000003',
     'origami-crane-mobile-pastel': '200000000004',
     'paper-peony-ivory-single': '200000000005',
@@ -138,7 +138,7 @@ async function main() {
     { sku: 'RM-CARD-65-BLUSH', name: '65lb Canson Cardstock – Blush (A4)', unit: 'sheet', onHand: 250, lowThreshold: 30, costPerUnit: 0.85, supplier: 'Canson AU' },
     { sku: 'RM-CARD-65-SAGE', name: '65lb Canson Cardstock – Sage (A4)', unit: 'sheet', onHand: 200, lowThreshold: 30, costPerUnit: 0.85, supplier: 'Canson AU' },
     { sku: 'RM-CARD-65-IVORY', name: '65lb Canson Cardstock – Ivory (A4)', unit: 'sheet', onHand: 180, lowThreshold: 30, costPerUnit: 0.85, supplier: 'Canson AU' },
-    { sku: 'RM-WIRE-18GA', name: '18-Gauge Armature Wire (galvanised)', unit: 'meter', onHand: 120, lowThreshold: 20, costPerUnit: 1.20, supplier: 'Perth Metal Supplies' },
+    { sku: 'RM-WIRE-18GA', name: '18-Gauge Wire (galvanised)', unit: 'meter', onHand: 120, lowThreshold: 20, costPerUnit: 1.20, supplier: 'Perth Metal Supplies' },
     { sku: 'RM-TAPE-FLORAL', name: 'Floral Tape – Green (roll)', unit: 'roll', onHand: 40, lowThreshold: 8, costPerUnit: 3.50, supplier: 'Spotlight' },
     { sku: 'RM-GLUE-STICK', name: 'Glue Stick – Low-temp (pack)', unit: 'stick', onHand: 100, lowThreshold: 20, costPerUnit: 0.45, supplier: 'Spotlight' },
     { sku: 'RM-GLUE-GUN', name: 'Glue Gun Refill – 7mm', unit: 'stick', onHand: 80, lowThreshold: 15, costPerUnit: 0.35, supplier: 'Spotlight' },

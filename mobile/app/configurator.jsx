@@ -39,7 +39,7 @@ export default function Configurator() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#FFF7F0' }} contentContainerStyle={{ padding: 16, gap: 14 }}>
       <Text style={{ fontSize: 22, fontWeight: '800', color: '#4A2C2A' }}>Custom Bouquet Configurator</Text>
-      <Text style={{ color: '#6B4A4A' }}>Paper colour, texture, weight • stem count • armature height • Cricut template — real-time price + Perth studio ETA.</Text>
+      <Text style={{ color: '#6B4A4A' }}>Paper colour, texture, weight • stem count • structure height • Cricut template — real-time price + Perth studio ETA.</Text>
 
       {/* Colour */}
       <Section title="1 · Paper Colour">
@@ -61,13 +61,13 @@ export default function Configurator() {
         </View>
       </Section>
 
-      {/* Stem count & armature */}
-      <Section title="3 · Stems & Armature">
+      {/* Stem count & height */}
+      <Section title="3 · Stems & Height">
         <Row label="Stem count">
           <Stepper value={spec.stemCount} min={1} max={25} onChange={(v) => setSpec({ stemCount: v })} />
         </Row>
-        <Row label="Armature height (mm)">
-          <Stepper value={spec.armatureHeightMm} min={150} max={600} step={50} onChange={(v) => setSpec({ armatureHeightMm: v })} />
+        <Row label="Height (mm)">
+          <Stepper value={spec.heightMm} min={150} max={600} step={50} onChange={(v) => setSpec({ heightMm: v })} />
         </Row>
         <Row label="Add greenery (eucalyptus)">
           <Switch value={spec.addGreenery} onValueChange={(v) => setSpec({ addGreenery: v })} />

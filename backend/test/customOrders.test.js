@@ -8,7 +8,7 @@ let srv;
 function spec(overrides = {}) {
   return {
     paperColor: 'Blush', paperTexture: 'textured', weight: '65lb',
-    stemCount: 7, armatureHeightMm: 350, templateId: 'wattle-sprig',
+    stemCount: 7, heightMm: 350, templateId: 'wattle-sprig',
     addGreenery: false, vaseIncluded: false,
     ...overrides,
   };

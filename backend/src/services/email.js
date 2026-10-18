@@ -211,7 +211,7 @@ export async function sendCustomOrderConfirmation(order) {
   if (spec.paperColor) bits.push(`Colour: ${spec.paperColor}`);
   if (spec.paperTexture) bits.push(`Paper: ${spec.paperTexture} ${spec.weight || ''}`.trim());
   if (spec.stemCount) bits.push(`Stems: ${spec.stemCount}`);
-  if (spec.armatureHeightMm) bits.push(`Height: ~${spec.armatureHeightMm} mm`);
+  if (spec.heightMm) bits.push(`Height: ~${spec.heightMm} mm`);
   if (spec.addGreenery) bits.push('Greenery included');
   if (spec.vaseIncluded) bits.push('Vase included');
   if (spec.domeIncluded) bits.push('Glass dome included');

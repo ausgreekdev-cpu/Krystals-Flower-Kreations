@@ -59,7 +59,7 @@ export const schemas = {
       paperTexture: z.string().min(1).max(50),
       weight: z.string().min(1).max(20),
       stemCount: z.number().int().min(1).max(25),
-      armatureHeightMm: z.number().int().min(50).max(800),
+      heightMm: z.number().int().min(50).max(800),
       templateId: z.string().min(1).max(100),
       addGreenery: z.boolean().default(false),
       vaseIncluded: z.boolean().default(false),

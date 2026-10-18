@@ -87,7 +87,7 @@ const STATIC: Record<string, { title: string; description: string }> = {
   "/shop": {
     title: `Shop paper blooms — ${ORG}`,
     description:
-      "Shop handmade paper flowers — everlasting bouquets, Cricut SVG templates & armature art from our Perth studio. GST inclusive, free Perth delivery over $150.",
+      "Shop handmade paper flowers — everlasting bouquets, Cricut SVG templates & sculptural art from our Perth studio. GST inclusive, free Perth delivery over $150.",
   },
   "/blog": {
     title: `Journal — ${ORG}`,
@@ -97,7 +97,7 @@ const STATIC: Record<string, { title: string; description: string }> = {
   "/workshops": {
     title: `Workshops — ${ORG}`,
     description:
-      "Paper flower workshops in Perth — Cricut Blooms 101, Origami Bouquet & Armature Art. Kits included, max 12 per class.",
+      "Paper flower workshops in Perth — Cricut Blooms 101, Origami Bouquet & Sculptural Art. Kits included, max 12 per class.",
   },
   "/loyalty": {
     title: `Bloom Points — ${ORG}`,
@@ -107,7 +107,7 @@ const STATIC: Record<string, { title: string; description: string }> = {
   "/about": {
     title: `About — ${ORG}`,
     description:
-      "About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, armature art and workshop kits.",
+      "About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, sculptural art and workshop kits.",
   },
   "/privacy": {
     title: `Privacy Policy — ${ORG}`,

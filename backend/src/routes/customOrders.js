@@ -29,7 +29,7 @@ const specSchema = z.object({
   paperTexture: z.string().min(1).max(50),
   weight: z.string().min(1).max(20),
   stemCount: z.number().int().finite().min(1).max(25),
-  armatureHeightMm: z.number().int().finite().min(50).max(800),
+  heightMm: z.number().int().finite().min(50).max(800),
   templateId: z.string().min(1).max(100),
   addGreenery: z.boolean().default(false),
   vaseIncluded: z.boolean().default(false),
@@ -82,7 +82,7 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
     if (data.spec.domeIncluded) estimatedMinutes += 10;
     if (data.spec.ledIncluded) estimatedMinutes += 3;
   } else {
-    estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.armatureHeightMm / 60));
+    estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.heightMm / 60));
     // add-ons take craft time in BOTH branches (was recipe-only — no-recipe
     // orders undercounted dome/LED/vase/greenery minutes)
     if (data.spec.vaseIncluded) estimatedMinutes += 8;

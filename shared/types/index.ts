@@ -185,7 +185,7 @@ export interface ConfiguratorSpec {
   paperTexture: string; // "textured", "smooth", "pearl"
   weight: string; // "65lb", "80lb", "110lb"
   stemCount: number; // 1-25
-  armatureHeightMm: number; // 150-600
+  heightMm: number; // 150-600
   templateId: string; // Cricut template SKU
   // optional
   addGreenery?: boolean;

@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#FFF7F0" },
     "assetBundlePatterns": ["**/*"],
-    "description": "Perth WA paper florist & armature art — Cricut + origami everlasting bouquets, custom configurator, workshops & studio POS. Handmade in Perth.",
+    "description": "Perth WA paper florist & sculptural art — Cricut + origami everlasting bouquets, custom configurator, workshops & studio POS. Handmade in Perth.",
     "primaryColor": "#B85C5C",
     "platforms": ["ios", "android", "web"],
     "ios": {

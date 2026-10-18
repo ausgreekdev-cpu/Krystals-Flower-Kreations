@@ -1,5 +1,5 @@
 // Krystal's Flower Kreations — Prisma schema
-// Perth WA — paper florist + armature art workshop (Cricut + origami)
+// Perth WA — paper florist + sculptural art workshop (Cricut + origami)
 
 generator client {
   provider      = "prisma-client-js"

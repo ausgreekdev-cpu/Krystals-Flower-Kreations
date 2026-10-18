@@ -29,7 +29,7 @@ export default function Notebook(){
   return (
     <Page width="wide">
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Notebook'}]} />} title="Perth Studio Notebook — Research Hub"
-        lede={showCricut ? 'NotebookLM sources — Cricut settings for Perth humidity, BOM paper costs, armature wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.' : 'NotebookLM sources — BOM paper costs, armature wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.'}
+        lede={showCricut ? 'NotebookLM sources — Cricut settings for Perth humidity, BOM paper costs, wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.' : 'NotebookLM sources — BOM paper costs, wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.'}
         action={
           <div className="flex gap-2 mt-3 md:mt-0">
             <a href={notebookUrl} target="_blank" rel="noopener" className="bg-bloom-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-bloom-700">Open in NotebookLM →</a>
@@ -54,7 +54,7 @@ export default function Notebook(){
           style={{ width:'100%', height:'80vh', border:0, background:'#FFF7F0' }}
         />
         <div className="bg-surface3 border-t px-4 py-3 flex flex-col sm:flex-row justify-between gap-2 text-xs text-ink">
-          <span>{showCricut ? 'Sources: paper stocks, Cricut Maker settings, armature guides • Audio overview available inside NotebookLM' : 'Sources: paper stocks, armature guides • Audio overview available inside NotebookLM'}</span>
+          <span>{showCricut ? 'Sources: paper stocks, Cricut Maker settings, wire guides • Audio overview available inside NotebookLM' : 'Sources: paper stocks, wire guides • Audio overview available inside NotebookLM'}</span>
           <a href={FALLBACK_URL} target="_blank" rel="noopener" className="underline">Try fallback notebook.google.com →</a>
         </div>
       </div>

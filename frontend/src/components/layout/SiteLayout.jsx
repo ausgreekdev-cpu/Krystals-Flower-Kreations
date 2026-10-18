@@ -32,13 +32,13 @@ const ROUTE_TITLES = {
 // own in their page effects — omitted keys are never overwritten.
 const ROUTE_DESCRIPTIONS = {
   '/': 'Everlasting paper bouquets that never wilt. Custom Cricut + origami blooms, Perth studio. Shop, configurator & workshops — GST inclusive, free Perth delivery over $150.',
-  '/shop': 'Shop handmade paper flowers — everlasting bouquets, Cricut SVG templates & armature art from our Perth studio. GST inclusive, free Perth delivery over $150.',
-  '/configurator': 'Design a custom paper bouquet — colour, texture, weight, stems, armature & add-ons with live AUD pricing and a Perth craft-time estimate.',
-  '/workshops': 'Paper flower workshops in Perth — Cricut Blooms 101, Origami Bouquet & Armature Art. Kits included, max 12 per class.',
+  '/shop': 'Shop handmade paper flowers — everlasting bouquets, Cricut SVG templates & sculptural art from our Perth studio. GST inclusive, free Perth delivery over $150.',
+  '/configurator': 'Design a custom paper bouquet — colour, texture, weight, stems, height & add-ons with live AUD pricing and a Perth craft-time estimate.',
+  '/workshops': 'Paper flower workshops in Perth — Cricut Blooms 101, Origami Bouquet & Sculptural Art. Kits included, max 12 per class.',
   '/blog': 'Journal — paper florist tutorials, Cricut settings for Perth humidity, origami folds and studio behind-the-scenes.',
   '/loyalty': 'Bloom Points — earn 1 point per $1 at Krystals Flower Creations and redeem on paper blooms.',
   '/notebook': 'Studio Notebook — paper florist knowledge base: glue tests, Cricut settings, origami instructions & studio notes.',
-  '/about': 'About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, armature art and workshop kits.',
+  '/about': 'About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, sculptural art and workshop kits.',
   '/privacy': 'Privacy policy — Krystals Flower Creations, Perth WA.',
 };
 // Utility pages shouldn't appear in search results.

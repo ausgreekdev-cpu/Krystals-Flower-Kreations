@@ -80,7 +80,7 @@ export const SETTINGS = [
   { key: 'shop_sort_default', section: 'storefront', label: 'Shop default sort', type: 'select', default: 'newest', public: true, options: SHOP_SORT_OPTIONS },
   { key: 'handling_days_text', section: 'storefront', label: 'Handling time', type: 'text', default: '3-7 days', public: true, max: 60 },
   { key: 'site_meta_title', section: 'storefront', label: 'Meta title (SEO)', type: 'text', default: "Krystals Flower Creations — Paper Florist Perth WA", public: true, max: 70 },
-  { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, armature art, Cricut SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
+  { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, sculptural art, Cricut SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
   { key: 'og_image_url', section: 'storefront', label: 'Social share image URL', type: 'url', default: '', public: true },
   { key: 'notebooklm_url', section: 'storefront', label: 'NotebookLM URL', type: 'url', default: '', public: true },
   { key: 'configurator_floor', section: 'storefront', label: 'Configurator floor price', type: 'number', default: '45', public: true, min: 0, max: 100000, unit: '$' },
@@ -92,7 +92,7 @@ export const SETTINGS = [
   { key: 'show_workshops', section: 'storefront', label: 'Show Workshops', type: 'toggle', default: '0', public: true, description: 'Off = hides all workshop links, cards, nav and the /workshops page.' },
   { key: 'show_cricut', section: 'storefront', label: 'Show Cricut content', type: 'toggle', default: '0', public: true, description: 'Off = hides Cricut mentions in the hero, shop chips, configurator section and notebook copy.' },
   { key: 'show_kanban', section: 'storefront', label: 'Show Kanban board', type: 'toggle', default: '0', public: true, description: 'Off = hides the staff custom-order board link and route.' },
-  { key: 'about_story', section: 'storefront', label: 'About page story', type: 'textarea', default: 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural armature art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.', public: true, max: 2000 },
+  { key: 'about_story', section: 'storefront', label: 'About page story', type: 'textarea', default: 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.', public: true, max: 2000 },
 
   // ── Payments & pickup ─────────────────────────────────────
   { key: 'checkout_payment_methods', section: 'payments', label: 'Checkout payment methods', type: 'csv', default: 'bank_transfer,pickup', public: true, options: PAY_METHOD_OPTIONS },

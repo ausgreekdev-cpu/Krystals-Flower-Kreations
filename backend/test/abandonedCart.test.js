@@ -147,7 +147,7 @@ test('custom order create queues a confirmation email with the order number', as
       customerName: 'Custom Tester',
       spec: {
         paperColor: 'Blush', paperTexture: 'textured', weight: '65lb',
-        stemCount: 7, armatureHeightMm: 350, templateId: 'wattle-sprig',
+        stemCount: 7, heightMm: 350, templateId: 'wattle-sprig',
         addGreenery: true, vaseIncluded: false, domeIncluded: false, ledIncluded: false,
       },
     }),

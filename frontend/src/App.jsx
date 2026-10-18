@@ -41,7 +41,7 @@ export default function App(){
   };
   if (!orgLd.sameAs?.length) orgLd.sameAs = undefined;
 
-  const heroCopy = ['Everlasting bouquets', 'sculptural armatures'];
+  const heroCopy = ['Everlasting bouquets', 'sculptural pieces'];
   if (showCricut) heroCopy.push('Cricut SVG templates');
   if (showWorkshops) heroCopy.push('hands-on workshops');
   const freeOver = Number(s.shipping_free_over) || 150;
@@ -59,7 +59,7 @@ export default function App(){
         <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.22),transparent_55%)]" />
         <div className="relative max-w-7xl mx-auto px-4 py-14 md:py-20 grid lg:grid-cols-2 gap-10 items-center">
           <div>
-            <h1 className="text-4xl md:text-5xl font-black leading-tight max-w-2xl">{showCricut ? 'Paper florist & armature art — Cricut + origami blooms that last forever' : 'Handcrafted paper flowers — Perth, WA'}</h1>
+            <h1 className="text-4xl md:text-5xl font-black leading-tight max-w-2xl">{showCricut ? 'Paper florist & sculptural art — Cricut + origami blooms that last forever' : 'Handcrafted paper flowers — Perth, WA'}</h1>
             <p className="mt-4 max-w-2xl text-white/90 text-base md:text-lg">Perth, Western Australia. {heroCopy.join(', ')}. Perth delivery & click & collect.</p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Btn to="/shop" variant="light">Shop Bouquets</Btn>
@@ -91,10 +91,10 @@ export default function App(){
         </div>
       </section>
       <section className="max-w-7xl mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-        <Card title="Shop" desc={showCricut ? 'Paper bouquets, armatures, origami, Cricut SVGs + custom commissions. Made-to-order from Perth studio.' : 'Paper bouquets, armatures, origami + custom commissions. Made-to-order from Perth studio.'} to="/shop" />
-        <Card title="Configurator" desc={showCricut ? 'Design your bloom — colour/texture/stems/armature + Cricut template with live AUD price + ETA.' : 'Design your bloom — colour/texture/stems/armature with live AUD price + ETA.'} to="/configurator" />
+        <Card title="Shop" desc={showCricut ? 'Paper bouquets, sculptures, origami, Cricut SVGs + custom commissions. Made-to-order from Perth studio.' : 'Paper bouquets, sculptures, origami + custom commissions. Made-to-order from Perth studio.'} to="/shop" />
+        <Card title="Configurator" desc={showCricut ? 'Design your bloom — colour/texture/stems/height + Cricut template with live AUD price + ETA.' : 'Design your bloom — colour/texture/stems/height with live AUD price + ETA.'} to="/configurator" />
         {showWorkshops && <Card title="Workshops" desc="Small groups, all materials included. Take home your bloom. Perth studio + online kits." to="/workshops" />}
-        <Card title="Notebook" desc={showCricut ? 'Perth studio research + NotebookLM sources — Cricut settings, armature guides, BOM.' : 'Perth studio research + NotebookLM sources — armature guides, paper stocks, BOM.'} to="/notebook" />
+        <Card title="Notebook" desc={showCricut ? 'Perth studio research + NotebookLM sources — Cricut settings, wire guides, BOM.' : 'Perth studio research + NotebookLM sources — wire guides, paper stocks, BOM.'} to="/notebook" />
         <Card title="About" desc="The studio behind the blooms — who we are, how we make them, and where to find us in Perth." to="/about" />
         {isStaff && showKanban && <Card title="Kanban" desc="Custom order pipeline — Drafting → Cricut → Folding → QC → Dispatched. Studio admin." to="/kanban" />}
       </section>

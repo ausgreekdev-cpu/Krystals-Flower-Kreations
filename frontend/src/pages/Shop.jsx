@@ -81,7 +81,7 @@ export default function Shop(){
   return (
     <Page width="wide">
       {shopLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(shopLd)}} />}
-      <PageHeader crumbs={<Breadcrumbs items={[{label:'Shop'}]} />} title="Shop — paper blooms & armature art" lede={subtitle} />
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Shop'}]} />} title="Shop — paper blooms & sculptural art" lede={subtitle} />
       {/* Toolbar: search + filter chips directly under the heading (was a detached full-width row) */}
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0 sm:max-w-md flex items-stretch border rounded-xl bg-surface2 overflow-hidden focus-within:ring-2 focus-within:ring-bloom-500/40 focus-within:border-bloom-500">

@@ -8,7 +8,7 @@ export default function Workshops() {
   return (
     <ScrollView style={{flex:1, backgroundColor:'#FFF7F0'}} contentContainerStyle={{padding:16, gap:12}}>
       <Text style={{fontSize:22, fontWeight:'800', color:'#4A2C2A'}}>Workshops — Perth Studio</Text>
-      <Text style={{color:'#6B4A4A'}}>Cricut + origami + armature. Small groups, kits included, take home your bloom.</Text>
+      <Text style={{color:'#6B4A4A'}}>Cricut + origami + sculptural work. Small groups, kits included, take home your bloom.</Text>
       {items.map(w=> (
         <View key={w.id} style={{backgroundColor:'white', borderRadius:16, padding:16, borderWidth:1, borderColor:'#E8CFCF'}}>
           <Text style={{fontWeight:'800', color:'#4A2C2A'}}>{w.title}</Text>

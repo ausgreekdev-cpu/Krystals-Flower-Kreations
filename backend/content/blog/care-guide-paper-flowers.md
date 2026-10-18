@@ -48,7 +48,7 @@ Petals recover — do not bin the bloom:
 3. Hold the curve you want for ten seconds as it cools.
 4. A creased edge can be pressed flat under a book with baking paper either side.
 
-Wired stems — like the [Blush Rose Bouquet](/product/eucalyptus-paper-rose-bouquet-blush) — are re-posable forever: bend the stem back, re-pose the head, done. That is the armature doing its job.
+Wired stems — like the [Blush Rose Bouquet](/product/eucalyptus-paper-rose-bouquet-blush) — are re-posable forever: bend the stem back, re-pose the head, done. That is the frame doing its job.
 
 ## Storage and travel
 

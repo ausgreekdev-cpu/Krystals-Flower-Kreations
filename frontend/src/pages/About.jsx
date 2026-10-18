@@ -3,7 +3,7 @@ import { realAbn } from '../lib/business';
 import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
 
-const FALLBACK_STORY = 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural armature art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.';
+const FALLBACK_STORY = 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.';
 
 export default function About() {
   const s = usePublicSettings();

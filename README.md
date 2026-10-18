@@ -1,6 +1,6 @@
 # Krystal's Flower Kreations
 
-Custom paper florist & armature art workshop — Cricut + origami flower creations.
+Custom paper florist & sculptural art workshop — Cricut + origami flower creations.
 Perth, Western Australia.
 
 **Custom (no Shopify) web + mobile + backend platform** — mobile-first shop, Facebook & Instagram catalog sync, blog, POS, inventory & workshop management.

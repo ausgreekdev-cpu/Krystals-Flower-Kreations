@@ -8,7 +8,7 @@ export interface ConfiguratorSpecState {
   paperTexture: string;
   weight: string;
   stemCount: number;
-  armatureHeightMm: number;
+  heightMm: number;
   templateId: string;
   addGreenery: boolean;
   vaseIncluded: boolean;
@@ -32,7 +32,7 @@ const DEFAULT_SPEC: ConfiguratorSpecState = {
   paperTexture: 'textured',
   weight: '65lb',
   stemCount: 7,
-  armatureHeightMm: 350,
+  heightMm: 350,
   templateId: 'wattle-sprig',
   addGreenery: true,
   vaseIncluded: false,
@@ -54,11 +54,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set) => ({
 export function estimateLocalPrice(spec: ConfiguratorSpecState): { unitPrice: number; totalPrice: number; estimatedMinutes: number } {
   const base = 45; // base bouquet
   const perStem = spec.stemCount * 9.5;
-  const armature = spec.armatureHeightMm > 350 ? 18 : 8;
+  const heightAdj = spec.heightMm > 350 ? 18 : 8;
   const greenery = spec.addGreenery ? 12 : 0;
   const vase = spec.vaseIncluded ? 22 : 0;
   const weightAdj = spec.weight === '110lb' ? 8 : spec.weight === '80lb' ? 4 : 0;
-  const unitPrice = Math.round((base + perStem + armature + greenery + vase + weightAdj) * 100) / 100;
-  const estimatedMinutes = Math.round(22 + spec.stemCount * 6 + (spec.armatureHeightMm / 60));
+  const unitPrice = Math.round((base + perStem + heightAdj + greenery + vase + weightAdj) * 100) / 100;
+  const estimatedMinutes = Math.round(22 + spec.stemCount * 6 + (spec.heightMm / 60));
   return { unitPrice, totalPrice: unitPrice, estimatedMinutes };
 }

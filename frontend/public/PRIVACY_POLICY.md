@@ -5,7 +5,7 @@
 > Host this at `https://krystalsflowercreations.com.au/privacy` (required for Play Store). Replace `[ABN XX XXX XXX XXX]` and legal entity before publishing.
 
 ## 1. Who we are
-Krystals Flower Creations (Perth WA, ABN [XX XXX XXX XXX]) — custom paper florist + armature art workshop (Cricut + origami). App: `com.krystalsflowerkreations.shop`.
+Krystals Flower Creations (Perth WA, ABN [XX XXX XXX XXX]) — custom paper florist + sculptural art workshop (Cricut + origami). App: `com.krystalsflowerkreations.shop`.
 
 ## 2. What we collect
 - **You provide:** name, email, phone, shipping address, order/cart notes, workshop booking details, photos you choose to upload.
