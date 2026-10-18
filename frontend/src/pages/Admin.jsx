@@ -14,6 +14,7 @@ import InventoryDetail from '../components/admin/InventoryDetail';
 import DocumentCentre from '../components/admin/DocumentCentre';
 import MediaLibrary from '../components/admin/media/MediaLibrary';
 import MediaPickerModal from '../components/admin/media/MediaPickerModal';
+import ImportQueue from '../components/admin/ImportQueue';
 import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
@@ -313,7 +314,7 @@ function AdminInner({ user }) {
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
                   {tab === 'procedures' && <Procedures token={token} role={user?.role} />}
-                  {tab === 'documents' && <DocumentCentre token={token} role={user?.role} />}
+                  {tab === 'documents' && <DocumentCentre token={token} role={user?.role} onOpenImports={() => setTab('recipes')} />}
                   {tab === 'media' && <MediaLibrary token={token} role={user?.role} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
@@ -1847,6 +1848,7 @@ function Recipes({ data, reload, token }) {
   async function doDelete() { try { await adminApi.bom.deleteRecipe(confirmDel.id, token); toast('Recipe deleted'); reload(); } catch (e) { toast(e.message, 'error'); } }
   return (
     <div className="space-y-3">
+      <ImportQueue token={token} />
       <div className="flex justify-between items-center"><div className="text-xs text-muted">{recipes.length} recipes</div><Btn onClick={() => setCreating(true)}>+ New recipe</Btn></div>
       {recipes.map((r) => (
         <div key={r.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">

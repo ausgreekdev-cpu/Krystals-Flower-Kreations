@@ -31,7 +31,7 @@ function Thumb({ id, token, kind }) {
   return <img src={url} alt="" className="w-10 h-10 rounded-lg object-cover border border-line shrink-0" />;
 }
 
-export default function DocumentCentre({ token, role }) {
+export default function DocumentCentre({ token, role, onOpenImports }) {
   const toast = useToast();
   const [params, setParams] = useState({ q: '', kind: '', category: '', page: 1 });
   const [search, setSearch] = useState('');
@@ -136,6 +136,19 @@ export default function DocumentCentre({ token, role }) {
     refresh();
   }
 
+  // Procedure → recipe import (Phase 2): analyse this document's text into a
+  // pending proposal, then jump to the review queue.
+  async function analyzeToRecipe(d) {
+    setBusy(`Analysing "${d.title}"…`);
+    try {
+      const r = await adminApi.procedureImports.analyze(token, { documentId: d.id });
+      toast(`Recipe proposal ready (${r.engine}) — review it in Recipes`);
+      onOpenImports?.();
+    } catch (e) {
+      toast(e.message || 'Analysis failed', e?.message?.includes('not look like') ? 'error' : 'error');
+    } finally { setBusy(''); }
+  }
+
   return (
     <div className="space-y-3">
       <div
@@ -212,6 +225,10 @@ export default function DocumentCentre({ token, role }) {
               {d.hasText ? 'View text' : 'OCR'}
             </button>
           )}
+          <button onClick={() => analyzeToRecipe(d)} disabled={!!busy}
+            className="text-xs font-semibold border border-emerald-200 rounded-xl px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+            → Recipe
+          </button>
           <button onClick={() => setEditing({ id: d.id, title: d.title, category: d.category, tags: (d.tags || []).join(', ') })}
             className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Edit</button>
           <button onClick={() => setConfirmDel(d)} className="text-xs font-semibold border border-red-200 rounded-xl px-2.5 py-1 text-red-600 hover:bg-red-50">Delete</button>
@@ -236,7 +253,8 @@ export default function DocumentCentre({ token, role }) {
 
       {ocrDoc && (
         <OcrDrawer doc={ocrDoc} token={token} onClose={() => setOcrDoc(null)}
-          onSaved={() => { toast('Text saved'); refresh(); }} />
+          onSaved={() => { toast('Text saved'); refresh(); }}
+          onAnalyzed={(r) => { toast(`Recipe proposal ready (${r.engine}) — review it in Recipes`); setOcrDoc(null); onOpenImports?.(); }} />
       )}
 
       {editing && (

@@ -362,6 +362,16 @@ export const adminApi = {
       return res.blob();
     },
   },
+  procedureImports: {
+    analyze: (token: string, body: { documentId?: string; text?: string; sourceName?: string }) =>
+      req<any>('/api/procedure-imports/analyze', { method: 'POST', body: JSON.stringify(body), token }),
+    list: (token: string, status = 'pending') => req<any[]>(`/api/procedure-imports?status=${encodeURIComponent(status)}`, { token }),
+    get: (id: string, token: string) => req<any>(`/api/procedure-imports/${id}`, { token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/procedure-imports/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    approve: (id: string, body: any, token: string) => req<any>(`/api/procedure-imports/${id}/approve`, { method: 'POST', body: JSON.stringify(body), token }),
+    reject: (id: string, note: string, token: string) => req<any>(`/api/procedure-imports/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }), token }),
+    searchMaterials: (token: string, q: string) => req<any[]>(`/api/procedure-imports/materials/search?q=${encodeURIComponent(q)}`, { token }),
+  },
   pos: {
     current: (token: string) => req<any>('/api/pos/session/current', { token }),
     open: (body: any, token: string) => req<any>('/api/pos/session/open', { method: 'POST', body: JSON.stringify(body), token }),

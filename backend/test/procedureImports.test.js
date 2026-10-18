@@ -171,3 +171,76 @@ test('materials search powers the remap picker', async () => {
   assert.ok(res.body.length >= 1);
   assert.ok(res.body.every((m) => m.sku.startsWith(`PI-${UNIQUE}`)));
 });
+
+// ── Phase 2: approve materialises everything ───────────────────────────────
+
+test('approve creates materials + recipe + draft product + procedure document', async () => {
+  const created = await api(srv.base, '/api/procedure-imports/analyze', {
+    method: 'POST', headers: auth(),
+    body: JSON.stringify({ text: PROCEDURE, sourceName: `approve-${UNIQUE}.txt` }),
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body).slice(0, 300));
+  const id = created.body.import.id;
+
+  const approved = await api(srv.base, `/api/procedure-imports/${id}/approve`, {
+    method: 'POST', headers: auth(), body: JSON.stringify({}),
+  });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body).slice(0, 300));
+  assert.equal(approved.body.import.status, 'approved');
+  const result = approved.body.result;
+  assert.ok(result.productId && result.recipeId && result.procedureDocumentId, JSON.stringify(result));
+  assert.equal(result.createdMaterialIds.length, 2, 'tape + wire created (cardstock was matched)');
+
+  const prod = await prisma.product.findUnique({ where: { id: result.productId } });
+  assert.equal(prod.isActive, false, 'product is a draft until published');
+  assert.equal(prod.type, 'made_to_order');
+  assert.equal(Number(prod.price), Number(approved.body.import.pricing.retail), 'priced from the snapshot');
+
+  const recipe = await prisma.bOMRecipe.findUnique({ where: { id: result.recipeId }, include: { lines: true } });
+  assert.equal(recipe.lines.length, 3);
+  assert.equal(recipe.labourMinutesPerUnit, 45);
+  assert.equal(recipe.cricutMinutesPerUnit, 8);
+
+  const doc = await prisma.procedureDocument.findUnique({ where: { id: result.procedureDocumentId } });
+  assert.equal(doc.status, 'draft');
+  assert.equal(doc.category, 'PAPER_FLOWER');
+  assert.match(doc.contentMarkdown, /Cut petals/);
+
+  // cleanup (hard deletes — test artefacts)
+  await prisma.bOMLine.deleteMany({ where: { recipeId: result.recipeId } });
+  await prisma.bOMRecipe.delete({ where: { id: result.recipeId } }).catch(() => {});
+  await prisma.procedureDocument.delete({ where: { id: result.procedureDocumentId } }).catch(() => {});
+  await prisma.product.delete({ where: { id: result.productId } }).catch(() => {});
+  await prisma.rawMaterial.deleteMany({ where: { id: { in: result.createdMaterialIds } } }).catch(() => {});
+});
+
+test('approve can bind an existing product and skip the procedure doc', async () => {
+  const created = await api(srv.base, '/api/procedure-imports/analyze', {
+    method: 'POST', headers: auth(),
+    body: JSON.stringify({ text: PROCEDURE, sourceName: `bind-${UNIQUE}.txt` }),
+  });
+  assert.equal(created.status, 201);
+  const id = created.body.import.id;
+  // throwaway product — never touch the seeded recipe that other suites rely on
+  const target = await prisma.product.create({
+    data: { title: `PI Bind ${UNIQUE}`, slug: `pi-bind-${UNIQUE}`, price: 10, type: 'made_to_order', stockMode: 'made_to_order' },
+  });
+
+  const approved = await api(srv.base, `/api/procedure-imports/${id}/approve`, {
+    method: 'POST', headers: auth(),
+    body: JSON.stringify({ createProduct: false, createProcedureDocument: false, product: { productId: target.id } }),
+  });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body).slice(0, 300));
+  assert.equal(approved.body.result.productId, target.id);
+  assert.equal(approved.body.result.procedureDocumentId, null);
+
+  // second approve is single-shot
+  const again = await api(srv.base, `/api/procedure-imports/${id}/approve`, { method: 'POST', headers: auth(), body: JSON.stringify({}) });
+  assert.equal(again.status, 409);
+
+  // cleanup: everything this test created (never shared/seeded rows)
+  await prisma.bOMLine.deleteMany({ where: { recipeId: approved.body.result.recipeId } });
+  await prisma.bOMRecipe.delete({ where: { id: approved.body.result.recipeId } }).catch(() => {});
+  await prisma.product.delete({ where: { id: target.id } }).catch(() => {});
+  await prisma.rawMaterial.deleteMany({ where: { id: { in: approved.body.result.createdMaterialIds || [] } } }).catch(() => {});
+});

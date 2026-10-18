@@ -192,7 +192,132 @@ router.patch('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(patchS
   res.json(cleanProposal(updated));
 }));
 
-// ── Reject (approve lives in Phase 2 routes) ───────────────────────────────
+
+// ── Approve: materialise the proposal ──────────────────────────────────────
+// Creates missing RawMaterials, (re)creates the BOMRecipe, an inactive draft
+// Product (unless the reviewer bound an existing one), and a draft
+// ProcedureDocument — prices rechecked server-side first.
+const approveSchema = z.object({
+  createProduct: z.boolean().default(true),
+  createProcedureDocument: z.boolean().default(true),
+  product: z.object({
+    title: z.string().min(2).max(200).optional(),
+    sku: z.string().max(50).nullable().optional(),
+    price: z.number().min(0).max(1000000).optional(),
+    productId: z.string().min(8).max(100).nullable().optional(),
+  }).optional(),
+});
+
+function slugify(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'procedure';
+}
+
+router.post('/:id/approve', authenticate, requireRole(...EDITOR_ROLES), validate(approveSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const row = await prisma.procedureImport.findUnique({ where: { id } });
+  if (!row) return res.status(404).json({ error: 'Import not found', code: 'not_found' });
+  if (row.status !== 'pending') return res.status(409).json({ error: 'Only pending imports can be approved', code: 'not_pending' });
+
+  const plan = Array.isArray(row.materialPlan) ? row.materialPlan : [];
+  const proposal = (row.productProposal && typeof row.productProposal === 'object') ? row.productProposal : {};
+  const extracted = (row.extracted && typeof row.extracted === 'object') ? row.extracted : {};
+  const cfg = await pricingConfig().catch(() => ({}));
+  const pricing = priceProposal(plan, row.labourMinutesPerUnit, row.cricutMinutesPerUnit, cfg);
+  const { createProduct, createProcedureDocument, product: productOverride } = req.validated;
+
+  // 1. missing material profiles
+  const createdMaterialIds = [];
+  const lineByMaterial = new Map();
+  for (const m of plan) {
+    let rawId = m.rawMaterialId;
+    if (m.action === 'create' || !rawId) {
+      const baseSku = String(m.sku || `RM-${slugify(m.name).toUpperCase().slice(0, 30)}`).slice(0, 50);
+      let sku = baseSku;
+      for (let i = 2; await prisma.rawMaterial.findUnique({ where: { sku } }); i++) sku = `${baseSku.slice(0, 45)}-${i}`;
+      const created = await prisma.rawMaterial.create({
+        data: {
+          sku, name: String(m.name).slice(0, 200), unit: m.unit || 'piece',
+          costPerUnit: Number(m.costPerUnit || 0), colour: m.colour || null,
+          weightValue: m.weightValue || null, weightUnit: m.weightUnit || null,
+          size: m.size || null, brand: m.brand || null,
+        },
+      });
+      rawId = created.id;
+      createdMaterialIds.push(created.id);
+    }
+    lineByMaterial.set(rawId, m);
+  }
+
+  // 2. product (inactive draft unless the reviewer bound an existing one)
+  let productId = productOverride?.productId || null;
+  if (!productId && createProduct) {
+    const title = String(productOverride?.title || proposal.title || 'Imported procedure').slice(0, 200);
+    const baseSlug = slugify(title);
+    let slug = baseSlug;
+    for (let i = 2; await prisma.product.findUnique({ where: { slug } }); i++) slug = `${baseSlug.slice(0, 70)}-${i}`;
+    const prod = await prisma.product.create({
+      data: {
+        title, slug,
+        sku: productOverride?.sku || proposal.sku || undefined,
+        description: String(proposal.description || '').slice(0, 10000) || null,
+        price: Number(productOverride?.price ?? proposal.price ?? pricing.retail),
+        type: 'made_to_order', stockMode: 'made_to_order',
+        isActive: false, // draft — reviewer publishes when ready
+      },
+    });
+    productId = prod.id;
+  }
+  if (!productId) {
+    return res.status(400).json({ error: 'Approve needs a product — enable createProduct or bind an existing productId', code: 'validation_failed' });
+  }
+
+  // 3. recipe (replace semantics, same as POST /recipes)
+  const existingRecipe = await prisma.bOMRecipe.findFirst({ where: { productId, variantId: null } });
+  if (existingRecipe) await prisma.bOMLine.deleteMany({ where: { recipeId: existingRecipe.id } });
+  const recipe = existingRecipe
+    ? await prisma.bOMRecipe.update({ where: { id: existingRecipe.id }, data: { labourMinutesPerUnit: row.labourMinutesPerUnit, cricutMinutesPerUnit: row.cricutMinutesPerUnit } })
+    : await prisma.bOMRecipe.create({ data: { productId, labourMinutesPerUnit: row.labourMinutesPerUnit, cricutMinutesPerUnit: row.cricutMinutesPerUnit } });
+  for (const [rawId, m] of lineByMaterial) {
+    await prisma.bOMLine.create({
+      data: { recipeId: recipe.id, rawMaterialId: rawId, qtyPerUnit: Number(m.qtyPerUnit) || 1, wasteFactor: Number(m.wasteFactor ?? 0.05) },
+    });
+  }
+
+  // 4. draft procedure document (the manufacturing spec)
+  let procedureDocumentId = null;
+  if (createProcedureDocument) {
+    const steps = Array.isArray(extracted.steps) ? extracted.steps : [];
+    const content = `# ${extracted.title || 'Procedure'}\n\n${steps.map((st, i) => `${i + 1}. ${st}`).join('\n')}${row.sourceName ? `\n\nSource: ${row.sourceName}` : ''}`;
+    const doc = await prisma.procedureDocument.create({
+      data: {
+        title: String(extracted.title || 'Imported procedure').slice(0, 200),
+        category: ['PAPER_FLOWER', 'ORIGAMI', 'MANUFACTURING_SPEC'].includes(extracted.category) ? extracted.category : 'PAPER_FLOWER',
+        sku: proposal.sku || undefined,
+        contentMarkdown: content.slice(0, 100000),
+        metadata: { estimatedTimeMinutes: extracted.estimatedTimeMinutes ?? null, sourceImportId: id, labourMinutesPerUnit: row.labourMinutesPerUnit },
+        status: 'draft',
+        authorId: req.user.id || undefined,
+      },
+    });
+    procedureDocumentId = doc.id;
+  }
+
+  const updated = await prisma.procedureImport.update({
+    where: { id },
+    data: {
+      status: 'approved', pricing,
+      reviewedById: req.user.id,
+      result: { productId, recipeId: recipe.id, procedureDocumentId, createdMaterialIds },
+    },
+  });
+  audit({
+    actorId: req.user.id, actorEmail: req.user.email, action: 'procedure_import_approve', entityType: 'procedure_import', entityId: id,
+    details: { productId, recipeId: recipe.id, procedureDocumentId, createdMaterials: createdMaterialIds.length },
+  });
+  res.json({ import: cleanProposal(updated), result: updated.result });
+}));
+
+// ── Reject ─────────────────────────────────────────────────────────────────
 router.post('/:id/reject', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0, 100);
   const row = await prisma.procedureImport.findUnique({ where: { id } });

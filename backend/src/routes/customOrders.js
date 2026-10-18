@@ -83,6 +83,12 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
     if (data.spec.ledIncluded) estimatedMinutes += 3;
   } else {
     estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.armatureHeightMm / 60));
+    // add-ons take craft time in BOTH branches (was recipe-only — no-recipe
+    // orders undercounted dome/LED/vase/greenery minutes)
+    if (data.spec.vaseIncluded) estimatedMinutes += 8;
+    if (data.spec.addGreenery) estimatedMinutes += 5;
+    if (data.spec.domeIncluded) estimatedMinutes += 10;
+    if (data.spec.ledIncluded) estimatedMinutes += 3;
   }
   const addCfg = await getSettings({ onlyPublic: true }).catch(() => ({}));
   const price = (key, d) => { const n = Number(addCfg?.[key]); return addCfg?.[key] != null && addCfg[key] !== '' && Number.isFinite(n) ? n : d; };

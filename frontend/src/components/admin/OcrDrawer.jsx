@@ -3,7 +3,7 @@ import { adminApi } from '../../lib/api/customClient';
 
 // OCR/text drawer: shows the extracted text (editable), OCR confidence and
 // timestamp, re-run, and .txt export. Replaces the old toast-only OCR flow.
-export default function OcrDrawer({ doc, token, onClose, onSaved }) {
+export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) {
   const [text, setText] = useState('');
   const [confidence, setConfidence] = useState(null);
   const [ocrAt, setOcrAt] = useState(null);
@@ -55,6 +55,16 @@ export default function OcrDrawer({ doc, token, onClose, onSaved }) {
     finally { setBusy(''); }
   }
 
+  async function analyzeToRecipe() {
+    setBusy('Analysing into a recipe…');
+    setErr('');
+    try {
+      const r = await adminApi.procedureImports.analyze(token, { text, sourceName: doc.title });
+      onAnalyzed?.(r);
+    } catch (e) { setErr(e.message || 'Analysis failed'); }
+    finally { setBusy(''); }
+  }
+
   function downloadTxt() {
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -89,6 +99,8 @@ export default function OcrDrawer({ doc, token, onClose, onSaved }) {
             </button>
           )}
           <button type="button" onClick={downloadTxt} disabled={!text} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5 disabled:opacity-50">Download .txt</button>
+          <button type="button" onClick={analyzeToRecipe} disabled={!text || !!busy}
+            className="text-xs font-semibold border border-emerald-200 text-emerald-700 rounded-xl px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-50">→ Recipe</button>
           {dirty && <button type="button" onClick={save} disabled={!!busy} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-3 py-1.5 disabled:opacity-50">{busy === 'Saving…' ? busy : 'Save text'}</button>}
         </div>
 
