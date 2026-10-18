@@ -65,6 +65,12 @@
   status = 200
   force = true
 
+# Renamed blog slug (terminology sweep 2026-10-18) — keep old links alive.
+[[redirects]]
+  from = "/blog/behind-armature-wire"
+  to = "/blog/behind-the-wire"
+  status = 301
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
