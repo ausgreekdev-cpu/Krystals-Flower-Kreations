@@ -1159,6 +1159,40 @@ model ProcedureRevision {
   @@map("procedure_revisions")
 }
 
+// ── Procedure → recipe import pipeline (Phase 1/2) ──────────────────────────
+// Staging for analysed documents: nothing touches RawMaterial/BOMRecipe/
+// Product/ProcedureDocument until a reviewer approves. `extracted` is the raw
+// ProcedureAnalysis; `materialPlan` marks each line reuse|create with its
+// matched rawMaterialId or proposed profile; `pricing` is the costing/sales
+// snapshot (bomPricing math); `result` records what approve created.
+enum ProcedureImportStatus {
+  pending
+  approved
+  rejected
+}
+
+model ProcedureImport {
+  id                  String               @id @default(cuid())
+  sourceDocumentId    String? // BusinessDocument id (plain string, no FK)
+  sourceName          String?
+  extracted           Json
+  materialPlan        Json
+  labourMinutesPerUnit Float              @default(25)
+  cricutMinutesPerUnit Float              @default(8)
+  pricing             Json
+  productProposal     Json
+  status              ProcedureImportStatus @default(pending)
+  reviewNote          String?              @db.Text
+  reviewedById        String?
+  result              Json?
+  createdBy           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([status, createdAt])
+  @@map("procedure_imports")
+}
+
 // ── Business document upload centre (stocktakes, supplier docs, exports) ────
 // Bytes live in the PRIVATE business-documents bucket; storageRef is a
 // "bucket/key" ref — never publicly reachable, only served through the

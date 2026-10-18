@@ -39,6 +39,7 @@ import suppliersRoutes from './routes/suppliers.js';
 import procedureRoutes from './routes/procedures.js';
 import documentRoutes from './routes/documents.js';
 import mediaRoutes from './routes/media.js';
+import procedureImportRoutes from './routes/procedureImports.js';
 import downloadRoutes from './routes/downloads.js';
 
 import fs from 'fs';
@@ -189,6 +190,7 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/procedures', procedureRoutes);
 app.use('/api/documents', documentRoutes); // private business document centre
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
+app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
 app.use('/api/dl', downloadRoutes); // token-gated digital template delivery
 
 // Stripe webhook (raw body needed — keep before json parser if you re-enable, currently json-parsed; stripe disabled)
