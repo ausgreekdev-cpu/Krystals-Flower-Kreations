@@ -9,20 +9,34 @@ const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1
 export default function DocumentViewer({ docs, index, token, onNavigate, onClose }) {
   const doc = docs[index];
   const [full, setFull] = useState(null);
+  const [thumb, setThumb] = useState(null);
 
+  // Thumb paints immediately (160px webp) while the original streams in —
+  // the authed file route can take seconds on cold prod functions.
   useEffect(() => {
     if (!doc?.id) return;
     setFull(null);
+    setThumb(null);
     let revoked = false;
-    let objectUrl = null;
+    let thumbUrl = null;
+    let fullUrl = null;
+    if (doc.thumbRef) {
+      adminApi.documents.thumb(doc.id, token)
+        .then((b) => { if (!revoked) { thumbUrl = URL.createObjectURL(b); setThumb(thumbUrl); } })
+        .catch(() => {});
+    }
     adminApi.documents.download(doc.id, token)
       .then((b) => {
         if (revoked) return;
-        objectUrl = URL.createObjectURL(b);
-        setFull(objectUrl);
+        fullUrl = URL.createObjectURL(b);
+        setFull(fullUrl);
       })
       .catch(() => {});
-    return () => { revoked = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    return () => {
+      revoked = true;
+      if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+      if (fullUrl) URL.revokeObjectURL(fullUrl);
+    };
   }, [doc?.id, token]);
 
   useEffect(() => {
@@ -62,9 +76,10 @@ export default function DocumentViewer({ docs, index, token, onNavigate, onClose
           </div>
         </div>
         <div className="bg-black/40 rounded-2xl grid place-items-center" style={{ minHeight: '50vh' }}>
-          {full
-            ? <img src={full} alt={doc.title} className="max-h-[72vh] w-auto object-contain rounded-xl" />
-            : <div className="text-white/70 text-sm p-10">Loading full image…</div>}
+          {full || thumb
+            ? <img src={full || thumb} alt={doc.title} className={`max-h-[72vh] w-auto object-contain rounded-xl ${full ? '' : 'opacity-70'}`} />
+            : <div className="text-white/70 text-sm p-10">Loading image…</div>}
+          {thumb && !full && <div className="text-white/60 text-[11px] pb-2">loading full size…</div>}
         </div>
         <div className="flex items-center justify-between pt-2 text-white/80 text-xs">
           <button type="button" onClick={() => onNavigate(index - 1)} disabled={index <= 0} className="border border-white/30 rounded-full px-3 py-1.5 disabled:opacity-40">← Prev</button>
