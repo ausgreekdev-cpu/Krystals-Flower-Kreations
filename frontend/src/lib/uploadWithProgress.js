@@ -16,7 +16,11 @@ export function uploadWithProgress({ url, file, fields = {}, token, onProgress }
         onProgress?.(1);
         resolve(body);
       } else {
-        reject(new Error(body?.error || `Upload failed (${xhr.status})`));
+        const err = new Error(body?.error || `Upload failed (${xhr.status})`);
+        err.code = body?.code;
+        err.status = xhr.status;
+        err.body = body; // e.g. the duplicate payload on 409
+        reject(err);
       }
     };
     xhr.onerror = () => reject(new Error('Upload failed — network error'));

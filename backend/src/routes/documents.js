@@ -249,11 +249,62 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
     return res.status(415).json({ error: `${file.originalname} does not look like a valid ${kind === 'OTHER' ? mime : kind} file`, code: 'unsupported_media_type' });
   }
 
-  // Dedup: identical bytes reuse the existing active row (no second object).
-  // Rows uploaded before M2 may lack extractedText/thumbRef — backfill them.
+  // Exact-duplicate handling (sha256): identical bytes never silently become
+  // two rows. `on_duplicate` decides — reuse (default for API/scripts),
+  // ask (UI: 409 + both sides, nothing stored), replace (existing row adopts
+  // the incoming name/title), keep_new (existing row + bytes removed, fresh
+  // row stored), skip (discard the incoming upload).
   const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
   const existing = await prisma.businessDocument.findFirst({ where: { sha256, deletedAt: null } });
-  if (existing) {
+  const onDuplicate = String(req.body?.on_duplicate || 'reuse');
+  if (!['reuse', 'ask', 'replace', 'keep_new', 'skip'].includes(onDuplicate)) {
+    return res.status(400).json({ error: 'on_duplicate must be reuse|ask|replace|keep_new|skip', code: 'validation_failed' });
+  }
+  if (existing && onDuplicate === 'ask') {
+    return res.status(409).json({
+      error: `"${file.originalname}" is an exact duplicate of an existing document`,
+      code: 'duplicate',
+      existing,
+      incoming: {
+        originalName: String(file.originalname || '').slice(0, 255),
+        sizeBytes: file.buffer.length,
+        sha256, kind,
+        category: categoryFor(file.originalname, kind),
+      },
+    });
+  }
+  if (existing && onDuplicate === 'skip') {
+    return res.status(200).json({ document: existing, deduped: true, skipped: true });
+  }
+  if (existing && onDuplicate === 'keep_new') {
+    // Mirror the delete route: bytes + thumb go away, row soft-deleted so the
+    // audit trail survives; the incoming upload is then stored as a fresh row.
+    await prisma.businessDocument.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
+    await deleteObjectByUrl(existing.storageRef).catch(() => {});
+    if (existing.thumbRef) await deleteObjectByUrl(existing.thumbRef).catch(() => {});
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_duplicate_replace', entityType: 'business_document', entityId: existing.id, details: { originalName: existing.originalName, decision: 'keep_new' } });
+  } else if (existing && onDuplicate === 'replace') {
+    // One record survives: the incoming file's identity wins, user-edited
+    // fields (category/tags/links) are kept; missing text/thumbs backfilled.
+    const patch = {
+      originalName: String(file.originalname || existing.originalName).slice(0, 255),
+      title: String(file.originalname || '').replace(/\.[^.]+$/, '').slice(0, 200) || existing.title,
+    };
+    if (!existing.extractedText) {
+      const text = await extractText(kind, file.buffer);
+      if (text) patch.extractedText = text;
+    }
+    if (!existing.thumbRef && kind === 'IMAGE' && THUMB_MIMES.has(mime)) {
+      const tbuf = await makeThumb(file.buffer);
+      if (tbuf) patch.thumbRef = await putObject(`docs/${existing.id}-thumb.webp`, tbuf, 'image/webp', { bucket: 'business-documents' });
+    }
+    const updated = await prisma.businessDocument.update({ where: { id: existing.id }, data: patch });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_duplicate_replace', entityType: 'business_document', entityId: existing.id, details: { originalName: existing.originalName, decision: 'replace' } });
+    return res.status(200).json({ document: updated, deduped: true, replaced: true });
+  } else if (existing) {
+    // reuse (default): identical bytes reuse the existing active row (no
+    // second object). Rows uploaded before M2 may lack extractedText/thumbRef
+    // — backfill them.
     const patch = {};
     if (!existing.extractedText) {
       const text = await extractText(kind, file.buffer);

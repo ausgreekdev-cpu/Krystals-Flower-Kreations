@@ -193,9 +193,59 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   const prepared = await prepareMaster(file.mimetype, file.buffer);
   const buf = prepared.buf;
 
+  // Exact-duplicate handling (sha256 per visibility) — see documents.js for
+  // the same contract: reuse (default) | ask (409 + both sides) | replace
+  // (existing row adopts incoming metadata) | keep_new (old row + bytes purged,
+  // fresh row stored — refused while attached) | skip (discard the upload).
   const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
   const existing = await prisma.mediaAsset.findFirst({ where: { sha256, visibility, deletedAt: null } });
-  if (existing) return res.status(200).json({ asset: existing, deduped: true });
+  const onDuplicate = String(req.body?.on_duplicate || 'reuse');
+  if (!['reuse', 'ask', 'replace', 'keep_new', 'skip'].includes(onDuplicate)) {
+    return res.status(400).json({ error: 'on_duplicate must be reuse|ask|replace|keep_new|skip', code: 'validation_failed' });
+  }
+  if (existing && onDuplicate === 'ask') {
+    const att = await prisma.mediaAttachment.count({ where: { assetId: existing.id } });
+    return res.status(409).json({
+      error: `"${file.originalname}" is an exact duplicate of an existing media asset`,
+      code: 'duplicate',
+      existing: { ...existing, attachments: att },
+      incoming: {
+        title: String(req.body?.title || file.originalname || '').replace(/\.[^.]+$/, '').slice(0, 200),
+        sizeBytes: buf.length, sha256, mime: file.mimetype, visibility,
+      },
+    });
+  }
+  if (existing && onDuplicate === 'skip') {
+    return res.status(200).json({ asset: existing, deduped: true, skipped: true });
+  }
+  if (existing && onDuplicate === 'keep_new') {
+    const att = await prisma.mediaAttachment.count({ where: { assetId: existing.id } });
+    if (att) return res.status(409).json({ error: 'Existing asset is still attached to content — detach it first or use replace', code: 'asset_in_use', attachments: att });
+    await deleteObjectByUrl(existing.storageRef).catch(() => {});
+    if (existing.variants && typeof existing.variants === 'object') {
+      const urls = Object.values(existing.variants).flatMap((m) => (m && typeof m === 'object' ? Object.values(m) : [])).filter(Boolean);
+      await Promise.all(urls.map((u) => deleteObjectByUrl(String(u)).catch(() => {})));
+    }
+    if (existing.thumbRef) await deleteObjectByUrl(existing.thumbRef).catch(() => {});
+    await prisma.mediaAsset.delete({ where: { id: existing.id } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_duplicate_replace', entityType: 'media_asset', entityId: existing.id, details: { title: existing.title, decision: 'keep_new' } });
+  } else if (existing && onDuplicate === 'replace') {
+    // One record survives: incoming metadata wins for identity fields; user
+    // edits (visibility) are kept — dedupe is already scoped per visibility.
+    const patch = {
+      title: String(req.body?.title || file.originalname || '').replace(/\.[^.]+$/, '').slice(0, 200) || existing.title,
+    };
+    if (req.body?.tags !== undefined) patch.tags = String(req.body.tags).split(',').map((t) => t.trim()).filter(Boolean).slice(0, 10);
+    if (isUuid(String(req.body?.folderId || ''))) patch.folderId = String(req.body.folderId);
+    else if (req.body?.folderId === '' || req.body?.folderId === '__root') patch.folderId = null;
+    if (req.body?.caption !== undefined) patch.caption = req.body.caption ? String(req.body.caption).slice(0, 500) : null;
+    if (req.body?.altText !== undefined) patch.altText = req.body.altText ? String(req.body.altText).slice(0, 255) : null;
+    const updated = await prisma.mediaAsset.update({ where: { id: existing.id }, data: patch, select: META_SELECT });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_duplicate_replace', entityType: 'media_asset', entityId: existing.id, details: { title: existing.title, decision: 'replace' } });
+    return res.status(200).json({ asset: updated, deduped: true, replaced: true });
+  } else if (existing) {
+    return res.status(200).json({ asset: existing, deduped: true });
+  }
 
   const folderId = isUuid(String(req.body?.folderId || '')) ? String(req.body.folderId) : null;
   if (folderId && !(await prisma.mediaFolder.findUnique({ where: { id: folderId } }))) {

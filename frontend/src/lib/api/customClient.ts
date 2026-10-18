@@ -7,6 +7,7 @@ export interface ApiError extends Error {
   status?: number;
   details?: unknown;
   requestId?: string;
+  body?: any; // full response body (e.g. the duplicate payload on 409)
 }
 
 // ---- Session (staff/customer JWT) ----
@@ -31,6 +32,7 @@ export async function req<T>(path: string, opts: RequestInit & { token?: string;
     err.status = res.status;
     err.details = body.details;
     err.requestId = body.requestId || res.headers.get('X-Request-Id') || undefined;
+    err.body = body;
     // Expired/invalid session on an authenticated call → back to login
     if (res.status === 401 && opts.token && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
       clearSession();
@@ -292,9 +294,10 @@ export const adminApi = {
     },
     get: (id: string, token: string) => req<any>(`/api/documents/${id}`, { token }),
     // One file per request (Netlify ~6 MB payload) — the centre uploads sequentially.
-    upload: (file: File, token: string) => {
+    upload: (file: File, token: string, onDuplicate?: string) => {
       const fd = new FormData();
       fd.append('file', file, file.name);
+      if (onDuplicate) fd.append('on_duplicate', onDuplicate);
       return req<{ document: any; deduped: boolean }>(`/api/documents`, { method: 'POST', body: fd, token });
     },
     update: (id: string, body: any, token: string) => req<any>(`/api/documents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),

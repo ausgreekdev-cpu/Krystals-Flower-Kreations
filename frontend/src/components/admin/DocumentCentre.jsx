@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
+import DuplicateDialog from './DuplicateDialog';
 import OcrDrawer from './OcrDrawer';
 import ScannerModal from './ScannerModal';
 import { useToast } from './Toast';
@@ -46,6 +47,8 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
   const [scanning, setScanning] = useState(false);
   const [ocrDoc, setOcrDoc] = useState(null);
   const [batch, setBatch] = useState(null);
+  const [dup, setDup] = useState(null);
+  const dupResolve = useRef(null);
   const fileRef = useRef(null);
   const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
   const label = 'block text-xs font-semibold text-muted mb-1';
@@ -67,23 +70,51 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
   const setF = (patch) => setParams((p) => ({ ...p, ...patch, page: 1 }));
   const refresh = () => setParams((p) => ({ ...p }));
 
+  // Exact-duplicate inspection: pause the queue on a 409 `duplicate`, let the
+  // user decide (replace / keep_new / skip), then re-upload with the decision.
+  function askDuplicate(payload, file) {
+    return new Promise((resolve) => {
+      setDup({ ...payload, file });
+      dupResolve.current = (decision) => { setDup(null); dupResolve.current = null; resolve(decision); };
+    });
+  }
+
   async function uploadFiles(files) {
     const list = Array.from(files || []).slice(0, 20);
     if (!list.length) return;
     setErr('');
-    let ok = 0; let dupes = 0;
+    let ok = 0; let dupes = 0; let replaced = 0; let skipped = 0;
     const failed = [];
+    let onDuplicate = 'ask';
     for (let i = 0; i < list.length; i++) {
       const f = list[i];
       if (f.size > MAX_BYTES) { failed.push(`${f.name} (over 25MB)`); continue; }
       setBusy(`Uploading ${i + 1}/${list.length} — ${f.name}`);
       try {
-        const r = await adminApi.documents.upload(f, token);
-        if (r.deduped) dupes++; else ok++;
-      } catch (e) { failed.push(`${f.name}: ${e.message}`); }
+        const r = await adminApi.documents.upload(f, token, onDuplicate);
+        if (r.replaced) replaced++; else if (r.skipped) skipped++; else if (r.deduped) dupes++; else ok++;
+      } catch (e) {
+        if (e.code === 'duplicate' && e.body?.existing) {
+          setBusy('');
+          const decision = await askDuplicate(e.body, f);
+          if (!decision) { failed.push(`${f.name}: cancelled`); break; }
+          if (decision.applyAll) onDuplicate = decision.action;
+          setBusy(`Uploading ${i + 1}/${list.length} — ${f.name}`);
+          try {
+            const r = await adminApi.documents.upload(f, token, decision.action);
+            if (r.replaced) replaced++; else if (r.skipped) skipped++; else if (r.deduped) dupes++; else ok++;
+          } catch (e2) { failed.push(`${f.name}: ${e2.message}`); }
+          continue;
+        }
+        failed.push(`${f.name}: ${e.message}`);
+      }
     }
     setBusy('');
-    const summary = `${ok} uploaded${dupes ? `, ${dupes} duplicate${dupes > 1 ? 's' : ''} reused` : ''}`;
+    const bits = [`${ok} uploaded`];
+    if (dupes) bits.push(`${dupes} reused`);
+    if (replaced) bits.push(`${replaced} replaced`);
+    if (skipped) bits.push(`${skipped} discarded`);
+    const summary = bits.join(', ');
     if (failed.length) toast(`${summary} — failed: ${failed.join('; ')}`, 'error');
     else toast(summary);
     refresh();
@@ -244,6 +275,12 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             <button disabled={params.page >= pages} onClick={() => setParams((p) => ({ ...p, page: p.page + 1 }))} className="border border-line-strong rounded-xl px-2.5 py-1 disabled:opacity-50">Next</button>
           </div>
         </div>
+      )}
+
+      {dup && (
+        <DuplicateDialog kind="document" token={token} existing={dup.existing} incoming={dup.incoming}
+          onResolve={(action, applyAll) => dupResolve.current?.({ action, applyAll })}
+          onCancel={() => dupResolve.current?.(null)} />
       )}
 
       {scanning && (

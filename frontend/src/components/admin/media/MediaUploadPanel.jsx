@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { BASE } from '../../../lib/api/customClient';
 import { uploadWithProgress } from '../../../lib/uploadWithProgress';
+import DuplicateDialog from '../DuplicateDialog';
 
 // Upload queue with real per-file progress + inline metadata (title, tags,
 // visibility) editable before the upload starts. Sequential uploads keep the
@@ -9,6 +10,8 @@ import { uploadWithProgress } from '../../../lib/uploadWithProgress';
 export default function MediaUploadPanel({ token, folderId, onDone, onClose }) {
   const [queue, setQueue] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [dup, setDup] = useState(null);
+  const dupResolve = useRef(null);
   const fileRef = useRef(null);
   const camRef = useRef(null);
 
@@ -30,22 +33,48 @@ export default function MediaUploadPanel({ token, folderId, onDone, onClose }) {
 
   const patch = (uid, p) => setQueue((q) => q.map((it) => (it.uid === uid ? { ...it, ...p } : it)));
 
+  // Exact-duplicate inspection: 409 pauses the queue, the dialog decides
+  // (replace / keep_new / skip), then the same file re-uploads with the choice.
+  function askDuplicate(payload, item) {
+    return new Promise((resolve) => {
+      setDup({ ...payload, item });
+      dupResolve.current = (decision) => { setDup(null); dupResolve.current = null; resolve(decision); };
+    });
+  }
+
+  const uploadOne = (item, onDuplicate) =>
+    uploadWithProgress({
+      url: `${BASE}/api/media`,
+      file: item.file,
+      token,
+      fields: { title: item.title, tags: item.tags, visibility: item.visibility, folderId, source: item.source, on_duplicate: onDuplicate },
+      onProgress: (p) => patch(item.uid, { progress: p }),
+    });
+
   async function startUpload() {
     setBusy(true);
     let done = 0;
+    let onDuplicate = 'ask';
     for (const item of queue.filter((it) => it.status === 'queued')) {
       patch(item.uid, { status: 'uploading', progress: 0 });
       try {
-        await uploadWithProgress({
-          url: `${BASE}/api/media`,
-          file: item.file,
-          token,
-          fields: { title: item.title, tags: item.tags, visibility: item.visibility, folderId, source: item.source },
-          onProgress: (p) => patch(item.uid, { progress: p }),
-        });
+        await uploadOne(item, onDuplicate);
         patch(item.uid, { status: 'done', progress: 1 });
         done++;
       } catch (e) {
+        if (e.code === 'duplicate' && e.body?.existing) {
+          const decision = await askDuplicate(e.body, item);
+          if (!decision) { patch(item.uid, { status: 'error', error: 'cancelled' }); continue; }
+          if (decision.applyAll) onDuplicate = decision.action;
+          try {
+            await uploadOne(item, decision.action);
+            patch(item.uid, { status: 'done', progress: 1 });
+            done++;
+          } catch (e2) {
+            patch(item.uid, { status: 'error', error: e2.message || 'Upload failed' });
+          }
+          continue;
+        }
         patch(item.uid, { status: 'error', error: e.message || 'Upload failed' });
       }
     }
@@ -57,6 +86,12 @@ export default function MediaUploadPanel({ token, folderId, onDone, onClose }) {
   const input = 'w-full border border-line-strong rounded-xl px-3 py-1.5 text-xs bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
 
   return (
+    <>
+    {dup && (
+      <DuplicateDialog kind="media" token={token} existing={dup.existing} incoming={dup.incoming}
+        onResolve={(action, applyAll) => dupResolve.current?.({ action, applyAll })}
+        onCancel={() => dupResolve.current?.(null)} />
+    )}
     <div className="border border-line rounded-2xl bg-surface2 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-sm text-ink">Upload media</h3>
@@ -122,5 +157,6 @@ export default function MediaUploadPanel({ token, folderId, onDone, onClose }) {
         </div>
       )}
     </div>
+    </>
   );
 }

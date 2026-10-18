@@ -16,13 +16,14 @@ const auth = (t) => ({ Authorization: `Bearer ${t}` });
 const png = (w, h, rgb) =>
   sharp({ create: { width: w, height: h, channels: 3, background: rgb || { r: Math.floor(Math.random() * 256), g: Math.floor(Math.random() * 256), b: Math.floor(Math.random() * 256) } } }).png().toBuffer();
 
-async function upload(token, { name = 'test.png', bytes, visibility = 'LIBRARY', title, folderId, tags } = {}) {
+async function upload(token, { name = 'test.png', bytes, visibility = 'LIBRARY', title, folderId, tags, onDuplicate } = {}) {
   const fd = new FormData();
   fd.append('file', new Blob([bytes || (await png(900, 600))], { type: 'image/png' }), name);
   if (visibility) fd.append('visibility', visibility);
   if (title) fd.append('title', title);
   if (folderId) fd.append('folderId', folderId);
   if (tags) fd.append('tags', tags);
+  if (onDuplicate) fd.append('on_duplicate', onDuplicate);
   const res = await fetch(`${srv.base}/api/media`, { method: 'POST', headers: auth(token), body: fd });
   return { status: res.status, body: await res.json().catch(() => null) };
 }
@@ -365,4 +366,58 @@ test('bulk visibility promotion is admin-only', async () => {
   const check = await api(srv.base, `/api/media/${up.body.asset.id}`, { headers: auth(adminToken) });
   assert.equal(check.body.visibility, 'LIBRARY');
   assert.ok(check.body.publicUrl, 'bytes moved to the public bucket');
+});
+
+// ── Exact-duplicate inspection (ask/replace/keep_new/skip) ─────────────────
+
+test('duplicate media: ask/replace/keep_new/skip semantics', async () => {
+  const bytes = await png(500, 500, { r: 7, g: 90, b: 200 });
+  const first = await upload(adminToken, { title: 'Media T DupA', bytes, tags: 'keep' });
+  assert.equal(first.status, 201, JSON.stringify(first.body).slice(0, 200));
+  const firstId = first.body.asset.id;
+
+  // ask → 409 with both sides + attachment count
+  const ask = await upload(adminToken, { title: 'Media T DupAsk', bytes, onDuplicate: 'ask' });
+  assert.equal(ask.status, 409, JSON.stringify(ask.body).slice(0, 200));
+  assert.equal(ask.body.code, 'duplicate');
+  assert.equal(ask.body.existing.id, firstId);
+  assert.equal(ask.body.existing.attachments, 0);
+  assert.equal(ask.body.incoming.title, 'Media T DupAsk');
+
+  // replace → same row, incoming metadata wins
+  const rep = await upload(adminToken, { title: 'Media T DupReplaced', bytes, tags: 'fresh', onDuplicate: 'replace' });
+  assert.equal(rep.status, 200, JSON.stringify(rep.body).slice(0, 200));
+  assert.equal(rep.body.replaced, true);
+  assert.equal(rep.body.asset.id, firstId);
+  assert.equal(rep.body.asset.title, 'Media T DupReplaced');
+  assert.deepEqual(rep.body.asset.tags, ['fresh']);
+
+  // skip → incoming discarded
+  const skip = await upload(adminToken, { title: 'Media T DupSkip', bytes, onDuplicate: 'skip' });
+  assert.equal(skip.status, 200);
+  assert.equal(skip.body.skipped, true);
+  assert.equal(skip.body.asset.id, firstId);
+
+  // keep_new while attached → 409 asset_in_use
+  const products = await api(srv.base, '/api/products?limit=5');
+  const product = products.body.products.find((x) => x.slug === 'eucalyptus-paper-rose-bouquet-blush');
+  const att = await api(srv.base, '/api/media/attach', {
+    method: 'POST', headers: auth(adminToken),
+    body: JSON.stringify({ assetId: firstId, attachableType: 'PRODUCT', attachableId: product.id, role: 'gallery' }),
+  });
+  assert.equal(att.status, 201);
+  const blocked = await upload(adminToken, { title: 'Media T DupBlocked', bytes, onDuplicate: 'keep_new' });
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.body.code, 'asset_in_use');
+  await api(srv.base, `/api/media/attachments/${att.body.attachment.id}`, { method: 'DELETE', headers: auth(adminToken) });
+
+  // keep_new → old row hard-deleted, fresh row stored
+  const keep = await upload(adminToken, { title: 'Media T DupFresh', bytes, onDuplicate: 'keep_new' });
+  assert.equal(keep.status, 201, JSON.stringify(keep.body).slice(0, 200));
+  assert.notEqual(keep.body.asset.id, firstId);
+  assert.equal(await prisma.mediaAsset.findUnique({ where: { id: firstId } }), null, 'old row purged');
+
+  // invalid value → 400
+  const bad = await upload(adminToken, { title: 'Media T DupBad', bytes, onDuplicate: 'bogus' });
+  assert.equal(bad.status, 400);
 });

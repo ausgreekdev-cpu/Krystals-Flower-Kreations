@@ -477,3 +477,50 @@ test('prepareForOcr never throws on garbage bytes', async () => {
   const out = await prepareForOcr(Buffer.from('not-an-image'));
   assert.ok(Buffer.isBuffer(out), 'falls back to the original buffer');
 });
+
+// ── Exact-duplicate inspection (ask/replace/keep_new/skip) ─────────────────
+
+test('duplicate uploads: ask/replace/keep_new/skip semantics', async () => {
+  const bytes = `exact dup body ${UNIQUE}`;
+  const first = await uploadFile(bytes, `dupA-${UNIQUE}.txt`, 'text/plain');
+  assert.equal(first.status, 201, JSON.stringify(first.body).slice(0, 200));
+  const firstId = first.body.document.id;
+
+  const uploadWith = (name, onDuplicate) => {
+    const fd = new FormData();
+    fd.append('file', new Blob([bytes], { type: 'text/plain' }), name);
+    fd.append('on_duplicate', onDuplicate);
+    return fetch(`${srv.base}/api/documents`, { method: 'POST', headers: auth(), body: fd }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
+  };
+
+  // ask → 409 with both sides, nothing stored
+  const ask = await uploadWith(`dupAsk-${UNIQUE}.txt`, 'ask');
+  assert.equal(ask.status, 409, JSON.stringify(ask.body).slice(0, 200));
+  assert.equal(ask.body.code, 'duplicate');
+  assert.equal(ask.body.existing.id, firstId);
+  assert.equal(ask.body.incoming.originalName, `dupAsk-${UNIQUE}.txt`);
+
+  // replace → same row, incoming identity wins
+  const rep = await uploadWith(`dupReplaced-${UNIQUE}.txt`, 'replace');
+  assert.equal(rep.status, 200, JSON.stringify(rep.body).slice(0, 200));
+  assert.equal(rep.body.replaced, true);
+  assert.equal(rep.body.document.id, firstId);
+  assert.equal(rep.body.document.originalName, `dupReplaced-${UNIQUE}.txt`);
+
+  // skip → incoming discarded
+  const skip = await uploadWith(`dupSkip-${UNIQUE}.txt`, 'skip');
+  assert.equal(skip.status, 200);
+  assert.equal(skip.body.skipped, true);
+  assert.equal(skip.body.document.id, firstId);
+
+  // keep_new → old row retired, fresh row stored
+  const keep = await uploadWith(`dupFresh-${UNIQUE}.txt`, 'keep_new');
+  assert.equal(keep.status, 201, JSON.stringify(keep.body).slice(0, 200));
+  assert.notEqual(keep.body.document.id, firstId);
+  const oldRow = await prisma.businessDocument.findUnique({ where: { id: firstId } });
+  assert.ok(oldRow.deletedAt, 'old row retired (soft-deleted)');
+
+  // invalid value → 400
+  const bad = await uploadWith(`dupBad-${UNIQUE}.txt`, 'bogus');
+  assert.equal(bad.status, 400);
+});
