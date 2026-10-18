@@ -132,6 +132,12 @@ npm run build       # Vite build + PWA
 - Admin UI is inline in `frontend/src/pages/Admin.jsx` (house convention — Procedures/ProcedureModal/ProcedureDetail as local components, no separate files). Self-fetching (component loads its own data; the top-level `load(tab)` branch no-ops harmlessly). FileList is live — snapshot `Array.from(e.target.files)` BEFORE clearing `input.value` or the upload silently sends nothing.
 - Importing from a URL that returns HTML surfaces the server's "unsupported_content_type" message; external-fetch test helper in `test/procedures.test.js` (`mockExternal`) stubs non-test-server URLs — success paths must use `https://example.com/...` since DNS resolution is real.
 
+## Uploads — exact-duplicate inspection
+
+- Both upload centres hash bytes (sha256). `on_duplicate` on `POST /api/documents` and `POST /api/media` decides: **`reuse`** (default — silent reuse + backfill, kept for API/scripts) | **`ask`** (UI default — `409 {code:"duplicate", existing, incoming}` stores nothing) | **`replace`** (one row survives, adopting the incoming name/metadata) | **`keep_new`** (old row + bytes retired, incoming stored fresh; `409 asset_in_use` while a media asset is attached) | **`skip`** (discard the upload).
+- UI: shared `DuplicateDialog` (preview, dates, uploader, attached warning, apply-to-all) pauses the Document Centre and Media upload queues until a decision is made, then re-posts the same file with `on_duplicate`.
+- Media dedupe is scoped per visibility; documents per surface. Tests cover all five behaviours (`documents.test.js`, `media.test.js`).
+
 ## Media library & scanner (Phases A–E)
 
 - **Media assets** (`MediaAsset`/`MediaFolder`/`MediaAttachment`, `/api/media/*`): LIBRARY assets live in the public `media` bucket (`publicUrl` + webp/avif variants like ProductImage); STAFF assets (order/reference photos) live in the private `staff-media` bucket, served only via authed `GET /api/media/:id/file`. `storageRef` is always a `"bucket/key"` ref. sha256 dedupe per visibility; soft-delete → Trash → admin purge (purge refuses while attached).
