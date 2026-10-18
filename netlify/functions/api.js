@@ -32,7 +32,18 @@ export async function handler(event, context) {
         const evalErr = errs.find((e) => !String(e?.message || '').includes('backend/src/app.js'));
         throw evalErr || errs[0];
       }
-      appHandler = serverless(app);
+      // Binary responses must be base64-flagged or the function bridge decodes
+      // them as UTF-8 (every high byte becomes U+FFFD — corrupts image/PDF/
+      // zip downloads). serverless-http only treats gzip/br encodings as
+      // binary by default; list the binary content types explicitly.
+      appHandler = serverless(app, {
+        binary: [
+          'image/*', 'application/pdf', 'application/zip', 'application/octet-stream',
+          'model/stl', 'video/*',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+        ],
+      });
     } catch (err) {
       console.error('[netlify api] boot failed:', err);
       console.error(err?.stack || String(err));
