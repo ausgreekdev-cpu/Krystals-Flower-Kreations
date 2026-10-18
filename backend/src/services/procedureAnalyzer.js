@@ -180,11 +180,31 @@ function parseLlmJson(raw) {
 async function analyzeWithLlm(text, sourceName) {
   const provider = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase();
   const key = process.env.LLM_API_KEY || '';
-  const model = process.env.LLM_MODEL || (provider === 'openai' ? 'gpt-4o-mini' : 'claude-3-5-haiku-latest');
+  const model = process.env.LLM_MODEL
+    || (provider === 'openai' ? 'gpt-4o-mini' : provider === 'opencode-go' ? 'mimo-v2.6-flash' : 'claude-3-5-haiku-latest');
   const body = `${sourceName ? `Source file: ${sourceName}\n\n` : ''}${text.slice(0, 40000)}`;
   let reply;
   if (llmImpl) {
     reply = await llmImpl(body);
+  } else if (provider === 'opencode-go') {
+    // OpenCode Go: OpenAI-compatible chat completions. Contract (docs/go):
+    // custom user-agent identifying this client + a stable x-opencode-session
+    // per conversation for routing/prompt-cache; JSON enforced by prompt only
+    // (response_format isn't universally supported on the gateway).
+    const base = (process.env.LLM_BASE_URL || 'https://opencode.ai/inference/go/openai/v1').replace(/\/+$/, '');
+    const res = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'user-agent': 'krystal-procedure-analyzer/1.0',
+        'x-opencode-session': `krystal-import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      },
+      body: JSON.stringify({ model, temperature: 0, messages: [{ role: 'system', content: LLM_SYSTEM }, { role: 'user', content: body }] }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) throw new Error(`LLM ${res.status}`);
+    reply = (await res.json())?.choices?.[0]?.message?.content;
   } else if (provider === 'openai') {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
