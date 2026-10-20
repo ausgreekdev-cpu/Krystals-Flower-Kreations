@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
-import { __setOcrRecognize, prepareForOcr } from '../src/services/ocr.js';
+import { __setOcrRecognize, prepareForOcr, collectWords } from '../src/services/ocr.js';
 import { startServer, api } from './helpers.js';
 
 // Smart document upload centre (M1–M4): private-bucket storage, sha256 dedup,
@@ -578,4 +578,18 @@ test('OCR endpoint persists word boxes on the record', async () => {
   assert.equal(forced.status, 200, JSON.stringify(forced.body).slice(0, 200));
   assert.ok(forced.body.document.ocrWords?.pages?.[0]?.words?.length, 'words persisted on re-run');
   assert.equal(forced.body.document.ocrWords.pages[0].words[0].t, 'Stub');
+});
+
+// tesseract.js v7 dropped the top-level data.words — words live under
+// blocks → paragraphs → lines → words. Lock that shape so the extractor keeps
+// working when the engine is upgraded.
+test('collectWords flattens the tesseract v7 block tree', () => {
+  const words = collectWords([
+    { paragraphs: [{ lines: [{ words: [{ text: 'INVOICE', confidence: 94, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }] }] }] },
+    { paragraphs: [{ lines: [{ words: [{ text: '4821', confidence: 40, bbox: { x0: 5, y0: 6, x1: 7, y1: 8 } }] }] }] },
+  ]);
+  assert.equal(words.length, 2);
+  assert.equal(words[0].text, 'INVOICE');
+  assert.equal(words[1].confidence, 40);
+  assert.equal(collectWords(null).length, 0, 'null blocks are tolerated');
 });

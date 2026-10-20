@@ -70,18 +70,33 @@ export async function ocrImage(buffer) {
     cachePath: process.env.TESSDATA_CACHE || '/tmp/tessdata',
   });
   try {
-    const { data } = await worker.recognize(prepared);
+    // tesseract.js v7 nests words under blocks → paragraphs → lines → words
+    // (there is no top-level data.words any more) and needs blocks: true.
+    const { data } = await worker.recognize(prepared, {}, { text: true, blocks: true });
     const info = await sharp(prepared).metadata();
     return {
       text: String(data.text || '').trim(),
       confidence: Number(data.confidence) || 0,
       width: info.width || 0,
       height: info.height || 0,
-      words: normalizeWords(data.words),
+      words: normalizeWords(collectWords(data.blocks)),
     };
   } finally {
     await worker.terminate().catch(() => {});
   }
+}
+
+// Flatten tesseract's block/paragraph/line tree into the word list.
+export function collectWords(blocks) {
+  const out = [];
+  for (const block of blocks || []) {
+    for (const para of block?.paragraphs || []) {
+      for (const line of para?.lines || []) {
+        for (const word of line?.words || []) out.push(word);
+      }
+    }
+  }
+  return out;
 }
 
 // Word boxes power the confidence-review UI and the invisible text layer of
