@@ -81,7 +81,16 @@ before(async () => {
   globalThis.__m4OcrCalls = 0;
   __setOcrRecognize(async () => {
     globalThis.__m4OcrCalls += 1;
-    return { text: `Stub scan body m4token-${UNIQUE}`, confidence: 88 };
+    return {
+      text: `Stub scan body m4token-${UNIQUE}`,
+      confidence: 88,
+      width: 1200, height: 800,
+      words: [
+        { text: 'Stub', confidence: 95, bbox: { x0: 10, y0: 20, x1: 90, y1: 55 } },
+        { text: 'scan', confidence: 41, bbox: { x0: 100, y0: 20, x1: 170, y1: 55 } },
+        { text: 'garbage', confidence: 5, bbox: { x0: 180, y0: 20, x1: 260, y1: 55 } },
+      ],
+    };
   });
   const login = await api(srv.base, '/api/auth/login', {
     method: 'POST',
@@ -352,16 +361,19 @@ test('dedup hit backfills extractedText for a pre-M3 PDF row', async () => {
 
 test('OCR extracts text from an image and makes it content-searchable', async () => {
   const png = await sharp({ create: { width: 60, height: 30, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+  const before = globalThis.__m4OcrCalls;
   const up = await uploadFile(png, `m4scan-${UNIQUE}.png`, 'image/png');
   assert.equal(up.status, 201, JSON.stringify(up.body).slice(0, 200));
   const id = up.body.document.id;
   globalThis.__m4ImgId = id;
-  assert.equal(up.body.document.extractedText, null, 'upload does not OCR inline');
+  // S1: images are auto-OCR'd on upload — text and word boxes land inline
+  assert.ok(up.body.document.extractedText?.includes(`m4token-${UNIQUE}`), 'auto-OCR on upload');
+  assert.equal(globalThis.__m4OcrCalls, before + 1, 'engine invoked once during upload');
+  assert.ok(up.body.document.ocrWords?.pages?.[0]?.words?.length, 'word boxes captured on upload');
 
-  const before = globalThis.__m4OcrCalls;
-  const res = await api(srv.base, `/api/documents/${id}/ocr`, { method: 'POST', headers: auth() });
+  const res = await api(srv.base, `/api/documents/${id}/ocr?force=1`, { method: 'POST', headers: auth() });
   assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 200));
-  assert.equal(globalThis.__m4OcrCalls, before + 1, 'engine invoked once');
+  assert.equal(globalThis.__m4OcrCalls, before + 2, 'engine invoked again on re-run');
   assert.ok(res.body.document.extractedText?.includes(`m4token-${UNIQUE}`), 'text stored');
   assert.equal(res.body.ocr.confidence, 88);
   assert.ok(res.body.ocr.chars > 0);
@@ -437,9 +449,11 @@ test('OCR persists confidence + timestamp and list rows carry hasText', async ()
 
   const before = await api(srv.base, '/api/documents?kind=IMAGE&limit=50', { headers: auth() });
   const beforeRow = before.body.documents.find((d) => d.id === id);
-  assert.equal(beforeRow.hasText, false, 'fresh image has no text');
+  // images are auto-OCR'd on upload (S1), so the row already carries text
+  assert.equal(beforeRow.hasText, true, 'uploaded image is auto-OCRd');
 
-  const ocr = await api(srv.base, `/api/documents/${id}/ocr`, { method: 'POST', headers: auth() });
+  // the row already carries auto-OCR text, so a re-run needs force
+  const ocr = await api(srv.base, `/api/documents/${id}/ocr?force=1`, { method: 'POST', headers: auth() });
   assert.equal(ocr.status, 200, JSON.stringify(ocr.body).slice(0, 200));
   assert.equal(ocr.body.ocr.confidence, 88);
   assert.ok(ocr.body.document.ocrAt, 'ocrAt persisted');
@@ -523,4 +537,45 @@ test('duplicate uploads: ask/replace/keep_new/skip semantics', async () => {
   // invalid value → 400
   const bad = await uploadWith(`dupBad-${UNIQUE}.txt`, 'bogus');
   assert.equal(bad.status, 400);
+});
+
+// ── S1: word boxes + auto-OCR on image upload ──────────────────────────────
+
+test('auto-OCR on image upload stores text, confidence and word boxes', async () => {
+  const before = globalThis.__m4OcrCalls;
+  const png = await sharp({ create: { width: 400, height: 260, channels: 3, background: { r: 240, g: 240, b: 240 } } }).png().toBuffer();
+  const up = await uploadFile(png, `auto-ocr-${UNIQUE}.png`, 'image/png');
+  assert.equal(up.status, 201, JSON.stringify(up.body).slice(0, 200));
+  assert.ok(globalThis.__m4OcrCalls > before, 'OCR ran during upload');
+  const doc = up.body.document;
+  assert.match(doc.extractedText || '', /Stub scan body/, `text extracted: ${doc.extractedText}`);
+  assert.equal(doc.ocrConfidence, 88);
+  assert.ok(doc.ocrAt, 'ocrAt stamped');
+  assert.ok(doc.ocrWords?.pages?.length === 1, 'one page of words');
+  const words = doc.ocrWords.pages[0].words;
+  assert.equal(words.length, 2, 'low-confidence junk (<20%) dropped');
+  assert.equal(words[1].t, 'scan');
+  assert.equal(words[1].c, 41);
+  assert.equal(words[1].x0, 100);
+  assert.equal(doc.ocrWords.pages[0].w, 1200);
+  assert.equal(doc.ocrWords.pages[0].h, 800);
+});
+
+test('non-image uploads are not auto-OCRd', async () => {
+  const before = globalThis.__m4OcrCalls;
+  const up = await uploadFile(`plain text ${UNIQUE}`, `plain-${UNIQUE}.txt`, 'text/plain');
+  assert.equal(up.status, 201);
+  assert.equal(globalThis.__m4OcrCalls, before, 'no OCR for text docs');
+  assert.equal(up.body.document.ocrWords, null);
+});
+
+test('OCR endpoint persists word boxes on the record', async () => {
+  const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: { r: 250, g: 250, b: 250 } } }).png().toBuffer();
+  const up = await uploadFile(png, `words-${UNIQUE}.png`, 'image/png');
+  assert.equal(up.status, 201);
+  const id = up.body.document.id;
+  const forced = await api(srv.base, `/api/documents/${id}/ocr?force=1`, { method: 'POST', headers: auth() });
+  assert.equal(forced.status, 200, JSON.stringify(forced.body).slice(0, 200));
+  assert.ok(forced.body.document.ocrWords?.pages?.[0]?.words?.length, 'words persisted on re-run');
+  assert.equal(forced.body.document.ocrWords.pages[0].words[0].t, 'Stub');
 });

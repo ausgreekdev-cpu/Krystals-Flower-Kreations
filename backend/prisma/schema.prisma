@@ -1253,6 +1253,7 @@ model BusinessDocument {
   thumbRef      String?          // private "bucket/key" webp preview for images (M2)
   ocrConfidence Float? // last OCR confidence (0-100) — surfaced in the OCR drawer
   ocrAt         DateTime? // last OCR run
+  ocrWords      Json? // word boxes: { pages: [{ pageIndex, w, h, words: [{ t, c, x0, y0, x1, y1 }] }] }
 
   // Plain strings (no @db.Uuid) — users/suppliers use cuid ids, procedures
   // style: "authorId String?" with no FK so deletes never block.

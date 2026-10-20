@@ -56,14 +56,59 @@ export async function prepareForOcr(buffer) {
  */
 export async function ocrImage(buffer) {
   const prepared = await prepareForOcr(buffer);
-  if (recognizeImpl) return recognizeImpl(prepared);
+  if (recognizeImpl) {
+    const out = await recognizeImpl(prepared);
+    return {
+      text: String(out?.text || '').trim(),
+      confidence: Number(out?.confidence) || 0,
+      width: Number(out?.width) || 0,
+      height: Number(out?.height) || 0,
+      words: normalizeWords(out?.words),
+    };
+  }
   const worker = await createWorker('eng', 1, {
     cachePath: process.env.TESSDATA_CACHE || '/tmp/tessdata',
   });
   try {
     const { data } = await worker.recognize(prepared);
-    return { text: String(data.text || '').trim(), confidence: Number(data.confidence) || 0 };
+    const info = await sharp(prepared).metadata();
+    return {
+      text: String(data.text || '').trim(),
+      confidence: Number(data.confidence) || 0,
+      width: info.width || 0,
+      height: info.height || 0,
+      words: normalizeWords(data.words),
+    };
   } finally {
     await worker.terminate().catch(() => {});
   }
+}
+
+// Word boxes power the confidence-review UI and the invisible text layer of
+// exported searchable PDFs. Compact keys keep the JSON small; very low
+// confidence hits (<20%) are noise and get dropped, everything the reviewer
+// might want to fix is kept.
+const WORD_MIN_CONFIDENCE = 20;
+const WORD_MAX = 3000;
+
+export function normalizeWords(words) {
+  if (!Array.isArray(words)) return [];
+  const out = [];
+  for (const w of words) {
+    const t = String(w?.text || '').trim();
+    if (!t) continue;
+    const c = Math.round(Number(w?.confidence) || 0);
+    if (c < WORD_MIN_CONFIDENCE) continue;
+    const b = w?.bbox || {};
+    out.push({
+      t,
+      c,
+      x0: Math.round(Number(b.x0) || 0),
+      y0: Math.round(Number(b.y0) || 0),
+      x1: Math.round(Number(b.x1) || 0),
+      y1: Math.round(Number(b.y1) || 0),
+    });
+    if (out.length >= WORD_MAX) break;
+  }
+  return out;
 }

@@ -341,6 +341,30 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
       extractedText: await extractText(kind, file.buffer), thumbRef, uploadedById: req.user.id,
     },
   });
+  // Auto-OCR images (S1): text + word boxes + confidence land on the record,
+  // so search, confidence review and searchable-PDF export all have data with
+  // no extra click. Never blocks the upload — failures are logged and ignored.
+  if (kind === 'IMAGE' && outMime !== 'image/svg+xml') {
+    try {
+      const out = await ocrImage(buf);
+      const text = clip(out.text);
+      const ocrWords = out.words?.length
+        ? { pages: [{ pageIndex: 0, w: out.width || 0, h: out.height || 0, words: out.words }] }
+        : null;
+      if (text || ocrWords) {
+        await prisma.businessDocument.update({
+          where: { id: row.id },
+          data: { extractedText: text || row.extractedText, ocrConfidence: out.confidence, ocrAt: new Date(), ocrWords },
+        });
+        row.extractedText = text || row.extractedText;
+        row.ocrConfidence = out.confidence;
+        row.ocrAt = new Date();
+        row.ocrWords = ocrWords;
+      }
+    } catch (e) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'auto-ocr failed on upload', err: e?.message }));
+    }
+  }
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes } });
   res.status(201).json({ document: row, deduped: false });
 }));
@@ -399,7 +423,7 @@ router.post('/:id/ocr', authenticate, requireRole(...EDITOR_ROLES), ocrLimit, as
     return res.status(409).json({ error: 'Document already has extracted text — pass ?force=1 to re-run', code: 'conflict' });
   }
   const buf = await getObject(doc.storageRef);
-  let text = null; let confidence = null;
+  let text = null; let confidence = null; let ocrWords = null;
   if (doc.kind === 'PDF') {
     text = await extractText('PDF', buf); // retry unpdf (transient upload-time failure)
     if (!text) {
@@ -412,11 +436,14 @@ router.post('/:id/ocr', authenticate, requireRole(...EDITOR_ROLES), ocrLimit, as
     const out = await ocrImage(buf);
     text = clip(out.text);
     confidence = out.confidence;
+    if (out.words?.length) {
+      ocrWords = { pages: [{ pageIndex: 0, w: out.width || 0, h: out.height || 0, words: out.words }] };
+    }
     if (!text) return res.status(422).json({ error: 'OCR found no readable text in this image', code: 'no_text_found' });
   }
   const updated = await prisma.businessDocument.update({
     where: { id },
-    data: { extractedText: text, ocrConfidence: confidence, ocrAt: new Date() },
+    data: { extractedText: text, ocrConfidence: confidence, ocrAt: new Date(), ocrWords },
   });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_ocr', entityType: 'business_document', entityId: id, details: { chars: text.length, confidence, kind: doc.kind } });
   res.json({ document: updated, ocr: { chars: text.length, confidence } });
