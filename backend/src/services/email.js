@@ -1,41 +1,34 @@
-import nodemailer from 'nodemailer';
 import prisma from '../lib/prisma.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
+import { resolveTransport, senderAddress, emailProviderStatus, SKIP_REASON } from './emailProvider.js';
 
 const MAX_ATTEMPTS = 5;
 
-function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) return null;
-  return nodemailer.createTransport({
-    host,
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user, pass },
-  });
-}
+export { emailProviderStatus };
 
 export async function sendEmail({ to, subject, text, html }) {
-  const transporter = getTransporter();
-  if (!transporter) {
-    console.log(`[email] SMTP not configured — would send to ${to}: ${subject}`);
-    return { skipped: true, reason: 'SMTP not configured' };
+  const s = await getSettings().catch(() => ({}));
+  const transport = resolveTransport();
+  if (!transport) {
+    console.log(JSON.stringify({ level: 'warn', msg: 'email_skipped_not_configured', to, subject }));
+    return { skipped: true, reason: SKIP_REASON };
   }
-  try {
-    // From name + reply-to come from settings (env EMAIL_FROM still wins for from).
-    const s = await getSettings().catch(() => ({}));
-    const fromName = s.email_from_name || "Krystals Flower Creations";
-    const from = process.env.EMAIL_FROM || `${fromName} <${process.env.SMTP_USER}>`;
-    const replyTo = s.email_reply_to || undefined;
-    const info = await transporter.sendMail({ from, replyTo, to, subject, text, html: html || text });
-    console.log(`[email] Sent to ${to} — ${info.messageId}`);
-    return { ok: true, messageId: info.messageId };
-  } catch (err) {
-    console.error(`[email] Failed to ${to}:`, err.message);
-    return { ok: false, error: err.message };
+  // From name + reply-to come from settings (env EMAIL_FROM still wins for from).
+  const fromName = s.email_from_name || "Krystals Flower Creations";
+  const res = await transport.send({
+    from: senderAddress(fromName, transport.name),
+    replyTo: s.email_reply_to || undefined,
+    to,
+    subject,
+    text,
+    html,
+  });
+  if (res.ok) {
+    console.log(`[email] ${transport.name} sent to ${to} — ${res.messageId || 'no message id'}`);
+  } else {
+    console.error(`[email] ${transport.name} failed to ${to}: ${res.error}`);
   }
+  return res;
 }
 
 // Persist an email to the queue (await this in the route BEFORE responding so the
@@ -65,10 +58,12 @@ export async function sendFromQueue(row) {
   }
   const attempts = row.attempts + 1;
   if (res.skipped) {
-    await prisma.emailQueue.update({ where: { id: row.id }, data: { status: 'failed', attempts, lastError: 'SMTP not configured' } });
+    await prisma.emailQueue.update({ where: { id: row.id }, data: { status: 'failed', attempts, lastError: res.reason || SKIP_REASON } });
     return { skipped: true };
   }
-  if (attempts >= MAX_ATTEMPTS) {
+  // A 4xx from the provider (bad key, unverified sender) will never succeed on
+  // retry — park it as failed so it shows up in the queue instead of looping.
+  if (res.permanent || attempts >= MAX_ATTEMPTS) {
     await prisma.emailQueue.update({ where: { id: row.id }, data: { status: 'failed', attempts, lastError: (res.error || 'send failed').slice(0, 500) } });
     return { failed: true };
   }
@@ -239,7 +234,11 @@ export async function sendPasswordReset(user, { resetUrl, ttlMinutes = 60 } = {}
     template: 'password_reset',
     payload: { userId: user.id, ttlMinutes },
   });
-  sendFromQueue(row).catch(() => {});
+  // Awaited, unlike the order mail: the link expires in 60 minutes, so letting a
+  // fire-and-forget send get frozen with the Netlify invocation would mean the
+  // hourly drain can deliver it already-expired. The queue row is the safety net
+  // if this attempt fails.
+  await sendFromQueue(row).catch(() => {});
   return row;
 }
 

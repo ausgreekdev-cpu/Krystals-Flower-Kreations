@@ -103,7 +103,7 @@ test('POST /api/settings/reset returns keys to schema defaults', async () => {
   assert.equal(unknown.body.code, 'invalid_settings');
 });
 
-test('POST /api/settings/test-email reports SMTP status', async () => {
+test('POST /api/settings/test-email reports the email provider status', async () => {
   const anon = await api(srv.base, '/api/settings/test-email', { method: 'POST', body: JSON.stringify({ to: 'a@b.co' }) });
   assert.equal(anon.status, 401, 'admin only');
 
@@ -113,10 +113,14 @@ test('POST /api/settings/test-email reports SMTP status', async () => {
   const res = await api(srv.base, '/api/settings/test-email', { method: 'POST', headers: auth(), body: JSON.stringify({ to: 'krystal@test.local' }) });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(typeof res.body.smtpConfigured, 'boolean');
-  assert.match(res.body.message, /SMTP|sent|failed/i);
-  if (!process.env.SMTP_HOST) {
-    assert.equal(res.body.smtpConfigured, false, 'SMTP unset in tests');
+  assert.equal(typeof res.body.provider === 'string' || res.body.provider === null, true, 'names the transport');
+  assert.match(res.body.message, /provider|SMTP|sent|failed/i);
+  const apiKeySet = Boolean(process.env.RESEND_API_KEY || process.env.POSTMARK_SERVER_TOKEN || process.env.SENDGRID_API_KEY);
+  if (!apiKeySet && !process.env.SMTP_HOST) {
+    assert.equal(res.body.provider, null);
+    assert.equal(res.body.smtpConfigured, false, 'nothing configured in tests');
     assert.equal(res.body.skipped, true);
+    assert.match(res.body.message, /No email provider configured/);
   }
 });
 

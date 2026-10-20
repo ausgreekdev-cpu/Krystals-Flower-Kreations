@@ -1,5 +1,6 @@
 // Boot-time environment validation — fail fast instead of on first query/sign.
 import { isProductionLike } from './auth.js';
+import { emailProviderStatus } from '../services/emailProvider.js';
 
 const WEAK_SECRETS = new Set(['dev-secret-change-me', 'change-me-to-a-long-random-string', 'secret', 'changeme']);
 
@@ -20,7 +21,10 @@ export function validateEnv() {
   }
 
   if (isProductionLike()) {
-    if (!process.env.SMTP_HOST) warnings.push('SMTP_HOST not set — emails will be skipped');
+    const mail = emailProviderStatus();
+    if (!mail.configured) {
+      warnings.push('No email provider configured — set RESEND_API_KEY (preferred) or POSTMARK_SERVER_TOKEN / SENDGRID_API_KEY; emails will be skipped');
+    }
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       warnings.push('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — image uploads will fail on Netlify');
     }

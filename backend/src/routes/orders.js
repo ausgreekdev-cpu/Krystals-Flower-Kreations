@@ -260,7 +260,7 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     // Mint 30-day download tokens for digital lines before emailing so the
     // confirmation includes working links.
     await mintDigitalDownloadUrls(order);
-    // Email receipt (non-blocking, logs if SMTP not configured)
+    // Email receipt (non-blocking, logs when no email provider is configured)
     await sendOrderConfirmation(order).catch(()=>{});
     // Studio alert (settings: admin_order_alert_enabled / _recipient)
     await sendAdminOrderAlert(order).catch(()=>{});

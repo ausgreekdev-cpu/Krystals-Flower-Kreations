@@ -3437,7 +3437,7 @@ function Settings({ reload, token }) {
         </Card>
         {section === 'notifications' && !q && (
           <div className="mt-4">
-            <Card title="Send a test email" description="Checks SMTP from here without placing an order — tells you straight away whether SMTP is configured.">
+            <Card title="Send a test email" description="Sends a real email without placing an order — tells you straight away which provider is configured and whether it works.">
               <div className="flex gap-2">
                 <input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="you@example.com" className={input} />
                 <Btn onClick={sendTest} disabled={testBusy || !testTo.trim()}>{testBusy ? 'Sending…' : 'Send test'}</Btn>
@@ -3445,6 +3445,12 @@ function Settings({ reload, token }) {
               {testResult && (
                 <div className={`text-xs mt-2 rounded-xl px-3 py-2 border ${testResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                   {testResult.message}
+                  {testResult.provider && (
+                    <span className="block mt-1 text-muted">
+                      Sending via <span className="font-semibold">{testResult.provider}</span>
+                      {testResult.from ? ` as ${testResult.from}` : ''}
+                    </span>
+                  )}
                 </div>
               )}
             </Card>

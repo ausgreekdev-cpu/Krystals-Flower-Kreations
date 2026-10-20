@@ -89,7 +89,7 @@ Root shortcuts: `npm run db:up` / `npm run db:push` / `npm run db:seed` / `npm r
 - **Backend + Web**: Netlify Functions (`netlify/functions/api.js`) + static `frontend/dist`
 - **DB**: Supabase Postgres — runtime uses the transaction pooler (`:6543?pgbouncer=true`), schema changes use the session pooler via `DIRECT_URL` (`:5432`)
 - **Uploads**: Supabase Storage bucket `product-images`
-- **Email**: queued in Postgres (`EmailQueue`) and drained by the hourly `scheduled.js` function — needs SMTP env vars to actually send
+- **Email**: queued in Postgres (`EmailQueue`) and drained by the hourly `scheduled.js` function — sends over HTTPS when `RESEND_API_KEY` (or `POSTMARK_SERVER_TOKEN` / `SENDGRID_API_KEY`) is set; SMTP is the local/relay fallback
 - **Mobile**: EAS Build → TestFlight / Play Internal
 
 ## Environment
@@ -98,7 +98,8 @@ Root shortcuts: `npm run db:up` / `npm run db:push` / `npm run db:seed` / `npm r
 - Production reference: `backend/.env.supabase` (gitignored) and `.env.netlify.template`
 - Required in prod: `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET` (32+ chars), `FRONTEND_URL`
 - Uploads: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`
-- Optional: `SMTP_*` (email), `META_*` (Meta shop), `COMPANY_EMAIL` (low-stock alerts)
+- Email: `RESEND_API_KEY` (preferred) **or** `POSTMARK_SERVER_TOKEN` / `SENDGRID_API_KEY`, plus `EMAIL_FROM` on a domain verified with that provider; `SMTP_*` only as a fallback
+- Optional: `META_*` (Meta shop), `COMPANY_EMAIL` (low-stock alerts), `PAYPAL_*` (PayPal)
 
 ## License
 
