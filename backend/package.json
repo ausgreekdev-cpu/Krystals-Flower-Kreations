@@ -21,7 +21,7 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.15",
     "serverless-http": "^3.2.0",
-    "sharp": "^0.33.4",
+    "sharp": "^0.35.5",
     "svgo": "^4.1.0",
     "tesseract.js": "^7.0.0",
     "unpdf": "^1.7.0",
