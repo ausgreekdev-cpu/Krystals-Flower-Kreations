@@ -137,7 +137,10 @@ export default function SiteHeader() {
               {!signedIn && <NavLink to="/login" className={navClass}>Sign in</NavLink>}
               {signedIn && (
                 <span className="flex items-center gap-2">
-                  <span className="text-xs text-muted max-w-[10rem] truncate" title={user?.email || ''}>{user?.name || user?.email || 'Signed in'}</span>
+                  <NavLink to="/account" className={navClass}>Account</NavLink>
+                  {/* Name only where there's room — at xl the full nav + name
+                      squeezed the centred search box to ~90px wide. */}
+                  <span className="hidden 2xl:inline text-xs text-muted max-w-[10rem] truncate" title={user?.email || ''}>{user?.name || user?.email || 'Signed in'}</span>
                   <button onClick={signOut} className="text-xs underline text-muted hover:text-highlight py-2">Sign out</button>
                 </span>
               )}
@@ -177,6 +180,7 @@ export default function SiteHeader() {
               {staffRole && showKanban && <NavLink to="/kanban" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Kanban</NavLink>}
               {staffRole && <NavLink to="/admin" className={({ isActive }) => `rounded-xl p-3 ${isActive ? 'bg-bloom-500 text-white' : 'bg-surface2 border'}`}>Admin</NavLink>}
               {!signedIn && <Link to="/login" className="bg-surface2 border rounded-xl p-3 font-bold">Sign in</Link>}
+              {signedIn && <NavLink to="/account" className="bg-surface2 border rounded-xl p-3">My account</NavLink>}
               {signedIn && <button onClick={signOut} className="bg-surface2 border rounded-xl p-3 text-left">Sign out — {user?.email || ''}</button>}
               {showModeToggle && <button onClick={toggleColorMode} className="bg-surface2 border rounded-xl p-3 text-left">Colour mode — {MODE_ICONS[colorMode]} {MODE_LABELS[colorMode]}</button>}
             </div>

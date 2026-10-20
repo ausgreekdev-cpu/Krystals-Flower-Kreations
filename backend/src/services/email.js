@@ -224,6 +224,25 @@ export async function sendCustomOrderConfirmation(order) {
   return row;
 }
 
+// Self-service password reset. Deliberately NOT gated by
+// customer_status_emails_enabled — that toggle is about order notifications, and
+// switching it off must never lock customers out of their own account.
+export async function sendPasswordReset(user, { resetUrl, ttlMinutes = 60 } = {}) {
+  if (!user?.email || !resetUrl) return null;
+  const s = await getSettings().catch(() => ({}));
+  const subject = 'Reset your Krystals Flower Creations password';
+  const text = `Hi ${user.name || 'there'},\n\nSomeone (hopefully you) asked to reset the password for the Krystals Flower Creations account using this email address.\n\nChoose a new password here:\n${resetUrl}\n\nThis link works once and expires in ${ttlMinutes} minutes.\nIf you didn't ask for this, you can ignore this email — your password hasn't changed.\n\n${await signatureBlock(s)}`;
+  const row = await enqueueEmail({
+    to: user.email,
+    subject,
+    text,
+    template: 'password_reset',
+    payload: { userId: user.id, ttlMinutes },
+  });
+  sendFromQueue(row).catch(() => {});
+  return row;
+}
+
 export async function sendWorkshopConfirmation(booking, workshop, session, { reminder = false } = {}) {
   const s = await getSettings().catch(() => ({}));
   const when = new Date(session.startsAt).toLocaleString('en-AU', { timeZone: 'Australia/Perth' });

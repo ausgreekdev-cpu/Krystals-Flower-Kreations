@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
 import { hashPassword, comparePassword, signToken } from '../lib/auth.js';
 import { awardSignupBonus } from '../services/loyaltyService.js';
+import { sendPasswordReset } from '../services/email.js';
+import { audit } from '../lib/audit.js';
 
 const router = Router();
 // bcrypt hash of a random string — used to equalise timing for unknown emails
@@ -48,6 +51,78 @@ router.get('/me', asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: payload.id }, select: { id: true, name: true, email: true, role: true } });
     res.json({ user });
   } catch { res.json({ user: null }); }
+}));
+
+// ── Self-service password reset ────────────────────────────────────────────
+// The emailed value is 32 random bytes; only its sha256 is stored, so a leaked
+// database row can't be turned into a working link. Single-use + 60 minutes.
+// Responses never reveal whether an email is registered (no enumeration oracle).
+const RESET_TTL_MINUTES = 60;
+const RESET_TTL_MS = RESET_TTL_MINUTES * 60 * 1000;
+const sha256 = (v) => createHash('sha256').update(v).digest('hex');
+function frontendOrigin() {
+  const raw = (process.env.FRONTEND_URL || 'https://krystalsflowercreations.com.au').split(',')[0].trim();
+  return raw.replace(/\/+$/, '');
+}
+
+const forgotSchema = z.object({ email: z.string().email().max(254) }).strict();
+// Per-account ceiling on top of the per-IP one — stops a script mailing the same
+// inbox (and filling the queue) over and over.
+const forgotAccountLimit = rateLimit('password_reset_account', 5, 60, (req) =>
+  typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : null);
+
+router.post('/forgot-password', rateLimit('password_reset', 8, 15), forgotAccountLimit, validate(forgotSchema), asyncHandler(async (req, res) => {
+  const email = req.validated.email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (user) {
+    // One live link at a time: asking again invalidates the earlier email.
+    await prisma.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
+    const raw = randomBytes(32).toString('base64url');
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + RESET_TTL_MS) },
+    });
+    const resetUrl = `${frontendOrigin()}/reset-password?token=${encodeURIComponent(raw)}`;
+    await sendPasswordReset(user, { resetUrl, ttlMinutes: RESET_TTL_MINUTES }).catch(() => null);
+    audit({ actorId: user.id, actorEmail: user.email, action: 'password_reset_requested', entityType: 'user', entityId: user.id });
+  }
+  res.json({ ok: true, message: 'If that email has an account, a reset link is on its way.' });
+}));
+
+const resetSchema = z.object({
+  token: z.string().min(20).max(200),
+  // 8+ for a brand-new password (registration still allows 6 — existing accounts
+  // keep working; the reset flow is free to raise the floor).
+  password: z.string().min(8).max(128),
+}).strict();
+
+router.post('/reset-password', rateLimit('password_reset_submit', 10, 15), validate(resetSchema), asyncHandler(async (req, res) => {
+  const { token, password } = req.validated;
+  const invalid = () => res.status(400).json({
+    error: 'This reset link is invalid or has expired — request a new one.',
+    code: 'invalid_reset_token',
+  });
+
+  const row = await prisma.passwordResetToken.findUnique({ where: { tokenHash: sha256(token) } });
+  if (!row || row.usedAt || row.expiresAt <= new Date()) return invalid();
+
+  // Claim before writing: a double-submit can't spend the same token twice.
+  const claimed = await prisma.passwordResetToken.updateMany({
+    where: { id: row.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  if (!claimed.count) return invalid();
+
+  const user = await prisma.user.update({
+    where: { id: row.userId },
+    data: { password: await hashPassword(password) },
+    select: { id: true, email: true, name: true, role: true },
+  });
+  // Any other outstanding link for this account dies with the reset.
+  await prisma.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
+  audit({ actorId: user.id, actorEmail: user.email, action: 'password_reset_completed', entityType: 'user', entityId: user.id });
+
+  // Sign them straight in — the reset proves control of the inbox.
+  res.json({ ok: true, token: signToken(user), user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 }));
 
 // GDPR deletion — delete own account + anonymize orders/bookings

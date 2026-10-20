@@ -68,6 +68,17 @@ async function downscaleImage(file: File, max = 1600, quality = 0.85): Promise<B
 export const authApi = {
   login: (email: string, password: string) => req<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: (token: string) => req<{ user: any }>('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
+  // Self-service reset. forgot always resolves (the server never says whether
+  // the address exists), reset consumes a single-use emailed token and returns
+  // a ready session so the customer lands signed in.
+  forgotPassword: (email: string) => req<{ ok: boolean; message: string }>('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, password: string) => req<{ ok: boolean; token: string; user: any }>('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+};
+
+// Customer account area — order history + re-issued digital download links.
+export const accountApi = {
+  orders: (token: string) => req<{ orders: any[] }>('/api/account/orders', { token }),
+  downloads: (token: string) => req<{ downloads: any[]; ordersWithDownloads: number }>('/api/account/downloads', { token }),
 };
 
 export const catalogApi = {

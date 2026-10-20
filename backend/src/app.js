@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import cartRoutes from './routes/cart.js';
 import orderRoutes from './routes/orders.js';
+import accountRoutes from './routes/account.js';
 import blogRoutes from './routes/blog.js';
 import workshopRoutes from './routes/workshops.js';
 import inventoryRoutes from './routes/inventory.js';
@@ -155,6 +156,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/account', accountRoutes); // customer order history + re-issued downloads
 app.use('/api/posts', blogRoutes);
 app.use('/api/workshops', workshopRoutes);
 app.use('/api/inventory', inventoryRoutes);

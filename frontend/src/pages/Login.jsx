@@ -53,6 +53,10 @@ export default function Login() {
         <button type="submit" disabled={busy} className="w-full bg-royal-600 hover:bg-royal-700 disabled:opacity-60 text-white font-bold rounded-xl py-2.5">
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <Link to="/forgot-password" className="text-royal-700 dark:text-royal-300 font-semibold hover:underline">Forgot your password?</Link>
+          <Link to="/account" className="text-muted hover:underline">My orders</Link>
+        </div>
         {import.meta.env.DEV && <p className="text-[11px] text-muted text-center">Dev seed: admin@krystal.local / admin123</p>}
         <Link to="/" className="block text-center text-xs text-muted hover:underline">← Back to shop</Link>
       </form>

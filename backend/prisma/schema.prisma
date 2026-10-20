@@ -141,6 +141,7 @@ model User {
   stocktakes     Stocktake[]
   purchaseOrders PurchaseOrder[]
   loyaltyAccount LoyaltyAccount?
+  passwordResets PasswordResetToken[]
 
   @@map("users")
 }
@@ -1099,6 +1100,25 @@ model EmailQueue {
 
   @@index([status, createdAt])
   @@map("email_queue")
+}
+
+// Self-service password reset. The emailed value is a 32-byte random token; only
+// its sha256 hash is stored, so a database read can't be turned into a working
+// reset link. Single-use (usedAt) and short-lived (expiresAt). Opaque random
+// values — not JWTs — because a stateless token can't be revoked or replayed-
+// protected after use.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ── Procedures & specifications (assembly guides, origami steps, mfg specs) ──

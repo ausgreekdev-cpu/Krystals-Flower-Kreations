@@ -26,6 +26,9 @@ const ROUTE_TITLES = {
   '/about': `About — ${BRAND}`,
   '/privacy': `Privacy Policy — ${BRAND}`,
   '/login': `Sign in — ${BRAND}`,
+  '/account': `Your account — ${BRAND}`,
+  '/forgot-password': `Reset your password — ${BRAND}`,
+  '/reset-password': `Choose a new password — ${BRAND}`,
 };
 // Per-route meta description (Googlebot renders JS so these land in SERP
 // snippets). Dynamic routes (/product, /blog/:slug, /occasions) set their
@@ -40,9 +43,17 @@ const ROUTE_DESCRIPTIONS = {
   '/notebook': 'Studio Notebook — paper florist knowledge base: glue tests, Cricut settings, origami instructions & studio notes.',
   '/about': 'About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, sculptural art and workshop kits.',
   '/privacy': 'Privacy policy — Krystals Flower Creations, Perth WA.',
+  '/account': 'Your Krystals Flower Creations account — order history, tracking and every digital template you have bought, ready to re-download.',
+  '/forgot-password': 'Request a one-time password reset link for your Krystals Flower Creations account.',
+  '/reset-password': 'Choose a new password for your Krystals Flower Creations account.',
 };
 // Utility pages shouldn't appear in search results.
-const NOINDEX = new Set(['/cart', '/checkout', '/login']);
+const NOINDEX = new Set([
+  '/cart', '/checkout', '/login',
+  // Customer-private: order history, reset links (a token in the query string
+  // must never end up in an index).
+  '/account', '/forgot-password', '/reset-password',
+]);
 
 export default function SiteLayout() {
   const location = useLocation();
