@@ -40,7 +40,11 @@ try {
     for (const theme of ['light', 'dark']) {
       for (const [vpName, viewport] of Object.entries(VIEWPORTS)) {
         const page = await browser.newPage({ viewport, colorScheme: theme });
-        await page.goto(`${SITE}${route}`, { waitUntil: 'networkidle' });
+        await page.goto(`${SITE}${route}`, { waitUntil: 'load' });
+        // SPA: wait for the page's own h1 (the chrome renders first; a bare
+        // shell or skeleton has no heading) before scanning.
+        await page.waitForSelector('h1', { timeout: 25000 }).catch(() => {});
+        await page.waitForTimeout(400);
         const { label, res } = await runAxe(page, `${route} ${theme} ${vpName}`);
         if (res.length) { fails++; console.log(`FAIL ${label}`, JSON.stringify(res)); }
         else console.log(`ok   ${label}`);
@@ -53,14 +57,15 @@ try {
   for (const theme of ['light', 'dark']) {
     for (const [vpName, viewport] of Object.entries(VIEWPORTS)) {
       const page = await browser.newPage({ viewport, colorScheme: theme });
-      await page.goto(`${SITE}/login`, { waitUntil: 'networkidle' });
+      await page.goto(`${SITE}/login`, { waitUntil: 'load' });
+      await page.waitForSelector('input[type="email"]', { timeout: 15000 }).catch(() => {});
       await page.fill('input[type="email"]', EMAIL);
       await page.fill('input[type="password"]', PASS);
       await page.keyboard.press('Enter');
       await page.waitForURL(/admin/, { timeout: 20000 }).catch(() => {});
       for (const tab of ['Overview', 'Documents', 'Media']) {
         await page.locator('button', { hasText: tab }).first().click().catch(() => {});
-        await page.waitForTimeout(700);
+        await page.waitForTimeout(900);
         const { label, res } = await runAxe(page, `admin:${tab} ${theme} ${vpName}`);
         if (res.length) { fails++; console.log(`FAIL ${label}`, JSON.stringify(res)); }
         else console.log(`ok   ${label}`);
