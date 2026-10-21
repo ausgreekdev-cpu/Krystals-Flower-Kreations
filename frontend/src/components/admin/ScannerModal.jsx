@@ -25,6 +25,13 @@ export default function ScannerModal({ token, onDone, onClose }) {
     streamRef.current = null;
   }, []);
 
+  // Esc closes the dialog (keyboard accessibility).
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { stop(); onClose(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [stop, onClose]);
+
   useEffect(() => {
     let dead = false;
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
