@@ -664,14 +664,20 @@ test('enrichment fills title, category, tags, supplier and invoice refs', async 
     const body = `INVOICE INV-2026-031\nCanson cardstock 65lb\nSupplier: Quill Paper Co ${UNIQUE}\nTotal 149.50 AUD\n`;
     const up = await uploadFile(body, `scan-${UNIQUE}.txt`, 'text/plain');
     assert.equal(up.status, 201, JSON.stringify(up.body).slice(0, 200));
-    const d = up.body.document;
+    // the upload itself must NOT spend the LLM budget — enrichment is its own call
+    assert.equal(up.body.enriched, undefined, 'upload does not call the LLM');
+    assert.equal(up.body.document.title, `scan-${UNIQUE}`, 'filename guess until enriched');
+
+    const enriched = await api(srv.base, `/api/documents/${up.body.document.id}/enrich`, { method: 'POST', headers: auth() });
+    assert.equal(enriched.status, 200, JSON.stringify(enriched.body).slice(0, 200));
+    const d = enriched.body.document;
     assert.equal(d.title, 'Canson cardstock invoice — March', 'model title wins over the filename guess');
     assert.equal(d.category, 'INVOICE');
     assert.deepEqual(d.tags, ['cardstock', 'invoice', 'canson']);
     assert.equal(d.linkedSupplierId, supplier.id, 'supplier linked on a confident match');
     assert.equal(d.invoiceNumber, 'INV-2026-031');
     assert.equal(d.invoiceDate, '2026-03-14');
-    assert.ok(up.body.enriched, 'upload reports the enrichment');
+    assert.ok(enriched.body.enriched, 'enrich reports what it applied');
 
     const found = await api(srv.base, '/api/documents?q=INV-2026-031', { headers: auth() });
     assert.ok(found.body.documents.some((x) => x.id === d.id), 'invoice number is searchable');
@@ -689,7 +695,10 @@ test('no LLM key: the filename guess and keyword category are kept', async () =>
   assert.equal(d.title, `stocktake-${UNIQUE}`, 'title stays the filename guess');
   assert.equal(d.category, 'STOCKTAKE', 'keyword category still works');
   assert.equal(d.invoiceNumber, null);
-  assert.equal(up.body.enriched, null, 'no enrichment without an LLM');
+  const enriched = await api(srv.base, `/api/documents/${d.id}/enrich`, { method: 'POST', headers: auth() });
+  assert.equal(enriched.status, 200);
+  assert.equal(enriched.body.enriched, null, 'no enrichment without an LLM');
+  assert.equal(enriched.body.document.title, `stocktake-${UNIQUE}`, 'title untouched');
 });
 
 test('short documents are not enriched (no wasted calls)', async () => {
@@ -698,6 +707,7 @@ test('short documents are not enriched (no wasted calls)', async () => {
   try {
     const up = await uploadFile('tiny', `tiny-${UNIQUE}.txt`, 'text/plain');
     assert.equal(up.status, 201);
+    await api(srv.base, `/api/documents/${up.body.document.id}/enrich`, { method: 'POST', headers: auth() });
     assert.equal(called, 0, 'no LLM call for a document with no readable text');
   } finally {
     __setLlmCall(null);

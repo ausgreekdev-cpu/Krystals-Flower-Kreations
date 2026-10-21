@@ -275,7 +275,14 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
   // 2. per-page OCR (words stay in the prepared image's pixel space)
   const ocrPages = [];
   let extracted = '';
+  // Budget the per-page OCR: a 20-page scan must not outlive the function
+  // timeout. Pages past the budget are stored without text (still in the PDF).
+  const ocrDeadline = Date.now() + 15_000;
   for (const p of pages) {
+    if (Date.now() > ocrDeadline) {
+      ocrPages.push({ w: 0, h: 0, words: [], conf: 0, skipped: true });
+      continue;
+    }
     try {
       const out = await ocrImage(p.buf);
       if (out.text) extracted += (extracted ? '\n\n' : '') + out.text;
@@ -333,32 +340,11 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
       uploadedById: req.user.id,
     },
   });
-  // S3: same enrichment as single uploads (title/category/tags/supplier)
-  let enriched = null;
-  try {
-    const suggestion = await enrichDocument({
-      id: row.id, title: row.title, originalName: row.originalName,
-      extractedText: clip(extracted), category: row.category, kind: row.kind,
-    });
-    if (suggestion) {
-      const data = { category: suggestion.category, tags: suggestion.tags, invoiceNumber: suggestion.invoiceNumber, invoiceDate: suggestion.invoiceDate };
-      if (suggestion.supplierId) data.linkedSupplierId = suggestion.supplierId;
-      const updated = await prisma.businessDocument.update({ where: { id: row.id }, data });
-      Object.assign(row, updated);
-      enriched = { title: row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null };
-      audit({
-        actorId: req.user.id, actorEmail: req.user.email, action: 'document_enrich', entityType: 'business_document', entityId: row.id,
-        details: { title: row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null },
-      });
-    }
-  } catch (e) {
-    console.warn(JSON.stringify({ level: 'warn', msg: 'assemble enrichment skipped', err: e?.message }));
-  }
   audit({
     actorId: req.user.id, actorEmail: req.user.email, action: 'document_assemble', entityType: 'business_document', entityId: row.id,
-    details: { title, pages: pages.length, chars: extracted.length, confidence: confAvg, enriched: Boolean(enriched) },
+    details: { title, pages: pages.length, chars: extracted.length, confidence: confAvg },
   });
-  res.status(201).json({ document: row, deduped: false, pages: pages.length, enriched });
+  res.status(201).json({ document: row, deduped: false, pages: pages.length });
 }));
 
 // ── Upload (Editor+): sniff → sha256 dedup → auto-categorise → extract → thumb ─
@@ -487,39 +473,40 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
       console.warn(JSON.stringify({ level: 'warn', msg: 'auto-ocr failed on upload', err: e?.message }));
     }
   }
-  // S3: auto-enrich metadata from the document text (title/category/tags/
-  // supplier/invoice refs). Never blocks the upload; a failure keeps the
-  // filename-derived values.
-  let enriched = null;
-  try {
-    const suggestion = await enrichDocument({
-      id: row.id, title: row.title, originalName: row.originalName,
-      extractedText: row.extractedText, category: row.category, kind: row.kind,
-    });
-    if (suggestion) {
-      const data = {
-        category: suggestion.category,
-        tags: suggestion.tags,
-        invoiceNumber: suggestion.invoiceNumber,
-        invoiceDate: suggestion.invoiceDate,
-      };
-      // only replace a title that is still the raw filename guess
-      const guess = String(row.originalName || '').replace(/\.[^.]+$/, '').slice(0, 200);
-      if (row.title === guess && suggestion.title) data.title = suggestion.title;
-      if (suggestion.supplierId) data.linkedSupplierId = suggestion.supplierId;
-      const updated = await prisma.businessDocument.update({ where: { id: row.id }, data });
-      Object.assign(row, updated);
-      enriched = { title: data.title ?? row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null };
-      audit({
-        actorId: req.user.id, actorEmail: req.user.email, action: 'document_enrich', entityType: 'business_document', entityId: row.id,
-        details: { title: data.title ?? row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null },
-      });
-    }
-  } catch (e) {
-    console.warn(JSON.stringify({ level: 'warn', msg: 'document enrichment skipped', err: e?.message }));
-  }
-  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes, enriched: Boolean(enriched) } });
-  res.status(201).json({ document: row, deduped: false, enriched });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes } });
+  res.status(201).json({ document: row, deduped: false });
+}));
+
+// ── Enrich metadata from the document text (S3) ─────────────────────────────
+// Separate from the upload on purpose: the upload may already spend its
+// budget on OCR (cold tesseract model download), so enrichment — one cheap
+// LLM call — runs in its own request and never blocks the upload.
+router.post('/:id/enrich', authenticate, requireRole(...EDITOR_ROLES), rateLimit('document_enrich', 30, 10), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.businessDocument.findFirst({ where: { id, deletedAt: null } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const suggestion = await enrichDocument({
+    id: doc.id, title: doc.title, originalName: doc.originalName,
+    extractedText: doc.extractedText, category: doc.category, kind: doc.kind,
+  });
+  if (!suggestion) return res.status(200).json({ document: doc, enriched: null });
+  const data = {
+    category: suggestion.category,
+    tags: suggestion.tags,
+    invoiceNumber: suggestion.invoiceNumber,
+    invoiceDate: suggestion.invoiceDate,
+  };
+  // only replace a title that is still the raw filename guess
+  const guess = String(doc.originalName || '').replace(/\.[^.]+$/, '').slice(0, 200);
+  if (doc.title === guess && suggestion.title) data.title = suggestion.title;
+  if (suggestion.supplierId) data.linkedSupplierId = suggestion.supplierId;
+  const updated = await prisma.businessDocument.update({ where: { id }, data });
+  audit({
+    actorId: req.user.id, actorEmail: req.user.email, action: 'document_enrich', entityType: 'business_document', entityId: id,
+    details: { title: data.title ?? doc.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null },
+  });
+  res.json({ document: updated, enriched: { title: data.title ?? doc.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null } });
 }));
 
 // ── Update metadata (Editor+): rename / categorise / tag / link ─────────────

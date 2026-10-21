@@ -96,6 +96,13 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
       try {
         const r = await adminApi.documents.upload(f, token, onDuplicate);
         if (r.replaced) replaced++; else if (r.skipped) skipped++; else if (r.deduped) dupes++; else ok++;
+        // S3: enrich metadata from the text in its own request (the upload may
+        // already be busy with OCR) — best effort, never blocks the queue.
+        if (r.document?.id && !r.deduped) {
+          adminApi.documents.enrich(r.document.id, token)
+            .then(() => refresh())
+            .catch(() => {});
+        }
       } catch (e) {
         if (e.code === 'duplicate' && e.body?.existing) {
           setBusy('');

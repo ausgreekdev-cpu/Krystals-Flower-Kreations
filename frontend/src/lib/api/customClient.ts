@@ -311,6 +311,10 @@ export const adminApi = {
       if (onDuplicate) fd.append('on_duplicate', onDuplicate);
       return req<{ document: any; deduped: boolean }>(`/api/documents`, { method: 'POST', body: fd, token });
     },
+    // S3: metadata enrichment from the document text (own request budget —
+    // the upload may already be busy with OCR).
+    enrich: (id: string, token: string) =>
+      req<{ document: any; enriched: any }>(`/api/documents/${id}/enrich`, { method: 'POST', token }),
     // Multi-page scan: one document built from the captured pages (server
     // assembles the PDF and OCRs each page).
     assemble: (files: File[], title: string, token: string) => {
