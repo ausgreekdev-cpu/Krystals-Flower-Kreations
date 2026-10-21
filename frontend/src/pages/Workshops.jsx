@@ -94,7 +94,7 @@ export default function Workshops(){
         <Btn to="/notebook?workshop=cricut-blooms-101" variant="soft" size="pill" className="text-xs">Notebook →</Btn>
       </div>
       <div className="mt-6 bg-surface2 border rounded-2xl p-4">
-        <h3 className="font-bold text-sm">Book a session</h3>
+        <h2 className="font-bold text-sm">Book a session</h2>
         <div className="mt-3 grid md:grid-cols-2 gap-3">
           <Select size="sm" label="Session" labelVisible value={booking.sessionId} onChange={e=>setBooking({...booking, sessionId:e.target.value})}>
             <option value="">Select session</option>
@@ -114,7 +114,7 @@ export default function Workshops(){
       <div className="mt-6 grid gap-4">
         {items.map(w=> (
           <div key={w.id} className="bg-surface2 p-6 rounded-2xl border">
-            <h3 className="font-bold text-ink">{w.title}</h3>
+            <h2 className="font-bold text-ink">{w.title}</h2>
             <p className="text-sm text-muted mt-2">{w.description}</p>
             <div className="text-sm font-bold text-highlight mt-2">${Number(w.price).toFixed(2)} • {w.durationMinutes} min • {w.level || 'beginner'}</div>
             <div className="mt-3 space-y-1">{(w.sessions||[]).map(s=> <div key={s.id} className={`text-xs rounded-lg px-3 py-2 flex justify-between ${s.capacity - s.bookedCount<=0?'bg-warning-50 border border-warning-200 text-warning-800':'bg-surface'}`}><span>{new Date(s.startsAt).toLocaleString('en-AU', { timeZone:'Australia/Perth', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span><span>{Math.max(0,s.capacity - s.bookedCount)} spots left {s.capacity - s.bookedCount<=0 && '• Waitlist'}</span></div>)}</div>
