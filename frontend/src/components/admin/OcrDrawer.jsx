@@ -10,8 +10,13 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [preview, setPreview] = useState(null); // { url, angle } | 'loading' | null
 
   const canOcr = doc.kind === 'IMAGE' || doc.kind === 'PDF';
+
+  useEffect(() => () => {
+    if (preview && typeof preview === 'object') URL.revokeObjectURL(preview.url);
+  }, [preview]);
 
   useEffect(() => {
     setBusy('Loading…');
@@ -65,6 +70,23 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
     finally { setBusy(''); }
   }
 
+  // "What OCR sees": the exact prepared image (deskewed) the engine read.
+  async function togglePreview() {
+    if (preview) {
+      if (typeof preview === 'object') URL.revokeObjectURL(preview.url);
+      setPreview(null);
+      return;
+    }
+    setPreview('loading');
+    try {
+      const { blob, angle } = await adminApi.documents.preprocessed(doc.id, token);
+      setPreview({ url: URL.createObjectURL(blob), angle });
+    } catch (e) {
+      setPreview(null);
+      setErr(e.message || 'Preview unavailable');
+    }
+  }
+
   function downloadTxt() {
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -102,7 +124,22 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
           <button type="button" onClick={analyzeToRecipe} disabled={!text || !!busy}
             className="text-xs font-semibold border border-emerald-200 text-emerald-700 rounded-xl px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-50">→ Recipe</button>
           {dirty && <button type="button" onClick={save} disabled={!!busy} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-3 py-1.5 disabled:opacity-50">{busy === 'Saving…' ? busy : 'Save text'}</button>}
+          {doc.kind === 'IMAGE' && (
+            <button type="button" onClick={togglePreview} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5">
+              {preview ? 'Hide preview' : 'What OCR sees'}
+            </button>
+          )}
         </div>
+
+        {preview === 'loading' && <div className="text-xs text-muted">Loading the prepared image…</div>}
+        {preview && typeof preview === 'object' && (
+          <figure className="m-0">
+            <img src={preview.url} alt={`Prepared scan of ${doc.title}`} className="w-full rounded-xl border border-line bg-surface2" />
+            <figcaption className="text-[10px] text-muted mt-1">
+              What the OCR engine sees — trimmed{Number(preview.angle) ? `, deskewed ${Math.abs(Number(preview.angle)).toFixed(2)}°` : ''}, greyscaled, contrast-normalised, sharpened.
+            </figcaption>
+          </figure>
+        )}
 
         <textarea
           className="w-full h-96 border border-line-strong rounded-xl px-3 py-2 text-xs font-mono bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500"

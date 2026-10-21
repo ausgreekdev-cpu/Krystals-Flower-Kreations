@@ -2,10 +2,13 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import sharp from 'sharp';
+import crypto from 'node:crypto';
 import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
-import { __setOcrRecognize, prepareForOcr, collectWords } from '../src/services/ocr.js';
+import { __setOcrRecognize, prepareForOcr, prepareForOcrReport, collectWords } from '../src/services/ocr.js';
+import { estimateSkew } from '../src/services/scanPrep.js';
+import { __clearRateLimits } from '../src/middleware/rate-limit.js';
 import { __setLlmCall } from '../src/services/llm.js';
 import { startServer, api } from './helpers.js';
 
@@ -78,6 +81,7 @@ async function purgeProcedures() {
 }
 
 before(async () => {
+  await __clearRateLimits(); // this file uploads a lot
   srv = await startServer();
   globalThis.__m4OcrCalls = 0;
   __setOcrRecognize(async () => {
@@ -712,4 +716,60 @@ test('short documents are not enriched (no wasted calls)', async () => {
   } finally {
     __setLlmCall(null);
   }
+});
+
+// ── S4: deskew + the "what OCR sees" preview ───────────────────────────────
+
+const textPage = () => sharp(Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="700" height="400"><rect width="700" height="400" fill="white"/>'
+  + [40, 110, 180, 250, 320].map((y, i) => `<text x="20" y="${y}" font-family="DejaVu Sans" font-size="26" fill="black">Line ${i} sample words here</text>`).join('')
+  + '</svg>'
+)).png().toBuffer();
+
+test('estimateSkew returns the rotation that straightens the page', async () => {
+  const page = await textPage();
+  const flat = await estimateSkew(page);
+  assert.equal(flat.angle, 0, 'straight page → no correction');
+
+  for (const deg of [4, -4, 8]) {
+    const tilted = await sharp(page).rotate(deg, { background: '#ffffff' }).png().toBuffer();
+    const est = await estimateSkew(tilted);
+    assert.ok(Math.abs(est.angle + deg) <= 0.5, `rotated ${deg} → correction ${est.angle}`);
+    assert.ok(est.strength > 1.02, `confident signal (${est.strength})`);
+  }
+});
+
+test('estimateSkew never invents skew in photos or tiny images', async () => {
+  // random noise = no text lines = flat profile → 0
+  const noisePng = await sharp(crypto.randomBytes(300 * 200), { raw: { width: 300, height: 200, channels: 1 } }).png().toBuffer();
+  const noise = noisePng;
+  assert.equal((await estimateSkew(noise)).angle, 0);
+  assert.equal((await estimateSkew(Buffer.from('nope'))).angle, 0);
+});
+
+test('prepareForOcrReport straightens the OCR input and reports the angle', async () => {
+  const page = await textPage();
+  const tilted = await sharp(page).rotate(4, { background: '#ffffff' }).png().toBuffer();
+  const { data, angle } = await prepareForOcrReport(tilted);
+  assert.ok(Math.abs(angle + 4) <= 0.5, `correction applied: ${angle}`);
+  // the prepared output is straighter than its input
+  const after = await estimateSkew(data);
+  assert.ok(Math.abs(after.angle) <= 0.5, `prepared image is straight (${after.angle})`);
+});
+
+test('preprocessed preview: exact OCR input with the skew angle, PDFs refused', async () => {
+  await __clearRateLimits(); // this file uploads a lot
+  const png = await sharp({ create: { width: 220, height: 160, channels: 3, background: { r: 250, g: 250, b: 250 } } }).png().toBuffer();
+  const up = await uploadFile(png, `prep-${UNIQUE}.png`, 'image/png');
+  assert.equal(up.status, 201);
+  const res = await fetch(`${srv.base}/api/documents/${up.body.document.id}/preprocessed`, { headers: auth() });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.ok(res.headers.get('x-skew-angle') !== null, 'skew angle reported');
+  assert.ok((Buffer.from(await res.arrayBuffer())).subarray(1, 4).toString('latin1') === 'PNG', 'png bytes');
+
+  const pdf = await uploadFile(makePdf('preview target'), `prep-${UNIQUE}.pdf`, 'application/pdf');
+  assert.equal(pdf.status, 201);
+  const refused = await fetch(`${srv.base}/api/documents/${pdf.body.document.id}/preprocessed`, { headers: auth() });
+  assert.equal(refused.status, 422);
 });

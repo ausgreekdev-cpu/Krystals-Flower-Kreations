@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
 import { adminApi } from '../../lib/api/customClient';
+import { frameSignals, allGood, CHIP } from '../../lib/scanGuidance';
 
 // Phone-camera document capture: live preview → capture frame → rotate/crop
 // (react-easy-crop) → upload as a business document → auto-run OCR. Falls
@@ -19,6 +20,11 @@ export default function ScannerModal({ token, onDone, onClose }) {
   const [err, setErr] = useState('');
   const [mode, setMode] = useState('single'); // single | pages (multi-page PDF)
   const [pages, setPages] = useState([]); // [{ id, blob, dataUrl }]
+  const [signals, setSignals] = useState(null); // { light, fill, steady }
+  const [autoCapture, setAutoCapture] = useState(true);
+  const [countdown, setCountdown] = useState(null);
+  const prevFrame = useRef(null);
+  const sampleRef = useRef(null);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -32,17 +38,73 @@ export default function ScannerModal({ token, onDone, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [stop, onClose]);
 
+  // The camera stays alive for the life of the dialog — capture() reuses the
+  // same stream, so multi-page mode and Retake never land on a frozen preview.
+  const startCamera = useCallback(async () => {
+    if (streamRef.current) return;
+    try {
+      const s = await navigator.mediaDevices?.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+      streamRef.current = s;
+      if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play().catch(() => {}); }
+      setCamErr('');
+    } catch (e) {
+      setCamErr(e?.message || 'Camera unavailable');
+    }
+  }, []);
+
   useEffect(() => {
-    let dead = false;
-    navigator.mediaDevices?.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
-      .then((s) => {
-        if (dead) { s.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = s;
-        if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play().catch(() => {}); }
-      })
-      .catch((e) => setCamErr(e?.message || 'Camera unavailable'));
-    return () => { dead = true; stop(); };
-  }, [stop]);
+    startCamera();
+    return () => stop();
+  }, [startCamera, stop]);
+
+  // Capture guidance: sample the frame ~4×/s while the live view is showing
+  // (S4). Cheap: 160×120 downscaled pixels only.
+  useEffect(() => {
+    if (shot) { setSignals(null); setCountdown(null); prevFrame.current = null; return undefined; }
+    const id = setInterval(() => {
+      const v = videoRef.current;
+      if (!v || !v.videoWidth) return;
+      const canvas = sampleRef.current || (sampleRef.current = document.createElement('canvas'));
+      canvas.width = 160; canvas.height = 120;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(v, 0, 0, 160, 120);
+      const px = ctx.getImageData(0, 0, 160, 120).data;
+      let sum = 0; let cSum = 0; let cN = 0; let bSum = 0; let bN = 0;
+      const lum = new Uint8Array(160 * 120);
+      for (let y = 0; y < 120; y++) {
+        for (let x = 0; x < 160; x++) {
+          const i = (y * 160 + x) * 4;
+          const l = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
+          lum[y * 160 + x] = l;
+          sum += l;
+          const centre = x > 24 && x < 136 && y > 18 && y < 102;
+          if (centre) { cSum += l; cN++; } else { bSum += l; bN++; }
+        }
+      }
+      let diff = 0;
+      if (prevFrame.current) {
+        let d = 0;
+        for (let i = 0; i < lum.length; i++) d += Math.abs(lum[i] - prevFrame.current[i]);
+        diff = d / lum.length;
+      }
+      prevFrame.current = lum;
+      setSignals(frameSignals(sum / lum.length, cSum / cN, bSum / bN, diff));
+    }, 250);
+    return () => clearInterval(id);
+  }, [shot]);
+
+  // Auto-capture: when all three signals are green for a beat, count down and
+  // snap. Any drop cancels the countdown; the manual button always works.
+  useEffect(() => {
+    if (!autoCapture || shot || busy) { setCountdown(null); return undefined; }
+    if (!allGood(signals)) { setCountdown(null); return undefined; }
+    if (countdown === null) { setCountdown(3); return undefined; }
+    const t = setTimeout(() => {
+      if (countdown <= 1) { setCountdown(null); capture(); }
+      else setCountdown(countdown - 1);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [signals, autoCapture, countdown, shot, busy]);
 
   function capture() {
     const v = videoRef.current;
@@ -51,7 +113,6 @@ export default function ScannerModal({ token, onDone, onClose }) {
     canvas.width = v.videoWidth;
     canvas.height = v.videoHeight;
     canvas.getContext('2d').drawImage(v, 0, 0);
-    stop();
     setShot(canvas.toDataURL('image/jpeg', 0.92));
     setTitle(`Scan ${new Date().toLocaleDateString('en-AU')}`);
   }
@@ -78,7 +139,6 @@ export default function ScannerModal({ token, onDone, onClose }) {
     const reader = new FileReader();
     reader.onload = () => { setShot(String(reader.result)); setTitle(file.name.replace(/\.[^.]+$/, '')); };
     reader.readAsDataURL(file);
-    stop();
   }
 
   // Crop the current capture into a compressed JPEG page blob.
@@ -223,6 +283,26 @@ export default function ScannerModal({ token, onDone, onClose }) {
               ) : (
                 <>
                   <video ref={videoRef} playsInline muted className="w-full h-72 bg-black rounded-xl object-contain" />
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {[
+                      { k: 'light', label: '💡 Light' },
+                      { k: 'fill', label: '📐 In frame' },
+                      { k: 'steady', label: '✋ Steady' },
+                    ].map((c) => (
+                      <span key={c.k} className={`px-2.5 py-1 rounded-full border font-semibold ${signals ? CHIP[signals[c.k]] : 'bg-surface3 text-muted border-line'}`}>
+                        {c.label}
+                      </span>
+                    ))}
+                    <label className="flex items-center gap-1.5 ml-auto text-muted">
+                      <input type="checkbox" checked={autoCapture} onChange={(e) => { setAutoCapture(e.target.checked); setCountdown(null); }} className="h-4 w-4" aria-label="Auto-capture when framed" />
+                      Auto-capture
+                    </label>
+                  </div>
+                  {countdown !== null && (
+                    <div aria-live="polite" className="text-center text-sm font-bold text-royal-700 dark:text-royal-300">
+                      Hold steady… {countdown}
+                    </div>
+                  )}
                   <div className="flex justify-center gap-2">
                     <button type="button" onClick={capture} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-5 py-2">Capture</button>
                   </div>

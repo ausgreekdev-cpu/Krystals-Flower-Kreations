@@ -16,6 +16,7 @@
 //   are worse than none).
 import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
+import { estimateSkew } from './scanPrep.js';
 
 let recognizeImpl = null;
 export function __setOcrRecognize(fn) { recognizeImpl = fn; }
@@ -26,17 +27,34 @@ export function __setOcrRecognize(fn) { recognizeImpl = fn; }
  * @returns {Promise<Buffer>} cleaned bytes (or the original on any failure)
  */
 export async function prepareForOcr(buffer) {
+  return (await prepareForOcrReport(buffer)).data;
+}
+
+/**
+ * Like prepareForOcr but reports the deskew correction that was applied
+ * (degrees, sharp.rotate() convention; 0 = left as-is). Used by the
+ * "what OCR sees" preview endpoint.
+ */
+export async function prepareForOcrReport(buffer) {
   try {
     let img = sharp(buffer, { failOn: 'none' });
     const meta = await img.metadata();
-    if (!meta.width || !meta.height) return buffer;
+    if (!meta.width || !meta.height) return { data: buffer, angle: 0 };
     // 1. trim uniform scanner/photo borders (no-op on busy photos)
     img = img.trim({ background: '#ffffff', threshold: 12 });
-    // 2. greyscale + contrast normalise + mild sharpen — tesseract's sweet
-    // spot (this sharp build's .grayscale() is a no-op; toColourspace('b-w')
-    // is the API that actually converts)
+    // 2. deskew crooked scans (OCR input only — the stored master is never
+    //    rotated). Guarded: only straighten a confident, text-like estimate.
+    let angle = 0;
+    const skew = await estimateSkew(buffer);
+    if (Math.abs(skew.angle) >= 0.75 && skew.strength >= 1.02) {
+      angle = skew.angle;
+      img = img.rotate(angle, { background: '#ffffff' });
+    }
+    // 3. greyscale + contrast normalise + mild sharpen — tesseract's sweet
+    //    spot (this sharp build's .grayscale() is a no-op; toColourspace('b-w')
+    //    is the API that actually converts)
     img = img.toColourspace('b-w').normalize().sharpen();
-    // 3. upscale small captures (tiny phone photos have too few px per glyph)
+    // 4. upscale small captures (tiny phone photos have too few px per glyph)
     const after = await img.toBuffer({ resolveWithObject: true });
     const w = after.info.width || meta.width;
     if (w < 1200) {
@@ -44,9 +62,9 @@ export async function prepareForOcr(buffer) {
     }
     // Re-assert greyscale at encode — a fresh sharp() pipeline re-expands to
     // sRGB on png() otherwise.
-    return await img.toColourspace('b-w').png().toBuffer();
+    return { data: await img.toColourspace('b-w').png().toBuffer(), angle };
   } catch {
-    return buffer;
+    return { data: buffer, angle: 0 };
   }
 }
 

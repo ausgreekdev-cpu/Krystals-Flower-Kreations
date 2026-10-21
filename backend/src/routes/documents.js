@@ -10,7 +10,7 @@ import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { uploadBusinessDocs, uploadDocPages, docMimeLooksReal } from '../middleware/upload.js';
 import { putObject, getObject, deleteObjectByUrl } from '../services/storage.js';
-import { ocrImage } from '../services/ocr.js';
+import { ocrImage, prepareForOcrReport } from '../services/ocr.js';
 import { enrichDocument } from '../services/documentEnricher.js';
 import { PDFDocument } from 'pdf-lib';
 import { rateLimit } from '../middleware/rate-limit.js';
@@ -345,6 +345,28 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
     details: { title, pages: pages.length, chars: extracted.length, confidence: confAvg },
   });
   res.status(201).json({ document: row, deduped: false, pages: pages.length });
+}));
+
+// ── "What OCR sees" (Editor+): the exact prepared image ─────────────────────
+// Same bytes the engine sees (deskewed, greyscaled, normalised, sharpened,
+// upscaled) — the drawer shows this instead of an approximation. X-Skew-Angle
+// reports the deskew correction applied. Image documents only: this sharp
+// build cannot rasterize PDFs (their OCR reads the text layer).
+router.get('/:id/preprocessed', authenticate, requireRole(...EDITOR_ROLES), thumbLimit, asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.businessDocument.findFirst({ where: { id, deletedAt: null } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (doc.kind !== 'IMAGE') {
+    return res.status(422).json({ error: 'Preprocessing preview is for image documents — PDFs are read from their text layer', code: 'unsupported_media_type' });
+  }
+  const buf = await getObject(doc.storageRef);
+  const { data, angle } = await prepareForOcrReport(buf);
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('X-Skew-Angle', String(angle));
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, max-age=60');
+  res.send(data);
 }));
 
 // ── Upload (Editor+): sniff → sha256 dedup → auto-categorise → extract → thumb ─
