@@ -284,7 +284,7 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
       continue;
     }
     try {
-      const out = await ocrImage(p.buf);
+      const out = await ocrImage(p.buf, { timeoutMs: 12_000 });
       if (out.text) extracted += (extracted ? '\n\n' : '') + out.text;
       ocrPages.push({ w: out.width || 0, h: out.height || 0, words: out.words || [], conf: Number(out.confidence) || 0 });
     } catch (e) {
@@ -476,7 +476,7 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   // no extra click. Never blocks the upload — failures are logged and ignored.
   if (kind === 'IMAGE' && outMime !== 'image/svg+xml') {
     try {
-      const out = await ocrImage(buf);
+      const out = await ocrImage(buf, { timeoutMs: 15_000 });
       const text = clip(out.text);
       const ocrWords = out.words?.length
         ? { pages: [{ pageIndex: 0, w: out.width || 0, h: out.height || 0, words: out.words }] }
@@ -660,7 +660,7 @@ router.post('/:id/ocr', authenticate, requireRole(...EDITOR_ROLES), ocrLimit, as
       });
     }
   } else {
-    const out = await ocrImage(buf);
+    const out = await ocrImage(buf, { timeoutMs: 25_000 });
     text = clip(out.text);
     confidence = out.confidence;
     if (out.words?.length) {

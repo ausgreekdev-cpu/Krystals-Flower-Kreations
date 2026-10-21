@@ -72,36 +72,45 @@ export async function prepareForOcrReport(buffer) {
  * @param {Buffer} buffer png/jpeg/webp/gif bytes
  * @returns {Promise<{text: string, confidence: number}>}
  */
-export async function ocrImage(buffer) {
-  const prepared = await prepareForOcr(buffer);
-  if (recognizeImpl) {
-    const out = await recognizeImpl(prepared);
-    return {
-      text: String(out?.text || '').trim(),
-      confidence: Number(out?.confidence) || 0,
-      width: Number(out?.width) || 0,
-      height: Number(out?.height) || 0,
-      words: normalizeWords(out?.words),
-    };
-  }
-  const worker = await createWorker('eng', 1, {
-    cachePath: process.env.TESSDATA_CACHE || '/tmp/tessdata',
-  });
-  try {
-    // tesseract.js v7 nests words under blocks → paragraphs → lines → words
-    // (there is no top-level data.words any more) and needs blocks: true.
-    const { data } = await worker.recognize(prepared, {}, { text: true, blocks: true });
-    const info = await sharp(prepared).metadata();
-    return {
-      text: String(data.text || '').trim(),
-      confidence: Number(data.confidence) || 0,
-      width: info.width || 0,
-      height: info.height || 0,
-      words: normalizeWords(collectWords(data.blocks)),
-    };
-  } finally {
-    await worker.terminate().catch(() => {});
-  }
+export async function ocrImage(buffer, { timeoutMs } = {}) {
+  const run = async () => {
+    const prepared = await prepareForOcr(buffer);
+    if (recognizeImpl) {
+      const out = await recognizeImpl(prepared);
+      return {
+        text: String(out?.text || '').trim(),
+        confidence: Number(out?.confidence) || 0,
+        width: Number(out?.width) || 0,
+        height: Number(out?.height) || 0,
+        words: normalizeWords(out?.words),
+      };
+    }
+    const worker = await createWorker('eng', 1, {
+      cachePath: process.env.TESSDATA_CACHE || '/tmp/tessdata',
+    });
+    try {
+      // tesseract.js v7 nests words under blocks → paragraphs → lines → words
+      // (there is no top-level data.words any more) and needs blocks: true.
+      const { data } = await worker.recognize(prepared, {}, { text: true, blocks: true });
+      const info = await sharp(prepared).metadata();
+      return {
+        text: String(data.text || '').trim(),
+        confidence: Number(data.confidence) || 0,
+        width: info.width || 0,
+        height: info.height || 0,
+        words: normalizeWords(collectWords(data.blocks)),
+      };
+    } finally {
+      await worker.terminate().catch(() => {});
+    }
+  };
+  if (!timeoutMs) return run();
+  // Callers that must not block (the upload path) pass timeoutMs so a slow
+  // scan can never outlive the function's request budget.
+  return Promise.race([
+    run(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`ocr timeout after ${timeoutMs}ms`)), timeoutMs)),
+  ]);
 }
 
 // Flatten tesseract's block/paragraph/line tree into the word list.

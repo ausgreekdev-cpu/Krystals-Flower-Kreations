@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
-import { __setOcrRecognize, prepareForOcr, prepareForOcrReport, collectWords } from '../src/services/ocr.js';
+import { __setOcrRecognize, prepareForOcr, prepareForOcrReport, collectWords, ocrImage } from '../src/services/ocr.js';
 import { estimateSkew } from '../src/services/scanPrep.js';
 import { __clearRateLimits } from '../src/middleware/rate-limit.js';
 import { __setLlmCall } from '../src/services/llm.js';
@@ -821,4 +821,16 @@ test('searchable PDF export refuses documents without word boxes', async () => {
   assert.equal(res.status, 422);
   const body = await res.json();
   assert.equal(body.code, 'no_word_boxes');
+});
+
+test('ocrImage honours the caller timeout (hanging engine)', async () => {
+  __setOcrRecognize(() => new Promise(() => {})); // never settles
+  try {
+    await assert.rejects(
+      () => ocrImage(Buffer.from('anything'), { timeoutMs: 50 }),
+      /ocr timeout/,
+    );
+  } finally {
+    __setOcrRecognize(null);
+  }
 });
