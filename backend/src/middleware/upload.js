@@ -57,6 +57,17 @@ export const BUSINESS_DOC_MIME = new Set([
 ]);
 const BUSINESS_DOC_EXT = /\.(csv|tsv|txt|md|json|xlsx|xls)$/i;
 
+// Document scan pages — raster images only (one file per scanned page; the
+// assemble endpoint merges them into a single PDF).
+export const uploadDocPages = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 20 },
+  fileFilter: (req, file, cb) => {
+    if (MEDIA_MIME.has(file.mimetype)) return cb(null, true);
+    cb(Object.assign(new Error('Scanned pages must be JPEG, PNG, WebP, GIF or AVIF images'), { status: 415, code: 'unsupported_media_type' }));
+  },
+});
+
 export const uploadBusinessDocs = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 },

@@ -311,6 +311,14 @@ export const adminApi = {
       if (onDuplicate) fd.append('on_duplicate', onDuplicate);
       return req<{ document: any; deduped: boolean }>(`/api/documents`, { method: 'POST', body: fd, token });
     },
+    // Multi-page scan: one document built from the captured pages (server
+    // assembles the PDF and OCRs each page).
+    assemble: (files: File[], title: string, token: string) => {
+      const fd = new FormData();
+      files.forEach((f, i) => fd.append('files', f, f.name || `page-${i + 1}.jpg`));
+      fd.append('title', title);
+      return req<{ document: any; deduped: boolean; pages: number }>(`/api/documents/assemble`, { method: 'POST', body: fd, token });
+    },
     update: (id: string, body: any, token: string) => req<any>(`/api/documents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/documents/${id}`, { method: 'DELETE', token }),
     // Auth'd fetch → blob (a plain <a href> can't carry the Bearer token)

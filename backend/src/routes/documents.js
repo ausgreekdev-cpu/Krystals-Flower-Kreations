@@ -8,9 +8,10 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { uploadBusinessDocs, docMimeLooksReal } from '../middleware/upload.js';
+import { uploadBusinessDocs, uploadDocPages, docMimeLooksReal } from '../middleware/upload.js';
 import { putObject, getObject, deleteObjectByUrl } from '../services/storage.js';
 import { ocrImage } from '../services/ocr.js';
+import { PDFDocument } from 'pdf-lib';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { audit } from '../lib/audit.js';
 
@@ -33,7 +34,8 @@ const META_SELECT = {
 const uploadLimit = rateLimit('document_upload', 30, 5);
 const downloadLimit = rateLimit('document_download', 60, 1);
 const thumbLimit = rateLimit('document_thumb', 120, 5);
-const ocrLimit = rateLimit('document_ocr', 60, 10); // batch OCR queues run sequentially
+const ocrLimit = rateLimit('document_ocr', 60, 10);
+const assembleLimit = rateLimit('document_assemble', 20, 10); // batch OCR queues run sequentially
 
 function kindFor(mime, name) {
   const m = String(mime || '').toLowerCase();
@@ -237,6 +239,103 @@ router.get('/:id/thumb', authenticate, requireRole(...EDITOR_ROLES), thumbLimit,
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'private, max-age=3600');
   res.send(buf);
+}));
+
+// ── Assemble scanned pages into ONE PDF document (multi-page scans) ─────────
+// Receives the captured pages as multipart files, OCRs each page, and stores a
+// single PDF (private bucket) whose text is the concatenation of the pages.
+// Word boxes keep their page index so the searchable-PDF export can overlay
+// an invisible text layer per page.
+router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLimit, uploadDocPages.array('files', 20), asyncHandler(async (req, res) => {
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (!files.length) return res.status(400).json({ error: 'No pages uploaded', code: 'validation_failed' });
+  if (files.length > 20) return res.status(400).json({ error: 'Maximum 20 pages per document', code: 'validation_failed' });
+  const totalBytes = files.reduce((a, f) => a + (f.size || 0), 0);
+  if (totalBytes > 5 * 1024 * 1024) {
+    return res.status(413).json({ error: 'Combined pages too large (5MB max) — scan fewer pages or lower the capture resolution', code: 'file_too_large' });
+  }
+
+  const title = String(req.body?.title || 'Scanned document').replace(/\.[^.]+$/, '').slice(0, 200) || 'Scanned document';
+
+  // 1. normalise each page to a JPEG (alpha flattened, size capped)
+  const pages = [];
+  for (const [i, f] of files.entries()) {
+    try {
+      const buf = await sharp(f.buffer, { failOn: 'none' }).rotate()
+        .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 82 }).toBuffer();
+      pages.push({ buf });
+    } catch {
+      return res.status(415).json({ error: `Page ${i + 1} is not a readable image`, code: 'unsupported_media_type' });
+    }
+  }
+
+  // 2. per-page OCR (words stay in the prepared image's pixel space)
+  const ocrPages = [];
+  let extracted = '';
+  for (const p of pages) {
+    try {
+      const out = await ocrImage(p.buf);
+      if (out.text) extracted += (extracted ? '\n\n' : '') + out.text;
+      ocrPages.push({ w: out.width || 0, h: out.height || 0, words: out.words || [], conf: Number(out.confidence) || 0 });
+    } catch (e) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'page OCR failed during assemble', err: e?.message }));
+      ocrPages.push({ w: 0, h: 0, words: [], conf: 0 });
+    }
+  }
+
+  // 3. assemble the PDF (A4 width, page height from each image's aspect)
+  const pdf = await PDFDocument.create();
+  pdf.setTitle(title);
+  pdf.setCreator('Krystals Flower Creations');
+  for (const p of pages) {
+    const img = await pdf.embedJpg(p.buf);
+    const w = 595;
+    const h = Math.max(1, Math.round((img.height / img.width) * w));
+    const page = pdf.addPage([w, h]);
+    page.drawImage(img, { x: 0, y: 0, width: w, height: h });
+  }
+  const pdfBytes = Buffer.from(await pdf.save());
+
+  // 4. store (private bucket) + one document row
+  const sha256 = crypto.createHash('sha256').update(pdfBytes).digest('hex');
+  const existing = await prisma.businessDocument.findFirst({ where: { sha256, deletedAt: null } });
+  if (existing) return res.status(200).json({ document: existing, deduped: true });
+
+  const key = `docs/${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}.pdf`;
+  const storageRef = await putObject(key, pdfBytes, 'application/pdf', { bucket: 'business-documents' });
+  let thumbRef = null;
+  const tbuf = await makeThumb(pages[0].buf);
+  if (tbuf) {
+    await putObject(key.replace(/\.pdf$/, '-thumb.webp'), tbuf, 'image/webp', { bucket: 'business-documents' });
+    thumbRef = `business-documents/${key.replace(/\.pdf$/, '-thumb.webp')}`;
+  }
+  const confAvg = ocrPages.length
+    ? Math.round(ocrPages.reduce((a, p) => a + p.conf, 0) / ocrPages.length)
+    : null;
+  const row = await prisma.businessDocument.create({
+    data: {
+      title,
+      originalName: `${title}.pdf`.slice(0, 255),
+      mime: 'application/pdf',
+      sizeBytes: pdfBytes.length,
+      storageRef,
+      sha256,
+      kind: 'PDF',
+      category: categoryFor(`${title}.pdf`, 'PDF'),
+      extractedText: clip(extracted),
+      ocrWords: { pages: ocrPages.map((p, i) => ({ pageIndex: i, w: p.w, h: p.h, words: p.words })) },
+      ocrConfidence: confAvg,
+      ocrAt: new Date(),
+      thumbRef,
+      uploadedById: req.user.id,
+    },
+  });
+  audit({
+    actorId: req.user.id, actorEmail: req.user.email, action: 'document_assemble', entityType: 'business_document', entityId: row.id,
+    details: { title, pages: pages.length, chars: extracted.length, confidence: confAvg },
+  });
+  res.status(201).json({ document: row, deduped: false, pages: pages.length });
 }));
 
 // ── Upload (Editor+): sniff → sha256 dedup → auto-categorise → extract → thumb ─

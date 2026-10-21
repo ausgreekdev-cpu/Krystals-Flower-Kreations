@@ -29,6 +29,7 @@
     "multer",
     "nodemailer",
     "serverless-http",
+    "pdf-lib",
     "sharp",
     "svgo",
     "tesseract.js",

@@ -593,3 +593,56 @@ test('collectWords flattens the tesseract v7 block tree', () => {
   assert.equal(words[1].confidence, 40);
   assert.equal(collectWords(null).length, 0, 'null blocks are tolerated');
 });
+
+// ── S2: multi-page scan assembly ───────────────────────────────────────────
+
+test('assemble merges scanned pages into one PDF document with per-page words', async () => {
+  const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: { r: 245, g: 245, b: 245 } } }).png().toBuffer();
+  const fd = new FormData();
+  fd.append('files', new Blob([png], { type: 'image/png' }), 'page-1.png');
+  fd.append('files', new Blob([png], { type: 'image/png' }), 'page-2.png');
+  fd.append('title', 'Scanned procedure');
+  const res = await fetch(`${srv.base}/api/documents/assemble`, { method: 'POST', headers: auth(), body: fd });
+  const body = await res.json();
+  assert.equal(res.status, 201, JSON.stringify(body).slice(0, 300));
+  const doc = body.document;
+  assert.equal(body.pages, 2);
+  assert.equal(doc.kind, 'PDF');
+  assert.equal(doc.mime, 'application/pdf');
+  assert.equal(doc.title, 'Scanned procedure');
+  assert.ok(doc.sizeBytes > 1000, `pdf bytes: ${doc.sizeBytes}`);
+  assert.match(doc.storageRef, /^business-documents\/docs\/.*\.pdf$/);
+  // per-page OCR words, each page indexed
+  assert.equal(doc.ocrWords.pages.length, 2, 'one word page per scanned page');
+  assert.equal(doc.ocrWords.pages[0].pageIndex, 0);
+  assert.equal(doc.ocrWords.pages[1].pageIndex, 1);
+  assert.ok(doc.ocrWords.pages[0].words.length >= 1, 'words captured per page');
+  assert.ok(doc.ocrAt, 'ocrAt stamped');
+  assert.equal(typeof doc.ocrConfidence, 'number');
+
+  // the stored PDF really is a PDF with 2 pages
+  const file = await fetch(`${srv.base}/api/documents/${doc.id}/file`, { headers: auth() });
+  assert.equal(file.status, 200);
+  const bytes = Buffer.from(await file.arrayBuffer());
+  assert.equal(bytes.subarray(0, 5).toString('latin1'), '%PDF-', 'PDF magic bytes');
+  // page objects live in compressed object streams — ask pdf-lib, not grep
+  const { PDFDocument } = await import('pdf-lib');
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 2, 'assembled PDF has both pages');
+
+  // searchable: the stub text is indexed
+  const list = await api(srv.base, `/api/documents?q=m4token-${UNIQUE}`, { headers: auth() });
+  assert.ok(list.body.documents.some((d) => d.id === doc.id), 'assembled text is searchable');
+});
+
+test('assemble rejects non-image pages and empty batches', async () => {
+  const empty = new FormData();
+  empty.append('title', 'nothing');
+  const res0 = await fetch(`${srv.base}/api/documents/assemble`, { method: 'POST', headers: auth(), body: empty });
+  assert.equal(res0.status, 400);
+
+  const fd = new FormData();
+  fd.append('files', new Blob(['not an image'], { type: 'image/png' }), 'fake.png');
+  const res = await fetch(`${srv.base}/api/documents/assemble`, { method: 'POST', headers: auth(), body: fd });
+  assert.equal(res.status, 415, JSON.stringify(await res.json().catch(() => null)));
+});
