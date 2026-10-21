@@ -315,6 +315,15 @@ export const adminApi = {
     // the upload may already be busy with OCR).
     enrich: (id: string, token: string) =>
       req<{ document: any; enriched: any }>(`/api/documents/${id}/enrich`, { method: 'POST', token }),
+    // S5: PDF with an invisible text layer (Ctrl-F works) from the OCR words
+    searchablePdf: async (id: string, token: string) => {
+      const res = await fetch(`${BASE}/api/documents/${id}/searchable.pdf`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(body.error || res.statusText);
+      }
+      return res.blob();
+    },
     // S4: the exact image the OCR engine sees (deskewed/prepared) + angle
     preprocessed: async (id: string, token: string) => {
       const res = await fetch(`${BASE}/api/documents/${id}/preprocessed`, { headers: { Authorization: `Bearer ${token}` } });

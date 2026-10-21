@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
 
 // OCR/text drawer: shows the extracted text (editable), OCR confidence and
@@ -11,6 +11,8 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
   const [err, setErr] = useState('');
   const [dirty, setDirty] = useState(false);
   const [preview, setPreview] = useState(null); // { url, angle } | 'loading' | null
+  const [words, setWords] = useState([]);
+  const textareaRef = useRef(null);
 
   const canOcr = doc.kind === 'IMAGE' || doc.kind === 'PDF';
 
@@ -25,6 +27,7 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
         setText(d.extractedText || '');
         setConfidence(d.ocrConfidence ?? null);
         setOcrAt(d.ocrAt || null);
+        setWords((d.ocrWords?.pages || []).flatMap((pg) => pg.words || []));
         setBusy('');
       })
       .catch((e) => { setErr(e.message); setBusy(''); });
@@ -67,6 +70,29 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
       const r = await adminApi.procedureImports.analyze(token, { text, sourceName: doc.title });
       onAnalyzed?.(r);
     } catch (e) { setErr(e.message || 'Analysis failed'); }
+    finally { setBusy(''); }
+  }
+
+  // Confidence review: clicking a low-confidence word focuses it in the
+  // textarea (the textarea stays the source of truth for edits).
+  function focusWord(w) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const idx = text.indexOf(w.t);
+    if (idx >= 0) { ta.focus(); ta.setSelectionRange(idx, idx + w.t.length); }
+  }
+
+  async function downloadSearchable() {
+    setBusy('Building searchable PDF…');
+    try {
+      const blob = await adminApi.documents.searchablePdf(doc.id, token);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(doc.title || 'document').replace(/[^\w.-]+/g, '_')}-searchable.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e) { setErr(e.message || 'Export failed'); }
     finally { setBusy(''); }
   }
 
@@ -129,7 +155,32 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
               {preview ? 'Hide preview' : 'What OCR sees'}
             </button>
           )}
+          {words.length > 0 && (
+            <button type="button" onClick={downloadSearchable} disabled={!!busy}
+              className="text-xs font-semibold border border-emerald-200 text-emerald-700 rounded-xl px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-50">
+              Download searchable PDF
+            </button>
+          )}
         </div>
+
+        {(() => {
+          const low = words.filter((w) => Number(w.c) < 70);
+          return low.length ? (
+            <div className="border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 rounded-xl p-2.5">
+              <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200 mb-1.5">
+                {low.length} word{low.length === 1 ? '' : 's'} below 70% confidence — click to review in the text
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {low.map((w, i) => (
+                  <button key={`${w.t}-${i}`} type="button" onClick={() => focusWord(w)}
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900 text-ink hover:bg-amber-100">
+                    {w.t} <span className="text-amber-700 dark:text-amber-300 font-semibold">{w.c}%</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null;
+        })()}
 
         {preview === 'loading' && <div className="text-xs text-muted">Loading the prepared image…</div>}
         {preview && typeof preview === 'object' && (
@@ -142,6 +193,7 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
         )}
 
         <textarea
+          ref={textareaRef}
           className="w-full h-96 border border-line-strong rounded-xl px-3 py-2 text-xs font-mono bg-surface2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500"
           value={text} onChange={(e) => { setText(e.target.value); setDirty(true); }}
           placeholder={canOcr ? 'No text extracted yet — run OCR.' : 'No text extracted for this file type.'}

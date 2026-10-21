@@ -12,7 +12,7 @@ import { uploadBusinessDocs, uploadDocPages, docMimeLooksReal } from '../middlew
 import { putObject, getObject, deleteObjectByUrl } from '../services/storage.js';
 import { ocrImage, prepareForOcrReport } from '../services/ocr.js';
 import { enrichDocument } from '../services/documentEnricher.js';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { audit } from '../lib/audit.js';
 
@@ -529,6 +529,71 @@ router.post('/:id/enrich', authenticate, requireRole(...EDITOR_ROLES), rateLimit
     details: { title: data.title ?? doc.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null },
   });
   res.json({ document: updated, enriched: { title: data.title ?? doc.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null } });
+}));
+
+// ── Searchable PDF export (Editor+): invisible text layer from OCR words ────
+// Re-packages the scan with the recognised words painted at their bounding
+// boxes (opacity 0) — same visual, Ctrl-F now works. Word boxes live in the
+// PREPARED image's pixel space, so the export pages are built from that same
+// prepared image (single scans) or map onto the assembled PDF's pages 1:1
+// (both were produced from it). No word boxes → 422.
+router.get('/:id/searchable.pdf', authenticate, requireRole(...EDITOR_ROLES), downloadLimit, asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.businessDocument.findFirst({ where: { id, deletedAt: null } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const pages = doc.ocrWords && typeof doc.ocrWords === 'object' ? doc.ocrWords.pages : null;
+  if (!Array.isArray(pages) || !pages.length) {
+    return res.status(422).json({ error: 'No word boxes on this document — run OCR first (images and assembled scans)', code: 'no_word_boxes' });
+  }
+
+  const master = await getObject(doc.storageRef);
+  let pdf;
+  let targets = pages;
+  if (doc.kind === 'PDF') {
+    pdf = await PDFDocument.load(master);
+  } else {
+    // build a page from the exact prepared image the words came from
+    const prepared = await prepareForOcrReport(master);
+    pdf = await PDFDocument.create();
+    pdf.setTitle(doc.title);
+    const pw = 595;
+    const meta = await sharp(prepared.data).metadata();
+    const ph = Math.max(1, Math.round(((meta.height || 1) / (meta.width || 1)) * pw));
+    const img = await pdf.embedPng(prepared.data);
+    const page = pdf.addPage([pw, ph]);
+    page.drawImage(img, { x: 0, y: 0, width: pw, height: ph });
+    targets = [{ ...pages[0], w: meta.width || pages[0].w, h: meta.height || pages[0].h }];
+  }
+
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  let painted = 0;
+  for (const pg of targets) {
+    const page = pdf.getPage(pg.pageIndex);
+    if (!page) continue;
+    const { width: pw, height: ph } = page.getSize();
+    const sx = pw / (pg.w || pw);
+    const sy = ph / (pg.h || ph);
+    for (const word of pg.words || []) {
+      const size = Math.max(4, (Number(word.y1) - Number(word.y0)) * sy * 0.85);
+      try {
+        page.drawText(String(word.t), {
+          x: Number(word.x0) * sx,
+          y: ph - Number(word.y1) * sy, // image y grows down; PDF y grows up
+          size, font, opacity: 0,
+        });
+        painted++;
+      } catch { /* a malformed word box never blocks the export */ }
+    }
+  }
+
+  const bytes = Buffer.from(await pdf.save());
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename(doc.title)}-searchable.pdf"`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('X-Words-Painted', String(painted));
+  res.send(bytes);
 }));
 
 // ── Update metadata (Editor+): rename / categorise / tag / link ─────────────

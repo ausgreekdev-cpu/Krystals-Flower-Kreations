@@ -773,3 +773,52 @@ test('preprocessed preview: exact OCR input with the skew angle, PDFs refused', 
   const refused = await fetch(`${srv.base}/api/documents/${pdf.body.document.id}/preprocessed`, { headers: auth() });
   assert.equal(refused.status, 422);
 });
+
+// ── S5: searchable-PDF export (invisible text layer) ───────────────────────
+
+test('searchable PDF export paints the OCR words as an invisible text layer', async () => {
+  const png = await sharp({ create: { width: 400, height: 260, channels: 3, background: { r: 245, g: 245, b: 245 } } }).png().toBuffer();
+  const up = await uploadFile(png, `export-${UNIQUE}.png`, 'image/png');
+  assert.equal(up.status, 201);
+  assert.ok(up.body.document.ocrWords?.pages?.length, 'auto-OCR produced word boxes');
+
+  const res = await fetch(`${srv.base}/api/documents/${up.body.document.id}/searchable.pdf`, { headers: auth() });
+  assert.equal(res.status, 200, `got ${res.status}`);
+  assert.match(res.headers.get('content-type') || '', /application\/pdf/);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  assert.equal(bytes.subarray(0, 5).toString('latin1'), '%PDF-', 'PDF magic');
+  const { extractText, getDocumentProxy } = await import('unpdf');
+  const pdfDoc = await getDocumentProxy(new Uint8Array(bytes));
+  const { text } = await extractText(pdfDoc, { mergePages: true });
+  assert.match(text, /Stub/, `invisible layer is extractable: ${JSON.stringify(text.trim().slice(0, 60))}`);
+  assert.match(text, /scan/, 'both stub words painted');
+});
+
+test('searchable PDF export works for assembled scans (per-page words)', async () => {
+  const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: { r: 250, g: 250, b: 250 } } }).png().toBuffer();
+  const fd = new FormData();
+  fd.append('files', new Blob([png], { type: 'image/png' }), 'p1.png');
+  fd.append('files', new Blob([png], { type: 'image/png' }), 'p2.png');
+  fd.append('title', 'Exportable scan');
+  const res0 = await fetch(`${srv.base}/api/documents/assemble`, { method: 'POST', headers: auth(), body: fd });
+  const made = await res0.json();
+  assert.equal(res0.status, 201, JSON.stringify(made).slice(0, 200));
+
+  const res = await fetch(`${srv.base}/api/documents/${made.document.id}/searchable.pdf`, { headers: auth() });
+  assert.equal(res.status, 200, `got ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  const { extractText, getDocumentProxy } = await import('unpdf');
+  const pdfDoc = await getDocumentProxy(new Uint8Array(bytes));
+  const { text } = await extractText(pdfDoc, { mergePages: true });
+  assert.equal(pdfDoc.numPages, 2, 'both pages carried over');
+  assert.match(text, /Stub/, 'invisible layer present across pages');
+});
+
+test('searchable PDF export refuses documents without word boxes', async () => {
+  const up = await uploadFile(`plain text for export ${UNIQUE}`, `plain-export-${UNIQUE}.txt`, 'text/plain');
+  assert.equal(up.status, 201);
+  const res = await fetch(`${srv.base}/api/documents/${up.body.document.id}/searchable.pdf`, { headers: auth() });
+  assert.equal(res.status, 422);
+  const body = await res.json();
+  assert.equal(body.code, 'no_word_boxes');
+});
