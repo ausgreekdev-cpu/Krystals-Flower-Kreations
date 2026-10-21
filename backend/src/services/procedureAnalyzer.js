@@ -17,6 +17,7 @@
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
 import { pricingConfig } from './bomPricing.js';
+import { llmJson, llmAvailable, __setLlmCall } from './llm.js';
 
 const UNITS = ['sheet', 'meter', 'stick', 'roll', 'piece', 'ml', 'gram'];
 
@@ -46,8 +47,9 @@ export const analysisSchema = z.object({
   steps: z.array(z.string().max(500)).max(40).optional(),
 });
 
-let llmImpl = null;
-export function __setLlmAnalyze(fn) { llmImpl = fn; }
+// Test hook — delegates to the shared LLM transport stub so the analyser and
+// the document enricher can be stubbed independently (or together).
+export function __setLlmAnalyze(fn) { __setLlmCall(fn); }
 
 const clip = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -169,62 +171,16 @@ Rules: materials are per finished unit; use "piece" when no unit fits; estimated
 labourMinutesPerUnit is hands-on craft time per unit; cricutMinutesPerUnit is machine-cut time (0 if no Cricut);
 isProcedure=false with a short confidence when the text is not a manufacturing procedure.`;
 
-function parseLlmJson(raw) {
-  const s = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-  const start = s.indexOf('{');
-  const end = s.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('no JSON in LLM reply');
-  return JSON.parse(s.slice(start, end + 1));
-}
-
 async function analyzeWithLlm(text, sourceName) {
-  const provider = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase();
-  const key = process.env.LLM_API_KEY || '';
-  const model = process.env.LLM_MODEL
-    || (provider === 'openai' ? 'gpt-4o-mini' : provider === 'opencode-go' ? 'mimo-v2.6-flash' : 'claude-3-5-haiku-latest');
   const body = `${sourceName ? `Source file: ${sourceName}\n\n` : ''}${text.slice(0, 40000)}`;
-  let reply;
-  if (llmImpl) {
-    reply = await llmImpl(body);
-  } else if (provider === 'opencode-go') {
-    // OpenCode Go: OpenAI-compatible chat completions. Contract (docs/go):
-    // custom user-agent identifying this client + a stable x-opencode-session
-    // per conversation for routing/prompt-cache; JSON enforced by prompt only
-    // (response_format isn't universally supported on the gateway).
-    const base = (process.env.LLM_BASE_URL || 'https://opencode.ai/inference/go/openai/v1').replace(/\/+$/, '');
-    const res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${key}`,
-        'user-agent': 'krystal-procedure-analyzer/1.0',
-        'x-opencode-session': `krystal-import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      },
-      body: JSON.stringify({ model, temperature: 0, messages: [{ role: 'system', content: LLM_SYSTEM }, { role: 'user', content: body }] }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!res.ok) throw new Error(`LLM ${res.status}`);
-    reply = (await res.json())?.choices?.[0]?.message?.content;
-  } else if (provider === 'openai') {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: LLM_SYSTEM }, { role: 'user', content: body }] }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!res.ok) throw new Error(`LLM ${res.status}`);
-    reply = (await res.json())?.choices?.[0]?.message?.content;
-  } else {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model, max_tokens: 4000, temperature: 0, system: LLM_SYSTEM, messages: [{ role: 'user', content: body }] }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!res.ok) throw new Error(`LLM ${res.status}`);
-    reply = (await res.json())?.content?.[0]?.text;
-  }
-  return analysisSchema.parse(parseLlmJson(reply));
+  const json = await llmJson({
+    system: LLM_SYSTEM,
+    user: body,
+    maxTokens: 4000,
+    session: `krystal-import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    userAgent: 'krystal-procedure-analyzer/1.0',
+  });
+  return analysisSchema.parse(json);
 }
 
 /**
@@ -233,7 +189,7 @@ async function analyzeWithLlm(text, sourceName) {
  * @returns {Promise<{analysis: object, engine: 'llm'|'rules'}>}
  */
 export async function analyzeProcedure(rawText, sourceName = '') {
-  const canLlm = Boolean(llmImpl) || Boolean(process.env.LLM_API_KEY);
+  const canLlm = llmAvailable();
   if (canLlm) {
     try {
       return { analysis: await analyzeWithLlm(rawText, sourceName), engine: 'llm' };

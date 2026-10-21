@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import prisma from '../src/lib/prisma.js';
 import { deleteObjectByUrl } from '../src/services/storage.js';
 import { __setOcrRecognize, prepareForOcr, collectWords } from '../src/services/ocr.js';
+import { __setLlmCall } from '../src/services/llm.js';
 import { startServer, api } from './helpers.js';
 
 // Smart document upload centre (M1–M4): private-bucket storage, sha256 dedup,
@@ -645,4 +646,60 @@ test('assemble rejects non-image pages and empty batches', async () => {
   fd.append('files', new Blob(['not an image'], { type: 'image/png' }), 'fake.png');
   const res = await fetch(`${srv.base}/api/documents/assemble`, { method: 'POST', headers: auth(), body: fd });
   assert.equal(res.status, 415, JSON.stringify(await res.json().catch(() => null)));
+});
+
+// ── S3: LLM auto-enrichment on upload ──────────────────────────────────────
+
+test('enrichment fills title, category, tags, supplier and invoice refs', async () => {
+  const supplier = await prisma.supplier.create({ data: { name: `Quill Paper Co ${UNIQUE}` } });
+  try {
+    __setLlmCall(async () => JSON.stringify({
+      title: 'Canson cardstock invoice — March',
+      category: 'INVOICE',
+      tags: ['cardstock', 'invoice', 'canson'],
+      supplierName: `Quill Paper Co ${UNIQUE}`,
+      invoiceNumber: 'INV-2026-031',
+      invoiceDate: '2026-03-14',
+    }));
+    const body = `INVOICE INV-2026-031\nCanson cardstock 65lb\nSupplier: Quill Paper Co ${UNIQUE}\nTotal 149.50 AUD\n`;
+    const up = await uploadFile(body, `scan-${UNIQUE}.txt`, 'text/plain');
+    assert.equal(up.status, 201, JSON.stringify(up.body).slice(0, 200));
+    const d = up.body.document;
+    assert.equal(d.title, 'Canson cardstock invoice — March', 'model title wins over the filename guess');
+    assert.equal(d.category, 'INVOICE');
+    assert.deepEqual(d.tags, ['cardstock', 'invoice', 'canson']);
+    assert.equal(d.linkedSupplierId, supplier.id, 'supplier linked on a confident match');
+    assert.equal(d.invoiceNumber, 'INV-2026-031');
+    assert.equal(d.invoiceDate, '2026-03-14');
+    assert.ok(up.body.enriched, 'upload reports the enrichment');
+
+    const found = await api(srv.base, '/api/documents?q=INV-2026-031', { headers: auth() });
+    assert.ok(found.body.documents.some((x) => x.id === d.id), 'invoice number is searchable');
+  } finally {
+    __setLlmCall(null);
+    await prisma.supplier.delete({ where: { id: supplier.id } }).catch(() => {});
+  }
+});
+
+test('no LLM key: the filename guess and keyword category are kept', async () => {
+  __setLlmCall(null);
+  const up = await uploadFile(`stocktake sheet with plenty of plain text content ${UNIQUE} for the fixture`, `stocktake-${UNIQUE}.txt`, 'text/plain');
+  assert.equal(up.status, 201);
+  const d = up.body.document;
+  assert.equal(d.title, `stocktake-${UNIQUE}`, 'title stays the filename guess');
+  assert.equal(d.category, 'STOCKTAKE', 'keyword category still works');
+  assert.equal(d.invoiceNumber, null);
+  assert.equal(up.body.enriched, null, 'no enrichment without an LLM');
+});
+
+test('short documents are not enriched (no wasted calls)', async () => {
+  let called = 0;
+  __setLlmCall(async () => { called++; return '{}'; });
+  try {
+    const up = await uploadFile('tiny', `tiny-${UNIQUE}.txt`, 'text/plain');
+    assert.equal(up.status, 201);
+    assert.equal(called, 0, 'no LLM call for a document with no readable text');
+  } finally {
+    __setLlmCall(null);
+  }
 });

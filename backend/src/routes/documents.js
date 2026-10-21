@@ -11,6 +11,7 @@ import { asyncHandler } from '../middleware/async-handler.js';
 import { uploadBusinessDocs, uploadDocPages, docMimeLooksReal } from '../middleware/upload.js';
 import { putObject, getObject, deleteObjectByUrl } from '../services/storage.js';
 import { ocrImage } from '../services/ocr.js';
+import { enrichDocument } from '../services/documentEnricher.js';
 import { PDFDocument } from 'pdf-lib';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { audit } from '../lib/audit.js';
@@ -188,6 +189,7 @@ router.get('/', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (
       { originalName: { contains: q, mode: 'insensitive' } },
       { tags: { has: q.toLowerCase() } },
       { extractedText: { contains: q, mode: 'insensitive' } },
+      { invoiceNumber: { contains: q, mode: 'insensitive' } },
     ] } : {}),
   };
   const [total, documents] = await Promise.all([
@@ -331,11 +333,32 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
       uploadedById: req.user.id,
     },
   });
+  // S3: same enrichment as single uploads (title/category/tags/supplier)
+  let enriched = null;
+  try {
+    const suggestion = await enrichDocument({
+      id: row.id, title: row.title, originalName: row.originalName,
+      extractedText: clip(extracted), category: row.category, kind: row.kind,
+    });
+    if (suggestion) {
+      const data = { category: suggestion.category, tags: suggestion.tags, invoiceNumber: suggestion.invoiceNumber, invoiceDate: suggestion.invoiceDate };
+      if (suggestion.supplierId) data.linkedSupplierId = suggestion.supplierId;
+      const updated = await prisma.businessDocument.update({ where: { id: row.id }, data });
+      Object.assign(row, updated);
+      enriched = { title: row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null };
+      audit({
+        actorId: req.user.id, actorEmail: req.user.email, action: 'document_enrich', entityType: 'business_document', entityId: row.id,
+        details: { title: row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null },
+      });
+    }
+  } catch (e) {
+    console.warn(JSON.stringify({ level: 'warn', msg: 'assemble enrichment skipped', err: e?.message }));
+  }
   audit({
     actorId: req.user.id, actorEmail: req.user.email, action: 'document_assemble', entityType: 'business_document', entityId: row.id,
-    details: { title, pages: pages.length, chars: extracted.length, confidence: confAvg },
+    details: { title, pages: pages.length, chars: extracted.length, confidence: confAvg, enriched: Boolean(enriched) },
   });
-  res.status(201).json({ document: row, deduped: false, pages: pages.length });
+  res.status(201).json({ document: row, deduped: false, pages: pages.length, enriched });
 }));
 
 // ── Upload (Editor+): sniff → sha256 dedup → auto-categorise → extract → thumb ─
@@ -464,8 +487,39 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
       console.warn(JSON.stringify({ level: 'warn', msg: 'auto-ocr failed on upload', err: e?.message }));
     }
   }
-  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes } });
-  res.status(201).json({ document: row, deduped: false });
+  // S3: auto-enrich metadata from the document text (title/category/tags/
+  // supplier/invoice refs). Never blocks the upload; a failure keeps the
+  // filename-derived values.
+  let enriched = null;
+  try {
+    const suggestion = await enrichDocument({
+      id: row.id, title: row.title, originalName: row.originalName,
+      extractedText: row.extractedText, category: row.category, kind: row.kind,
+    });
+    if (suggestion) {
+      const data = {
+        category: suggestion.category,
+        tags: suggestion.tags,
+        invoiceNumber: suggestion.invoiceNumber,
+        invoiceDate: suggestion.invoiceDate,
+      };
+      // only replace a title that is still the raw filename guess
+      const guess = String(row.originalName || '').replace(/\.[^.]+$/, '').slice(0, 200);
+      if (row.title === guess && suggestion.title) data.title = suggestion.title;
+      if (suggestion.supplierId) data.linkedSupplierId = suggestion.supplierId;
+      const updated = await prisma.businessDocument.update({ where: { id: row.id }, data });
+      Object.assign(row, updated);
+      enriched = { title: data.title ?? row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null };
+      audit({
+        actorId: req.user.id, actorEmail: req.user.email, action: 'document_enrich', entityType: 'business_document', entityId: row.id,
+        details: { title: data.title ?? row.title, category: data.category, tags: data.tags, supplierId: suggestion.supplierId || null },
+      });
+    }
+  } catch (e) {
+    console.warn(JSON.stringify({ level: 'warn', msg: 'document enrichment skipped', err: e?.message }));
+  }
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'document_upload', entityType: 'business_document', entityId: row.id, details: { originalName: row.originalName, kind, category: row.category, sizeBytes: row.sizeBytes, enriched: Boolean(enriched) } });
+  res.status(201).json({ document: row, deduped: false, enriched });
 }));
 
 // ── Update metadata (Editor+): rename / categorise / tag / link ─────────────
