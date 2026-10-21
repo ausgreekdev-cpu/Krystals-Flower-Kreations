@@ -108,7 +108,7 @@ export default function MediaLibrary({ token, role }) {
           }} />
 
         <div className="flex-1 min-w-0 space-y-3">
-          {err && <div className="text-xs text-red-600">{err}</div>}
+          {err && <div className="text-xs text-red-600 dark:text-red-300">{err}</div>}
           {assets === null && <div className="text-xs text-muted py-10 text-center">Loading…</div>}
           {assets?.length === 0 && (
             <div className="text-xs text-muted py-10 text-center">

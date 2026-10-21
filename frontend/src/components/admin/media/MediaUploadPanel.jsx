@@ -134,15 +134,15 @@ export default function MediaUploadPanel({ token, folderId, onDone, onClose }) {
             </div>
             {(it.status === 'uploading' || it.status === 'done') && (
               <div className="h-1.5 rounded-full bg-surface3 overflow-hidden" role="progressbar" aria-valuenow={Math.round(it.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-                <div className={`h-full rounded-full transition-all ${it.status === 'done' ? 'bg-emerald-500' : 'bg-royal-500'}`} style={{ width: `${Math.round(it.progress * 100)}%` }} />
+                <div className={`h-full rounded-full transition-all ${it.status === 'done' ? 'bg-emerald-500' : 'bg-royal-50 dark:bg-royal-9000'}`} style={{ width: `${Math.round(it.progress * 100)}%` }} />
               </div>
             )}
-            {it.error && <div className="text-[11px] text-red-600">{it.error}</div>}
+            {it.error && <div className="text-[11px] text-red-600 dark:text-red-300">{it.error}</div>}
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className="text-[10px] text-muted">{it.status === 'queued' ? 'ready' : it.status}</span>
             {it.status === 'queued' && (
-              <button type="button" onClick={() => setQueue((q) => q.filter((x) => x.uid !== it.uid))} className="text-[11px] text-red-600 hover:underline">Remove</button>
+              <button type="button" onClick={() => setQueue((q) => q.filter((x) => x.uid !== it.uid))} className="text-[11px] text-red-600 dark:text-red-300 hover:underline">Remove</button>
             )}
           </div>
         </div>

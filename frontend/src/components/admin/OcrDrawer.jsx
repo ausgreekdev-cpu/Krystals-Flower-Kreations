@@ -142,13 +142,13 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
         <div className="flex flex-wrap gap-2">
           {canOcr && (
             <button type="button" onClick={() => runOcr(false)} disabled={!!busy}
-              className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-1.5 hover:bg-royal-50 disabled:opacity-50">
+              className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-1.5 hover:bg-royal-50 dark:hover:bg-royal-950 disabled:opacity-50">
               {text ? 'Re-run OCR' : 'Run OCR'}
             </button>
           )}
           <button type="button" onClick={downloadTxt} disabled={!text} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5 disabled:opacity-50">Download .txt</button>
           <button type="button" onClick={analyzeToRecipe} disabled={!text || !!busy}
-            className="text-xs font-semibold border border-emerald-200 text-emerald-700 rounded-xl px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-50">→ Recipe</button>
+            className="text-xs font-semibold border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-xl px-3 py-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950 disabled:opacity-50">→ Recipe</button>
           {dirty && <button type="button" onClick={save} disabled={!!busy} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-3 py-1.5 disabled:opacity-50">{busy === 'Saving…' ? busy : 'Save text'}</button>}
           {doc.kind === 'IMAGE' && (
             <button type="button" onClick={togglePreview} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5">
@@ -157,7 +157,7 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
           )}
           {words.length > 0 && (
             <button type="button" onClick={downloadSearchable} disabled={!!busy}
-              className="text-xs font-semibold border border-emerald-200 text-emerald-700 rounded-xl px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-50">
+              className="text-xs font-semibold border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-xl px-3 py-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950 disabled:opacity-50">
               Download searchable PDF
             </button>
           )}
@@ -166,14 +166,14 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
         {(() => {
           const low = words.filter((w) => Number(w.c) < 70);
           return low.length ? (
-            <div className="border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 rounded-xl p-2.5">
+            <div className="border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 rounded-xl p-2.5">
               <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200 mb-1.5">
                 {low.length} word{low.length === 1 ? '' : 's'} below 70% confidence — click to review in the text
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {low.map((w, i) => (
                   <button key={`${w.t}-${i}`} type="button" onClick={() => focusWord(w)}
-                    className="text-[11px] px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900 text-ink hover:bg-amber-100">
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900 text-ink hover:bg-amber-100 dark:hover:bg-amber-800">
                     {w.t} <span className="text-amber-700 dark:text-amber-300 font-semibold">{w.c}%</span>
                   </button>
                 ))}
@@ -199,7 +199,7 @@ export default function OcrDrawer({ doc, token, onClose, onSaved, onAnalyzed }) 
           placeholder={canOcr ? 'No text extracted yet — run OCR.' : 'No text extracted for this file type.'}
           aria-label="Extracted text" />
         {busy && <div className="text-xs text-royal-700 dark:text-royal-300" role="status">{busy}</div>}
-        {err && <div className="text-xs text-red-600">{err}</div>}
+        {err && <div className="text-xs text-red-600 dark:text-red-300">{err}</div>}
         <div className="text-[10px] text-muted">Edits here are searchable — content search and the AI markdown summaries read this text.</div>
       </div>
     </div>

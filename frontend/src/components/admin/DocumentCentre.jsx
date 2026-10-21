@@ -196,7 +196,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files); }}
-        className={`border-2 border-dashed rounded-2xl p-5 text-center transition ${dragOver ? 'border-royal-500 bg-royal-50' : 'border-line bg-surface2'}`}
+        className={`border-2 border-dashed rounded-2xl p-5 text-center transition ${dragOver ? 'border-royal-500 bg-royal-50 dark:bg-royal-900' : 'border-line bg-surface2'}`}
       >
         <input ref={fileRef} type="file" multiple accept={ACCEPT} aria-label="Upload documents" className="sr-only"
           onChange={(e) => { const files = e.target.files; e.target.value = ''; uploadFiles(files); }} />
@@ -223,7 +223,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select></div>
         <button type="button" onClick={runBatchOcr} disabled={!!batch}
-          className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-2 hover:bg-royal-50 disabled:opacity-50">
+          className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-2 hover:bg-royal-50 dark:hover:bg-royal-950 disabled:opacity-50">
           {batch ? 'OCR running…' : 'Batch OCR (page)'}
         </button>
       </div>
@@ -236,7 +236,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
           </div>
           {batch.map((b) => (
             <div key={b.id} className="flex items-center gap-2 text-[11px]">
-              <span className={`w-16 shrink-0 font-semibold ${b.status === 'done' ? 'text-emerald-600' : b.status === 'error' ? 'text-red-600' : b.status === 'running' ? 'text-royal-700 dark:text-royal-300' : 'text-muted'}`}>{b.status}</span>
+              <span className={`w-16 shrink-0 font-semibold ${b.status === 'done' ? 'text-emerald-600 dark:text-emerald-300' : b.status === 'error' ? 'text-red-600 dark:text-red-300' : b.status === 'running' ? 'text-royal-700 dark:text-royal-300' : 'text-muted'}`}>{b.status}</span>
               <span className="truncate flex-1 text-ink">{b.title}</span>
               {b.message && <span className="text-muted truncate max-w-[200px]">{b.message}</span>}
             </div>
@@ -244,7 +244,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
         </div>
       )}
 
-      {err && <div className="text-xs text-red-600">{err}</div>}
+      {err && <div className="text-xs text-red-600 dark:text-red-300">{err}</div>}
       {rows === null && <div className="text-xs text-muted py-6 text-center">Loading…</div>}
       {rows?.length === 0 && <div className="text-xs text-muted py-10 text-center">No documents match — drop a file above to add the first one.</div>}
       {rows?.map((d) => (
@@ -265,7 +265,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             <div className="text-xs text-muted truncate">{d.originalName} • {fmtSize(d.sizeBytes)} • {new Date(d.createdAt).toLocaleDateString('en-AU')}</div>
           </div>
           <span className={KIND_CHIP}>{d.kind}</span>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 text-royal-700 dark:text-royal-300 border-royal-100">{d.category}</span>
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 dark:bg-royal-900 text-royal-700 dark:text-royal-300 border-royal-100 dark:border-royal-700">{d.category}</span>
           {d.tags?.length > 0 && <span className="text-[10px] text-muted hidden md:inline">{d.tags.slice(0, 3).join(' · ')}</span>}
           {d.kind === 'IMAGE' && (
             <button onClick={() => setViewerIdx(imageRows.findIndex((x) => x.id === d.id))}
@@ -274,17 +274,17 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
           <button onClick={() => download(d)} className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Download</button>
           {(d.kind === 'IMAGE' || d.kind === 'PDF') && (
             <button onClick={() => setOcrDoc(d)}
-              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 dark:text-royal-300 hover:bg-royal-50">
+              className="text-xs font-semibold border border-royal-200 rounded-xl px-2.5 py-1 text-royal-700 dark:text-royal-300 hover:bg-royal-50 dark:hover:bg-royal-950">
               {d.hasText ? 'View text' : 'OCR'}
             </button>
           )}
           <button onClick={() => analyzeToRecipe(d)} disabled={!!busy}
-            className="text-xs font-semibold border border-emerald-200 rounded-xl px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+            className="text-xs font-semibold border border-emerald-200 dark:border-emerald-700 rounded-xl px-2.5 py-1 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950 disabled:opacity-50">
             → Recipe
           </button>
           <button onClick={() => setEditing({ id: d.id, title: d.title, category: d.category, tags: (d.tags || []).join(', ') })}
             className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Edit</button>
-          <button onClick={() => setConfirmDel(d)} className="text-xs font-semibold border border-red-200 rounded-xl px-2.5 py-1 text-red-600 hover:bg-red-50">Delete</button>
+          <button onClick={() => setConfirmDel(d)} className="text-xs font-semibold border border-red-200 dark:border-red-700 rounded-xl px-2.5 py-1 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Delete</button>
         </div>
       ))}
 

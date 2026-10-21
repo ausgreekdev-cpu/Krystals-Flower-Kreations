@@ -4,17 +4,17 @@ export default function FolderSidebar({ folders, params, onSelect, onCreate, onD
   const childrenOf = (id) => folders.filter((f) => (f.parentId || null) === id);
   const renderNodes = (parentId, depth = 0) => childrenOf(parentId).map((f) => (
     <div key={f.id}>
-      <div className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs ${params.folderId === f.id ? 'bg-royal-50 text-royal-700 dark:text-royal-300 font-bold' : 'text-ink hover:bg-surface2'}`} style={{ paddingLeft: `${8 + depth * 14}px` }}>
+      <div className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs ${params.folderId === f.id ? 'bg-royal-50 dark:bg-royal-900 text-royal-700 dark:text-royal-300 font-bold' : 'text-ink hover:bg-surface2'}`} style={{ paddingLeft: `${8 + depth * 14}px` }}>
         <button type="button" className="flex-1 text-left truncate" onClick={() => onSelect({ folderId: f.id, trashed: false })}>📁 {f.name}
           <span className="text-[10px] text-muted ml-1">{f._count?.assets ?? 0}</span>
         </button>
-        <button type="button" onClick={() => { if (window.confirm(`Delete folder "${f.name}"? Assets move to Unfiled.`)) onDelete(f.id); }} className="text-muted hover:text-red-600 px-1" aria-label={`Delete folder ${f.name}`}>×</button>
+        <button type="button" onClick={() => { if (window.confirm(`Delete folder "${f.name}"? Assets move to Unfiled.`)) onDelete(f.id); }} className="text-muted hover:text-red-600 dark:text-red-300 px-1" aria-label={`Delete folder ${f.name}`}>×</button>
       </div>
       {renderNodes(f.id, depth + 1)}
     </div>
   ));
 
-  const btn = (active) => `w-full text-left rounded-lg px-2 py-1.5 text-xs ${active ? 'bg-royal-50 text-royal-700 dark:text-royal-300 font-bold' : 'text-ink hover:bg-surface2'}`;
+  const btn = (active) => `w-full text-left rounded-lg px-2 py-1.5 text-xs ${active ? 'bg-royal-50 dark:bg-royal-900 text-royal-700 dark:text-royal-300 font-bold' : 'text-ink hover:bg-surface2'}`;
 
   return (
     <nav className="w-48 shrink-0 space-y-1" aria-label="Media folders">

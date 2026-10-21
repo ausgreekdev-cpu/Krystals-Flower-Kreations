@@ -102,12 +102,12 @@ export default function MediaDrawer({ asset, token, role, folders, onClose, onSa
             </ul>
           </div>
         )}
-        {err && <div className="text-xs text-red-600">{err}</div>}
+        {err && <div className="text-xs text-red-600 dark:text-red-300">{err}</div>}
         <div className="flex justify-between gap-2 pt-2">
           {asset.deletedAt ? (
             <>
               {isAdmin
-                ? <button type="button" onClick={purge} disabled={busy} className="text-xs font-semibold border border-red-200 text-red-600 rounded-xl px-3 py-1.5 hover:bg-red-50 disabled:opacity-50">Delete forever</button>
+                ? <button type="button" onClick={purge} disabled={busy} className="text-xs font-semibold border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 rounded-xl px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50">Delete forever</button>
                 : <span className="text-[10px] text-muted self-center">Purge requires an admin</span>}
               <div className="flex gap-2">
                 <button type="button" onClick={onClose} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5">Close</button>
@@ -116,7 +116,7 @@ export default function MediaDrawer({ asset, token, role, folders, onClose, onSa
             </>
           ) : (
             <>
-              <button type="button" onClick={remove} disabled={busy} className="text-xs font-semibold border border-red-200 text-red-600 rounded-xl px-3 py-1.5 hover:bg-red-50 disabled:opacity-50">Move to trash</button>
+              <button type="button" onClick={remove} disabled={busy} className="text-xs font-semibold border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 rounded-xl px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50">Move to trash</button>
               <div className="flex gap-2">
                 <button type="button" onClick={onClose} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5">Cancel</button>
                 <button type="button" onClick={save} disabled={busy || !form.title.trim()} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-4 py-1.5 disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>

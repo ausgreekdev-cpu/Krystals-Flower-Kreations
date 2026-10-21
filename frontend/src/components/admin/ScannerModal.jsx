@@ -341,7 +341,7 @@ export default function ScannerModal({ token, onDone, onClose }) {
             </div>
           </>
         )}
-        {err && <div className="text-xs text-red-600">{err}</div>}
+        {err && <div className="text-xs text-red-600 dark:text-red-300">{err}</div>}
         <div className="text-[10px] text-muted">Tip: fill the frame with the page, keep it flat, and use good light — OCR accuracy follows capture quality.</div>
       </div>
     </div>

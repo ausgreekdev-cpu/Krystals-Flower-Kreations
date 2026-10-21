@@ -70,7 +70,7 @@ export default function DuplicateDialog({ kind, token, existing, incoming, busy,
             {busy === 'replace' ? 'Replacing…' : 'Replace existing'}
           </button>
           <button type="button" disabled={!!busy || attached > 0} onClick={() => onResolve('keep_new', applyAll)}
-            className="text-xs font-semibold border border-red-200 text-red-600 rounded-xl px-3 py-2 hover:bg-red-50 disabled:opacity-50">
+            className="text-xs font-semibold border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 rounded-xl px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50">
             {busy === 'keep_new' ? 'Working…' : 'Delete existing & upload new'}
           </button>
           <button type="button" disabled={!!busy} onClick={() => onResolve('skip', applyAll)}

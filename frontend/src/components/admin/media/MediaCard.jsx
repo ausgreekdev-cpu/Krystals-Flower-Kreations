@@ -14,7 +14,7 @@ export default function MediaCard({ asset, token, selected, onToggle, onOpen, on
       <label className="absolute top-2 left-2 flex items-center">
         <input type="checkbox" checked={selected} onChange={() => onToggle(asset.id)} className="h-4 w-4 rounded border-line-strong" aria-label={`Select ${asset.title}`} />
       </label>
-      <span className={`absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${asset.visibility === 'STAFF' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-royal-50 text-royal-700 dark:text-royal-300 border-royal-100'}`}>
+      <span className={`absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${asset.visibility === 'STAFF' ? 'bg-amber-50 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700' : 'bg-royal-50 dark:bg-royal-900 text-royal-700 dark:text-royal-300 border-royal-100 dark:border-royal-700'}`}>
         {asset.visibility === 'STAFF' ? 'Staff' : 'Library'}
       </span>
       <div className="p-2">

@@ -13,7 +13,7 @@ export default function BulkBar({ count, trashed, folders, role, onAction, onCle
   };
 
   const btn = 'text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5 text-ink hover:bg-surface3 disabled:opacity-50';
-  const danger = 'text-xs font-semibold border border-red-200 text-red-600 rounded-xl px-3 py-1.5 hover:bg-red-50 disabled:opacity-50';
+  const danger = 'text-xs font-semibold border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 rounded-xl px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50';
 
   return (
     <div className="sticky bottom-2 z-30 flex flex-wrap items-center gap-2 bg-surface border border-line rounded-2xl px-3 py-2 shadow-lg" role="region" aria-label="Bulk actions">
