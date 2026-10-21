@@ -88,6 +88,7 @@ export default function Product(){
   if(p.error) return (
     <Page width="detail">
       <Breadcrumbs items={[{label:'Shop', to:'/shop'}]} />
+      <h1 className="text-2xl font-black text-ink mt-4">Product not found</h1>
       <Alert tone="danger" className="mt-4">Failed to load product: {err || 'Not found'} <Link to="/shop" className="underline font-bold">← Back to Shop</Link></Alert>
     </Page>
   );

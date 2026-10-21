@@ -3,7 +3,7 @@
 //   admin Overview/Documents/Media tabs × {light,dark} × {desktop,mobile}  (12)
 // Usage: node scripts/axe-scan.mjs   (needs vite+backend dev servers running
 // on :5173/:3001 and playwright-core + axe-core installed in /tmp/opencode)
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { chromium } from '/tmp/opencode/node_modules/playwright-core/index.mjs';
 
 const SITE = process.env.SITE || 'http://127.0.0.1:5173';
@@ -22,7 +22,18 @@ const runAxe = async (page, label) => {
   return { label, res };
 };
 
-const browser = await chromium.launch({ executablePath: '/var/cache/ms-playwright/chromium-1234/chrome-linux64/chrome', args: ['--no-sandbox'] });
+// The playwright browser cache is versioned (chromium-XXXX) and gets
+// rebuilt by the sandbox — discover it instead of hardcoding the version.
+const chromePath = process.env.CHROME_PATH || (() => {
+  const base = '/var/cache/ms-playwright';
+  const dirs = readdirSync(base).filter((d) => d.startsWith('chromium-')).sort().reverse();
+  for (const d of dirs) {
+    const p = `${base}/${d}/chrome-linux64/chrome`;
+    if (existsSync(p)) return p;
+  }
+  throw new Error(`no chromium build found under ${base}`);
+})();
+const browser = await chromium.launch({ executablePath: chromePath, args: ['--no-sandbox'] });
 let fails = 0;
 try {
   for (const route of ROUTES) {
