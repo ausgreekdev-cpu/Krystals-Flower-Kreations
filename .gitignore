@@ -34,3 +34,13 @@ Pros/
 docs/*.pdf
 
 frontend/stats.html
+
+# Secrets/recovery material — never commit (kept on disk only)
+stripe_backup_code.txt
+*backup_code*.txt
+*recovery_codes*.txt
+*2FA*recovery*
+.proton*
+freebuff/
+.freebuff/
+backups/

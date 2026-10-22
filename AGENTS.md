@@ -55,6 +55,11 @@ npm run build       # Vite build + PWA
 
 ## Gotchas
 
+- **`npm install` needs `--no-audit` when rebuilding the tree** — the audit step can't resolve backend's CDN-only `xlsx@0.20.3` from the registry and aborts the whole install with ETARGET. Also use `npm_config_maxsockets=1` when installs stall.
+- **npm 10 overrides quirk**: flat `overrides` entries are silently ignored for workspace-member subtrees — only the nested form works: `"express": {"qs": "6.16.1"}`. After changing overrides, a FULL clean (`rm -rf node_modules package-lock.json`) is required or the stale tree wins; re-run `npx prisma generate` from `backend/` afterwards.
+- **Secret files on disk are gitignored, not safe**: `stripe_backup_code.txt`, `docs/proton_2FA_recovery_codes.txt` (and `*backup_code*`, `*recovery_codes*` patterns) live in the working tree — move them out of the repo and rotate the credentials; .gitignore only stops commits.
+- **DB backups**: `scripts/db-backup.sh` dumps prod (Supabase `DIRECT_URL`) to `backups/` via `pg_dump` (needs postgresql-client) — run it on a cron; Supabase Free has no automatic backups.
+
 - **Prisma CLI ignores inline `DATABASE_URL`** — the CLI loads `backend/.env` and that value WINS over the shell env (a bogus inline URL still connects to localhost). To push to prod: temporarily point `backend/.env`'s `DATABASE_URL`/`DIRECT_URL` at the supabase values from `.env.supabase`, run `npx prisma db push`, then **restore `.env` immediately**. (`npx prisma db pull --print` output can lie for the same reason — verify prod state with `information_schema`/`pg_indexes` via a PrismaClient script, which does honor an explicit `datasources.url`.)
 - **Booking-creating tests** (`hardening`, `security`, `settingsBehaviour`) must call `cleanupTestBookings()` from `test/helpers.js` in both `before()` and `after()` — otherwise `bookedCount` accumulates until every session is full and capacity assertions fail on repeat runs.
 - **Restart the API after route edits** — `node --watch` or a stale server causes false 404s. Kill by pid (`kill <pid>`, not `pkill -f`, which can kill the shell wrapper).
