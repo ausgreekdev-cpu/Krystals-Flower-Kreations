@@ -2,8 +2,6 @@
 
 **Last updated:** 22 October 2026 • **Perth WA** • Contact: krystal@krystalsflowerkreations.com.au
 
-> Draft for review by the business owner before launch. Companion to the Privacy Policy (`/privacy`).
-
 ## 1. Who we are
 Krystal's Flower Kreations (Perth WA, ABN 84 098 778 250) — handmade paper florist, sculptural art and workshop studio. Website: `krystalsflowercreations.com.au`. These terms apply to every order, booking and download made through the site.
 

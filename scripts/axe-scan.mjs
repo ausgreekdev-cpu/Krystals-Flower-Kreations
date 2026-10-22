@@ -1,5 +1,5 @@
 // Axe accessibility sweep — 48 scans.
-//   9 public routes × {light,dark} × {desktop,mobile}  (36)
+//   11 public routes × {light,dark} × {desktop,mobile}  (44)
 //   admin Overview/Documents/Media tabs × {light,dark} × {desktop,mobile}  (12)
 // Usage: node scripts/axe-scan.mjs   (needs vite+backend dev servers running
 // on :5173/:3001 and playwright-core + axe-core installed in /tmp/opencode)
@@ -10,7 +10,7 @@ const SITE = process.env.SITE || 'http://127.0.0.1:5173';
 const EMAIL = process.env.EMAIL || 'admin@krystal.local';
 const PASS = process.env.PASS || 'admin123';
 const AXE = readFileSync('/tmp/opencode/node_modules/axe-core/axe.min.js', 'utf8');
-const ROUTES = ['/', '/shop', '/product/eucalyptus-paper-rose-bouquet-blush', '/cart', '/checkout', '/configurator', '/blog', '/workshops', '/not-a-real-page'];
+const ROUTES = ['/', '/shop', '/product/eucalyptus-paper-rose-bouquet-blush', '/cart', '/checkout', '/configurator', '/blog', '/workshops', '/privacy', '/terms', '/not-a-real-page'];
 const VIEWPORTS = { desktop: { width: 1280, height: 900 }, mobile: { width: 390, height: 844 } };
 
 const runAxe = async (page, label) => {
