@@ -9,6 +9,12 @@ import { chromium } from '/tmp/opencode/node_modules/playwright-core/index.mjs';
 const SITE = process.env.SITE || 'http://127.0.0.1:5173';
 const EMAIL = process.env.EMAIL || 'admin@krystal.local';
 const PASS = process.env.PASS || 'admin123';
+// admin123 is the dev/CI fixture — never a production password. A prod scan
+// with stale defaults would silently scan the login page instead of /admin.
+if (!/localhost|127\.0\.0\.1/.test(process.env.SITE || '') && (!process.env.EMAIL || !process.env.PASS)) {
+  console.error('set EMAIL and PASS (staff credentials) for non-local scans — refusing admin123 defaults against production');
+  process.exit(1);
+}
 const AXE = readFileSync('/tmp/opencode/node_modules/axe-core/axe.min.js', 'utf8');
 const ROUTES = ['/', '/shop', '/product/eucalyptus-paper-rose-bouquet-blush', '/cart', '/checkout', '/configurator', '/blog', '/workshops', '/privacy', '/terms', '/not-a-real-page'];
 const VIEWPORTS = { desktop: { width: 1280, height: 900 }, mobile: { width: 390, height: 844 } };
@@ -62,7 +68,11 @@ try {
       await page.fill('input[type="email"]', EMAIL);
       await page.fill('input[type="password"]', PASS);
       await page.keyboard.press('Enter');
-      await page.waitForURL(/admin/, { timeout: 20000 }).catch(() => {});
+      try {
+        await page.waitForURL(/admin/, { timeout: 20000 });
+      } catch {
+        throw new Error(`login did not reach /admin (stayed on ${page.url()}) — check EMAIL/PASS`);
+      }
       for (const tab of ['Overview', 'Documents', 'Media']) {
         await page.locator('button', { hasText: tab }).first().click().catch(() => {});
         await page.waitForTimeout(900);
