@@ -37,5 +37,22 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "@expo/cli": {
+      "tar": "7.5.22"
+    },
+    "cacache": {
+      "tar": "7.5.22"
+    },
+    "@expo/plist": {
+      "@xmldom/xmldom": "0.9.12"
+    },
+    "plist": {
+      "@xmldom/xmldom": "0.9.12"
+    },
+    "metro": {
+      "image-size": "2.0.4"
+    }
   }
 }
