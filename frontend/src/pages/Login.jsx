@@ -25,7 +25,7 @@ export default function Login() {
       }
       window.location.assign(dest);
     } catch (e2) {
-      setErr(e2?.status === 401 ? 'Incorrect email or password.' : e2?.status === 429 ? 'Too many attempts — wait a few minutes and try again.' : (e2?.message || 'Sign-in failed'));
+      setErr(e2?.status === 401 ? 'Incorrect email or password — use your account email, which may differ from the website address.' : e2?.status === 429 ? 'Too many attempts — wait a few minutes and try again.' : (e2?.message || 'Sign-in failed'));
     } finally { setBusy(false); }
   }
 

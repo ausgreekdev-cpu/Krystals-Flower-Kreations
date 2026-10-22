@@ -8,6 +8,7 @@
 //   node scripts/set-admin-password.mjs --email krystal@flowerkreations.com.au
 //   node scripts/set-admin-password.mjs --email a@b.c --password '<chosen>'
 //   node scripts/set-admin-password.mjs --email a@b.c --out /path/creds.txt
+//   node scripts/set-admin-password.mjs --email new@x.y --create --role admin
 //
 // The generated password is never printed to the terminal — it is appended
 // to --out (default: ../repo-secrets-removed/new-credentials.txt) with 0600
@@ -50,15 +51,25 @@ const url = process.env.DATABASE_URL || '';
 const target = /supabase/i.test(url) ? 'SUPABASE/PROD' : 'local DATABASE_URL';
 const prisma = new PrismaClient(url ? { datasources: { db: { url } } } : {});
 
-const user = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
-if (!user) {
-  console.error(`no user with email ${email} on ${target}`);
-  await prisma.$disconnect();
-  process.exit(1);
-}
-
 const hash = await bcrypt.hash(password, 10);
-await prisma.user.update({ where: { id: user.id }, data: { password: hash } });
+let user = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
+if (!user) {
+  if (arg('create') === undefined) {
+    console.error(`no user with email ${email} on ${target} (pass --create --role <role> to create one)`);
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+  const role = String(arg('role') || 'admin');
+  if (!['customer', 'staff', 'maker', 'admin', 'developer'].includes(role)) {
+    console.error(`invalid role ${role}`);
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+  user = await prisma.user.create({ data: { email, name: email.split('@')[0], role, password: hash }, select: { id: true, role: true } });
+  console.log(`user created for ${email} (role=${user.role}) on ${target}`);
+} else {
+  await prisma.user.update({ where: { id: user.id }, data: { password: hash } });
+}
 await prisma.$disconnect();
 
 mkdirSync(dirname(OUT), { recursive: true });
