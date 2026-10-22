@@ -3,10 +3,15 @@
 // One place for provider plumbing so the procedure analyser and the document
 // enricher share the same behaviour, cost and failure handling.
 //
-// - LLM_PROVIDER: anthropic (default) | openai | opencode-go
-// - LLM_API_KEY:  provider key (required for any LLM call)
+// - LLM_PROVIDER: anthropic (default) | openai | opencode-go | gemini
+// - LLM_API_KEY:  provider key (required for any LLM call). For the gemini
+//                 provider GEMINI_API_KEY is also accepted.
 // - LLM_MODEL:    optional override
 // - LLM_BASE_URL: optional base override (OpenAI-compatible gateways)
+//
+// Gemini (Google Generative Language API) uses its own request shape:
+// systemInstruction + contents[] + responseMimeType: application/json.
+// Key: GEMINI_API_KEY (server-side only — never exposed to the frontend).
 //
 // `__setLlmCall(fn)` stubs the transport in tests (fn receives the raw prompt
 // and returns a JSON string or object) — no network in the suite.
@@ -14,7 +19,10 @@ let callImpl = null;
 export function __setLlmCall(fn) { callImpl = fn; }
 
 export function llmAvailable() {
-  return Boolean(callImpl) || Boolean(process.env.LLM_API_KEY);
+  if (callImpl) return true;
+  const provider = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase();
+  if (provider === 'gemini') return Boolean(process.env.GEMINI_API_KEY || process.env.LLM_API_KEY);
+  return Boolean(process.env.LLM_API_KEY);
 }
 
 function parseJsonReply(raw) {
@@ -30,6 +38,7 @@ function defaultModel(provider) {
   if (process.env.LLM_MODEL) return process.env.LLM_MODEL;
   if (provider === 'openai') return 'gpt-4o-mini';
   if (provider === 'opencode-go') return 'mimo-v2.6-flash';
+  if (provider === 'gemini') return 'gemini-2.0-flash';
   return 'claude-3-5-haiku-latest';
 }
 
@@ -70,11 +79,32 @@ export async function llmJson({ system, user, maxTokens = 2000, session, userAge
     });
     if (!res.ok) throw new Error(`LLM ${res.status}`);
     reply = (await res.json())?.choices?.[0]?.message?.content;
+  } else if (provider === 'gemini') {
+    // Google Generative Language API. Key from GEMINI_API_KEY (or LLM_API_KEY).
+    const geminiKey = process.env.GEMINI_API_KEY || key;
+    const base = (process.env.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
+    const res = await fetch(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': geminiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: maxTokens, responseMimeType: 'application/json' },
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) throw new Error(`LLM ${res.status}`);
+    reply = (await res.json())?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('');
   } else if (provider === 'openai') {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    // OpenAI-compatible endpoints. LLM_BASE_URL lets any compatible gateway
+    // serve the call — e.g. Gemini's OpenAI-compatible surface:
+    //   LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+    //   LLM_MODEL=gemini-2.5-pro
+    const base = (process.env.LLM_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const res = await fetch(`${base}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+      body: JSON.stringify({ model, temperature: 0, max_tokens: maxTokens, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
       signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) throw new Error(`LLM ${res.status}`);

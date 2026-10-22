@@ -40,6 +40,16 @@ npm run build       # Vite build + PWA
   - `supabase/migrations/*.sql` were **removed** (stale snake_case + a booking-breaking trigger). Do not reintroduce.
 - `JWT_SECRET` — set per environment (Netlify env + `backend/.env` locally); generate with `openssl rand -base64 48`, **never commit the value**. The secret that used to be printed here was leaked via git history: **rotate it** (invalidates all sessions + download tokens).
 
+## LLM (procedure analysis + document enrichment)
+
+- `backend/src/services/llm.js` is the single provider-agnostic transport (JSON-in/JSON-out). Providers: `anthropic` (default) | `openai` | `opencode-go` | `gemini`.
+- `LLM_PROVIDER` picks the provider; `LLM_API_KEY` is the key — the **gemini** provider also accepts `GEMINI_API_KEY` (Google AI Studio key, `https://aistudio.googleapis.com` shape: `AIza…`). `LLM_MODEL` overrides the model (defaults: `claude-3-5-haiku-latest` / `gpt-4o-mini` / `mimo-v2.6-flash` / `gemini-2.0-flash`); `LLM_BASE_URL` overrides the base.
+- Gemini request shape: `systemInstruction` + `contents[]` + `generationConfig.responseMimeType: application/json`; key sent as the `x-goog-api-key` header. Plain `fetch` — no SDK dependency.
+- **Custom OpenAI-compatible endpoints**: the `openai` provider now honours `LLM_BASE_URL` (it used to be hardcoded to api.openai.com), so Gemini's compat surface works as a drop-in: `LLM_PROVIDER=openai` + `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` + `LLM_MODEL=gemini-2.5-pro` + `LLM_API_KEY=<key>`.
+- **No key = no LLM**: `llmAvailable()` is false, and `procedureAnalyzer` falls back to its rules engine (still works, less rich) — same for `documentEnricher` (returns null).
+- Keys are **server-side env only** — never a setting in the DB and never in the frontend. Prod keys live in the Netlify env (see `.env.netlify.template`); local ones in `backend/.env` (gitignored).
+- Tests stub the transport (`__setLlmCall` in `lib/llm.js` consumers) or `globalThis.fetch` — the suite never calls a provider.
+
 ## Env files (all gitignored except template)
 
 - `backend/.env` — local dev (complete)
