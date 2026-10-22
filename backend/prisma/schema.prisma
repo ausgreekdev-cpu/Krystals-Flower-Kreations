@@ -548,6 +548,7 @@ model Order {
   deliveredAt           DateTime?
   trackingNumber        String?
   trackingUrl           String?
+  bomSnapshot           Json? // production BOM generated at checkout finalize (materials + labour + lead days)
 
   user     User?                @relation(fields: [userId], references: [id])
   lines    OrderLine[]

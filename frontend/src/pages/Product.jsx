@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { addToCart as addToCartApi } from '../lib/cartClient';
+import { trackEvent, gaItem } from '../lib/analytics';
 import { usePublicSettings } from '../lib/publicSettings';
 import { updateSeo } from '../lib/seo';
 import { Page, Breadcrumbs } from '../components/ui/Page';
@@ -26,6 +27,8 @@ export default function Product(){
       setP(d); setReviews(Array.isArray(d.reviews)?d.reviews:[]);
       const desc = String(d.metaDescription || d.description || '').replace(/\s+/g, ' ').trim().slice(0, 170) || undefined;
       updateSeo({ title: `${d.title} — ${ORG}`, description: desc });
+      const item = gaItem(d, 1);
+      if (item) trackEvent('view_item', { currency: 'AUD', value: item.price, items: [item] });
     }).catch(e=>{
       setErr(e.message); setP({ error:true });
       updateSeo({ title: `Product not found — ${ORG}`, description: 'This paper bloom could not be found — browse the shop for everlasting bouquets and Cricut templates.' });
@@ -64,6 +67,8 @@ export default function Product(){
     try{
       const res = await addToCartApi({ productId: p.id, variantId, quantity: qty });
       setMsg(`Added ${qty} × ${p.title} to cart — ${res.cart?.items?.length||''} items`);
+      const item = gaItem(p, qty);
+      if (item) trackEvent('add_to_cart', { currency: 'AUD', value: item.price * (Number(qty) || 1), items: [item] });
       setTimeout(()=> nav('/cart'), 600);
     }catch(e){ setErr(e.message || 'Failed to add'); }
   }

@@ -4,7 +4,7 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { sendWorkshopConfirmation } from '../services/email.js';
+import { sendWorkshopConfirmation, sendAdminBookingAlert } from '../services/email.js';
 import { getSettings } from '../lib/settingsSchema.js';
 import { publicCache, noStore } from '../lib/http-cache.js';
 
@@ -184,6 +184,8 @@ router.post('/sessions/:sessionId/book', bookLimit, asyncHandler(async (req, res
   if (result.status === 'confirmed') {
     await sendWorkshopConfirmation({ ...result.booking, ticket: result.ticket }, result.workshop, result.session).catch(()=>{});
   }
+  // Studio alert for every new booking (confirmed or waitlisted)
+  await sendAdminBookingAlert(result.booking, result.workshop, result.session).catch(()=>{});
   res.status(201).json({ ...result.booking, ticket: result.ticket });
 }));
 

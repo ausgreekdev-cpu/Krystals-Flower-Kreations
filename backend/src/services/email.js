@@ -142,11 +142,17 @@ export async function sendOrderConfirmation(order) {
   return row;
 }
 
+// Studio notification recipient (settings: admin_order_alert_*).
+async function adminAlertRecipient(s) {
+  const settings = s || await getSettings().catch(() => ({}));
+  if (settings.admin_order_alert_enabled !== '1') return null;
+  return settings.admin_order_alert_recipient || settings.contact_email || process.env.COMPANY_EMAIL || null;
+}
+
 // Studio notification for every new checkout (settings: admin_order_alert_*).
 export async function sendAdminOrderAlert(order) {
   const s = await getSettings().catch(() => ({}));
-  if (s.admin_order_alert_enabled !== '1') return null;
-  const to = s.admin_order_alert_recipient || s.contact_email || process.env.COMPANY_EMAIL;
+  const to = await adminAlertRecipient(s);
   if (!to) return null;
   const lines = (order.lines || []).map(l => `  ${l.quantity} × ${l.title} — $${Number(l.lineTotal).toFixed(2)}`).join('\n');
   const subject = `New order ${order.orderNumber} — $${Number(order.total).toFixed(2)}`;
@@ -239,6 +245,34 @@ export async function sendPasswordReset(user, { resetUrl, ttlMinutes = 60 } = {}
   // hourly drain can deliver it already-expired. The queue row is the safety net
   // if this attempt fails.
   await sendFromQueue(row).catch(() => {});
+  return row;
+}
+
+// Studio notification for a new workshop booking (same admin_order_alert_*
+// settings as new orders — one inbox for everything that needs action).
+export async function sendAdminBookingAlert(booking, workshop, session) {
+  const s = await getSettings().catch(() => ({}));
+  const to = await adminAlertRecipient(s);
+  if (!to) return null;
+  const when = new Date(session.startsAt).toLocaleString('en-AU', { timeZone: 'Australia/Perth' });
+  const subject = `New booking — ${workshop.title} (${when})`;
+  const text = `New workshop booking\n\nWorkshop: ${workshop.title}\nWhen: ${when}\nWhere: ${workshop.location}\nQuantity: ${booking.quantity} • Status: ${booking.status}\n\nName: ${booking.name}\nEmail: ${booking.email}${booking.phone ? `\nPhone: ${booking.phone}` : ''}\n${booking.notes ? `\nNotes: ${booking.notes}\n` : ''}\n${await signatureBlock(s)}`;
+  const row = await enqueueEmail({ to, subject, text, template: 'admin_booking_alert', payload: { workshop: workshop.title, startsAt: session.startsAt } });
+  sendFromQueue(row).catch(()=>{});
+  return row;
+}
+
+// Studio notification for a submitted custom order (configurator).
+export async function sendAdminCustomOrderAlert(order) {
+  const s = await getSettings().catch(() => ({}));
+  const to = await adminAlertRecipient(s);
+  if (!to || !order) return null;
+  const spec = order.spec && typeof order.spec === 'object' ? order.spec : {};
+  const specLine = [spec.paperColor, spec.paperTexture, spec.stemCount ? `${spec.stemCount} stems` : null, spec.heightMm ? `${spec.heightMm}mm` : null].filter(Boolean).join(' • ');
+  const subject = `New custom order ${order.orderNumber} — $${Number(order.totalPrice).toFixed(2)}`;
+  const text = `New custom design order ${order.orderNumber}\n\nName: ${order.customerName}\nEmail: ${order.customerEmail}${order.customerPhone ? `\nPhone: ${order.customerPhone}` : ''}\nEstimate: $${Number(order.totalPrice).toFixed(2)} (GST incl.)\n${specLine ? `Design: ${specLine}\n` : ''}${spec.palette ? `Palette: ${spec.palette}\n` : ''}${order.notes ? `\nCustomer note: ${order.notes}\n` : ''}\n${await signatureBlock(s)}`;
+  const row = await enqueueEmail({ to, subject, text, template: 'admin_custom_order_alert', payload: { orderNumber: order.orderNumber } });
+  sendFromQueue(row).catch(()=>{});
   return row;
 }
 

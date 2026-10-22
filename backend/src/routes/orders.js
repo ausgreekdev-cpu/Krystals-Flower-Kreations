@@ -8,6 +8,7 @@ import { asyncHandler } from '../middleware/async-handler.js';
 import { calculateShipping, calculateGstInclusive } from '../services/shipping.js';
 import { createPayPalOrder, capturePayPalOrder, refundPayPalCapture, assertPayPalReady } from '../services/paypal.js';
 import { sendOrderConfirmation, sendAdminOrderAlert, sendStatusUpdate } from '../services/email.js';
+import { generateOrderBOM } from '../services/orderBom.js';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
 import { audit } from '../lib/audit.js';
@@ -264,6 +265,8 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     await sendOrderConfirmation(order).catch(()=>{});
     // Studio alert (settings: admin_order_alert_enabled / _recipient)
     await sendAdminOrderAlert(order).catch(()=>{});
+    // Production BOM snapshot (materials + labour + lead days) — best-effort
+    await generateOrderBOM(order).catch(()=>{});
   }
 
   return { order, shipping, gst, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) };
@@ -358,6 +361,7 @@ router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptur
     await earnForOrder(prisma, { email: fresh.email, total: fresh.total, orderId: fresh.id, reason: 'purchase' });
     await sendOrderConfirmation(fresh).catch(()=>{});
     await sendAdminOrderAlert(fresh).catch(()=>{});
+    await generateOrderBOM(fresh).catch(()=>{});
   }
   res.json({ order: fresh, captured: true, idempotent: !isNew });
 }));

@@ -30,6 +30,7 @@ const POS = lazy(() => import('./pages/POS.jsx'));
 const Notebook = lazy(() => import('./pages/Notebook.jsx'));
 const About = lazy(() => import('./pages/About.jsx'));
 const Privacy = lazy(() => import('./pages/Privacy.jsx'));
+const Terms = lazy(() => import('./pages/Terms.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 // Global theme + colour mode: runs once for every route (deep links included)
@@ -61,6 +62,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/notebook" element={<Notebook />} />
             <Route path="/about" element={<About />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/login" element={<Login />} />
             <Route path="/account" element={<Account />} />
             <Route path="/forgot-password" element={<PasswordReset mode="request" />} />

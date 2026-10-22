@@ -5,6 +5,7 @@ import SiteFooter from './SiteFooter';
 import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole } from '../../lib/session';
 import { updateSeo, restoreSeo } from '../../lib/seo';
+import { initAnalytics, trackPageView } from '../../lib/analytics';
 import BloomMark from '../ui/BloomMark';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
@@ -25,6 +26,7 @@ const ROUTE_TITLES = {
   '/notebook': `Studio Notebook — ${BRAND}`,
   '/about': `About — ${BRAND}`,
   '/privacy': `Privacy Policy — ${BRAND}`,
+  '/terms': `Terms of Service — ${BRAND}`,
   '/login': `Sign in — ${BRAND}`,
   '/account': `Your account — ${BRAND}`,
   '/forgot-password': `Reset your password — ${BRAND}`,
@@ -43,6 +45,7 @@ const ROUTE_DESCRIPTIONS = {
   '/notebook': 'Studio Notebook — paper florist knowledge base: glue tests, Cricut settings, origami instructions & studio notes.',
   '/about': 'About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, sculptural art and workshop kits.',
   '/privacy': 'Privacy policy — Krystals Flower Creations, Perth WA.',
+  '/terms': 'Terms of service — handmade made-to-order paper florals, delivery, returns, workshops & ACL rights. Krystals Flower Creations, Perth WA.',
   '/account': 'Your Krystals Flower Creations account — order history, tracking and every digital template you have bought, ready to re-download.',
   '/forgot-password': 'Request a one-time password reset link for your Krystals Flower Creations account.',
   '/reset-password': 'Choose a new password for your Krystals Flower Creations account.',
@@ -86,6 +89,13 @@ export default function SiteLayout() {
       robots: NOINDEX.has(location.pathname) || (!isStatic && !isDynamic) ? 'noindex, nofollow' : null,
     });
   }, [location.pathname]);
+
+  // GA4: load gtag once the setting arrives (no-op without an id) and send
+  // SPA page views on navigation.
+  useEffect(() => {
+    initAnalytics(s.ga_measurement_id);
+    if (s.ga_measurement_id) trackPageView(location.pathname, document.title);
+  }, [location.pathname, s.ga_measurement_id]);
 
   // Leaving the public site (→ /admin, /pos): reset head values to the
   // index.html defaults; those routes apply their own noindex.

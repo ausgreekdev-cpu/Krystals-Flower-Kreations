@@ -7,7 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { pricingConfig } from '../services/bomPricing.js';
-import { sendCustomOrderConfirmation } from '../services/email.js';
+import { sendCustomOrderConfirmation, sendAdminCustomOrderAlert } from '../services/email.js';
 import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
@@ -130,6 +130,7 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
   // Customer confirmation (non-blocking) — previously custom orders emailed
   // nothing; the on-screen order number was the customer's only reference.
   await sendCustomOrderConfirmation(full).catch(()=>{});
+  await sendAdminCustomOrderAlert(full).catch(()=>{});
   res.status(201).json(full);
 }));
 

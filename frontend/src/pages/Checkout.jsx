@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ordersApi, cartApi } from '../lib/api/customClient';
 import { fetchCart, cartItems, getCartId, clearCart, clearCartId, dispatchCartChanged } from '../lib/cartClient';
 import { usePublicSettings } from '../lib/publicSettings';
+import { trackEvent, gaItem } from '../lib/analytics';
 import { loadPayPalScript } from '../lib/paypalLoader';
 import { Page, PageHeader, Breadcrumbs } from '../components/ui/Page';
 import Btn from '../components/ui/Btn';
@@ -33,7 +34,8 @@ export default function Checkout(){
       setForm(f => ({ ...f, paymentMethod: methods[0].value }));
     }
   }, [methodsKey]);
-  const termsRequired = s.terms_required === '1' && Boolean(s.terms_url);
+  const termsRequired = s.terms_required === '1';
+  const termsHref = s.terms_url || '/terms';
   const minOrder = Number(s.min_order_amount) || 0;
   const notesEnabled = s.enable_order_notes !== '0';
   const minRedeem = Number(s.loyalty_min_redeem_points) || 100;
@@ -69,6 +71,26 @@ export default function Checkout(){
     }, 500);
     return ()=>clearTimeout(id);
   }, [form.discountCode]);
+  // GA4 funnel: begin_checkout once per visit (best-effort cart snapshot).
+  const beganCheckout = useRef(false);
+  useEffect(() => {
+    if (beganCheckout.current) return;
+    beganCheckout.current = true;
+    const cartId = getCartId();
+    if (!cartId) return;
+    fetchCart().then((d) => {
+      const lines = cartItems(d);
+      const items = lines.map((it) => gaItem({ ...(it.product || it), price: it.priceSnapshot, sku: it.product?.sku, title: it.product?.title || it.title }, it.quantity)).filter(Boolean);
+      const value = lines.reduce((a, it) => a + Number(it.priceSnapshot || 0) * (Number(it.quantity) || 1), 0);
+      if (items.length) trackEvent('begin_checkout', { currency: 'AUD', value: Math.round(value * 100) / 100, items });
+    }).catch(() => {});
+  }, []);
+
+  function trackPurchase(order){
+    const items = (order?.lines || []).map((l) => gaItem({ id: l.productId, sku: l.sku, title: l.title, price: l.unitPrice }, l.quantity)).filter(Boolean);
+    trackEvent('purchase', { transaction_id: order?.orderNumber, currency: 'AUD', value: Number(order?.total) || 0, items });
+  }
+
   async function finishPayPal(order){
     await clearCart({ bestEffort: true });
     setResult({
@@ -78,6 +100,7 @@ export default function Checkout(){
       paymentInstructions: 'Paid via PayPal — a receipt is on its way to your inbox.',
       captured: true,
     });
+    trackPurchase(order);
   }
   async function submit(e){
     e.preventDefault(); setLoading(true); setErr('');
@@ -94,6 +117,7 @@ export default function Checkout(){
       } else {
         const res = await ordersApi.checkout({ cartId, ...form });
         setResult(res);
+        trackPurchase(res.order);
         // Server already emptied the cart items in the checkout transaction —
         // only the local id (and the header badge) needs resetting.
         clearCartId();
@@ -166,7 +190,7 @@ export default function Checkout(){
         {termsRequired && (
           <label className="flex items-start gap-2 text-xs text-muted">
             <input type="checkbox" className="mt-0.5" checked={Boolean(form.acceptTerms)} onChange={e=>setForm({...form,acceptTerms:e.target.checked})} required />
-            <span>I have read and accept the <a href={s.terms_url} target="_blank" rel="noreferrer" className="underline text-highlight">terms & conditions</a>.</span>
+            <span>I have read and accept the <a href={termsHref} target="_blank" rel="noreferrer" className="underline text-highlight">terms & conditions</a>.</span>
           </label>
         )}
         <Btn size="lg" disabled={loading || ppBusy}>{loading? 'Processing…' : form.paymentMethod === 'paypal' ? 'Continue — reserve & pay with PayPal' : 'Place Order — Pay Later (manual)'}</Btn>

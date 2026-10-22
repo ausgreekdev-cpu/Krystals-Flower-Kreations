@@ -82,6 +82,7 @@ export const SETTINGS = [
   { key: 'site_meta_title', section: 'storefront', label: 'Meta title (SEO)', type: 'text', default: "Krystals Flower Creations — Paper Florist Perth WA", public: true, max: 70 },
   { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, sculptural art, Cricut SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
   { key: 'og_image_url', section: 'storefront', label: 'Social share image URL', type: 'url', default: '', public: true },
+  { key: 'ga_measurement_id', section: 'storefront', label: 'Google Analytics ID', type: 'text', default: '', public: true, max: 40, placeholder: 'G-XXXXXXXXXX', description: 'GA4 measurement ID — storefront funnel events (view item, add to cart, checkout, purchase). Empty = no analytics loaded.' },
   { key: 'notebooklm_url', section: 'storefront', label: 'NotebookLM URL', type: 'url', default: '', public: true },
   { key: 'configurator_floor', section: 'storefront', label: 'Configurator floor price', type: 'number', default: '45', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_per_stem', section: 'storefront', label: 'Configurator per-stem', type: 'number', default: '9.5', public: true, min: 0, max: 100000, unit: '$' },
