@@ -22,7 +22,10 @@ function getJwtSecret() {
   return secret;
 }
 
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// 24h sliding session: tokens live in localStorage (web + mobile Bearer
+// parity), so keep the blast window small — the frontend renews via
+// POST /api/auth/refresh while the user is active.
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 export const ROLE_RANK = {
   customer: 1,

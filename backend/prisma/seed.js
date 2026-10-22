@@ -12,17 +12,34 @@ async function main() {
   const SKIP_DEMO = /supabase/i.test(process.env.DATABASE_URL || '');
   if (SKIP_DEMO) console.log('[seed] Supabase target detected — skipping demo products & raw materials.');
 
-  const password = await bcrypt.hash('admin123', 10);
+  // Production guard: seeding a live database is a deliberate, two-key action.
+  // A stray `npm run db:seed` after the db:push procedure (which points
+  // backend/.env at Supabase) must never create admin accounts on prod.
+  const PROD_TARGET = SKIP_DEMO || process.env.NODE_ENV === 'production';
+  if (PROD_TARGET && process.env.SEED_ALLOW_PROD !== '1') {
+    console.error('[seed] refusing to run against a production database — set SEED_ALLOW_PROD=1 to override.');
+    process.exit(1);
+  }
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD || 'admin123';
+  if (PROD_TARGET && seedPassword === 'admin123') {
+    console.error('[seed] refusing to seed production with the default password — set SEED_ADMIN_PASSWORD.');
+    process.exit(1);
+  }
+
+  const password = await bcrypt.hash(seedPassword, 10);
   await prisma.user.upsert({
     where: { email: 'krystal@flowerkreations.com.au' },
     update: {},
     create: { email: 'krystal@flowerkreations.com.au', name: 'Krystal', role: 'admin', password },
   });
-  await prisma.user.upsert({
-    where: { email: 'admin@krystal.local' },
-    update: {},
-    create: { email: 'admin@krystal.local', name: 'Admin', role: 'developer', password },
-  });
+  // The .local developer fixture exists for dev/CI only — never create it on prod.
+  if (!PROD_TARGET) {
+    await prisma.user.upsert({
+      where: { email: 'admin@krystal.local' },
+      update: {},
+      create: { email: 'admin@krystal.local', name: 'Admin', role: 'developer', password },
+    });
+  }
   await prisma.user.upsert({
     where: { email: 'krystalflowercreations@gmail.com' },
     update: {},

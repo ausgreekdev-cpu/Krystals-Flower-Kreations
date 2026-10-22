@@ -34,11 +34,11 @@ npm run build       # Vite build + PWA
 
 - **Local dev**: Postgres at `postgresql://krystal:krystal_dev_password@localhost:5432/krystals_flower_kreations?schema=public` (via `docker compose up -d db`, or the sandbox's embedded postgres at `~/.cache/opencode/pg-embed/start.js` — NOT under `/tmp`, which sandbox recycles wipe). If 5432 is down: `node ~/.cache/opencode/pg-embed/start.js &`, then `npm run db:push && npm run seed`.
 - **Prod (Supabase)**: project `tyyqnlfzhgxvnqmicgfr`, ap-southeast-2.
-  - Runtime `DATABASE_URL`: `postgresql://postgres.tyyqnlfzhgxvnqmicgfr:!Krystalsflowercreations123@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`
+  - Runtime `DATABASE_URL`: `postgresql://postgres.<project-ref>:<db-password>@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1` — real values live only in `backend/.env.supabase` (gitignored) + the Netlify dashboard. The value that used to be here was leaked via git history: **rotate the Supabase DB password**.
   - DDL `DIRECT_URL`: same host but `:5432` and **no** `pgbouncer=true` — the 6543 pooler can't run DDL (hangs `db push`).
   - Schema source of truth is Prisma (`prisma/schema.prisma`); `prisma/migrations/` is **gitignored** — always `db push`.
   - `supabase/migrations/*.sql` were **removed** (stale snake_case + a booking-breaking trigger). Do not reintroduce.
-- `JWT_SECRET=ngLDIUTJ4f8Q6VxVlTDvEVvI2UXfEjxDqVSXGFObEcIXhWsQHo02DGuI8CwJU5Z+`
+- `JWT_SECRET` — set per environment (Netlify env + `backend/.env` locally); generate with `openssl rand -base64 48`, **never commit the value**. The secret that used to be printed here was leaked via git history: **rotate it** (invalidates all sessions + download tokens).
 
 ## Env files (all gitignored except template)
 
@@ -52,6 +52,7 @@ npm run build       # Vite build + PWA
 - Login endpoint `POST /api/auth/login`; admin UI at `/admin` (guarded, redirects to `/login`).
 - Seeded users (password `admin123`): `admin@krystal.local` (developer), `krystal@flowerkreations.com.au` (admin), `krystalflowercreations@gmail.com` (admin).
 - Role ranks: customer 1 < staff/maker 2 < admin 3 < developer 4. Only developers can grant/modify the developer role.
+- **Tokens**: HS256 JWT `{id, role, email}`, TTL `JWT_EXPIRES_IN` (default 24h). `POST /api/auth/refresh` (authed) re-issues a token — the storefront calls it once per load (`renewSession` in `frontend/src/lib/session.js`) for a sliding session. `authenticate` re-reads the role from the DB, so role changes apply on the next request. Tokens live in localStorage (web + mobile Bearer parity).
 
 ## Gotchas
 

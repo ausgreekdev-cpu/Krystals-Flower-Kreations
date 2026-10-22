@@ -40,7 +40,7 @@ cd backend
 cp .env.example .env
 npm install
 npx prisma db push            # migrations dir is gitignored — db push is the source of truth
-npm run seed                  # seeds admin@krystal.local / admin123 + catalog (idempotent)
+npm run seed                  # seeds admin@krystal.local / admin123 + catalog (idempotent, dev/CI only)
 npm run dev                   # http://localhost:3001
 npm test                      # integration test suite
 
@@ -61,9 +61,10 @@ Root shortcuts: `npm run db:up` / `npm run db:push` / `npm run db:seed` / `npm r
 ### Admin console
 
 - URL: `http://localhost:5173/admin` (or `/login`)
-- Seeded staff logins (password `admin123`):
+- Seeded staff logins (password `admin123` — **dev/CI only**, change before any real use):
   - `admin@krystal.local` — role `developer`
   - `krystal@flowerkreations.com.au` — role `admin`
+- The seed refuses to run against a production database unless `SEED_ALLOW_PROD=1` **and** `SEED_ADMIN_PASSWORD` are both set (and it never creates the `.local` developer account there).
 
 ## Project Structure
 

@@ -125,6 +125,14 @@ router.post('/reset-password', rateLimit('password_reset_submit', 10, 15), valid
   res.json({ ok: true, token: signToken(user), user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 }));
 
+// Sliding session — issue a fresh token while the current one is still valid.
+// authenticate() re-reads the user from the DB, so role changes take effect
+// at renewal. Called by the storefront on load (and can be called by the
+// mobile app) to keep short-lived tokens out of long-lived storage.
+router.post('/refresh', authenticate, asyncHandler(async (req, res) => {
+  res.json({ token: signToken(req.user), user: { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role } });
+}));
+
 // GDPR deletion — delete own account + anonymize orders/bookings
 import { authenticate } from '../lib/auth.js';
 router.delete('/me', authenticate, asyncHandler(async (req, res) => {

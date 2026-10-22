@@ -16,3 +16,25 @@ export function currentStaffRole() {
 export function currentUser() {
   return getUser();
 }
+
+// Sliding session: renew the stored token while it is still valid (the API
+// returns 401 token_expired once it lapses — then it's a fresh login). Called
+// once per SPA load from SiteLayout; fire-and-forget.
+export async function renewSession() {
+  const t = localStorage.getItem('token');
+  if (!t) return false;
+  try {
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data?.token) {
+      localStorage.setItem('token', data.token);
+      if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+      return true;
+    }
+  } catch { /* network failure keeps the current token until it expires */ }
+  return false;
+}

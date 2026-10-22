@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import SiteHeader from './SiteHeader';
 import SiteFooter from './SiteFooter';
 import { usePublicSettings } from '../../lib/publicSettings';
-import { currentStaffRole } from '../../lib/session';
+import { currentStaffRole, renewSession } from '../../lib/session';
 import { updateSeo, restoreSeo } from '../../lib/seo';
 import { initAnalytics, trackPageView } from '../../lib/analytics';
 import BloomMark from '../ui/BloomMark';
@@ -63,6 +63,9 @@ export default function SiteLayout() {
   const s = usePublicSettings();
   const mainRef = useRef(null);
   const firstRender = useRef(true);
+
+  // Sliding session: renew the stored JWT once per load while it's valid.
+  useEffect(() => { renewSession(); }, []);
 
   // SPA route changes: reset scroll and restore keyboard focus to the main
   // landmark. Skipped on the initial load.
