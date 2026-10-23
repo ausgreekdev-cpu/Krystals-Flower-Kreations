@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { llmJson, llmAvailable } from '../src/services/llm.js';
+import { llmJson, llmAvailable, __setLlmCall } from '../src/services/llm.js';
 
 // Gemini provider plumbing (Google Generative Language API). No network —
 // fetch is stubbed; the key itself never appears in assertions.
@@ -15,7 +15,7 @@ const okReply = (text) => async (url, opts) => {
 };
 
 before(() => {
-  for (const k of ['LLM_PROVIDER', 'LLM_API_KEY', 'GEMINI_API_KEY', 'LLM_MODEL', 'LLM_BASE_URL']) {
+  for (const k of ['LLM_PROVIDER', 'LLM_API_KEY', 'GEMINI_API_KEY', 'LLM_MODEL', 'LLM_BASE_URL', 'NODE_ENV']) {
     saved[k] = process.env[k];
   }
   process.env.LLM_PROVIDER = 'gemini';
@@ -42,7 +42,7 @@ test('gemini provider posts the documented request shape and parses the reply', 
   assert.deepEqual(out, { ok: true, title: 'Rose folding guide' });
   assert.equal(calls.length, 1);
   const { url, opts } = calls[0];
-  assert.match(url, /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-2\.0-flash:generateContent$/);
+  assert.match(url, /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-3\.1-flash-lite:generateContent$/);
   assert.equal(opts.method, 'POST');
   assert.equal(opts.headers['x-goog-api-key'], 'test-gemini-key');
   const body = JSON.parse(opts.body);
@@ -74,6 +74,7 @@ test('LLM_MODEL overrides the default gemini model', async () => {
 });
 
 test('llmAvailable follows the provider key', () => {
+  delete process.env.NODE_ENV; // hermetic gate off — this test inspects key logic
   assert.equal(llmAvailable(), true, 'gemini + GEMINI_API_KEY');
   delete process.env.GEMINI_API_KEY;
   assert.equal(llmAvailable(), false, 'gemini without a key');
@@ -81,6 +82,15 @@ test('llmAvailable follows the provider key', () => {
   assert.equal(llmAvailable(), true, 'LLM_API_KEY still accepted');
   delete process.env.LLM_API_KEY;
   process.env.GEMINI_API_KEY = 'test-gemini-key';
+});
+
+test('llmAvailable is hermetic under NODE_ENV=test', () => {
+  process.env.NODE_ENV = 'test';
+  assert.equal(llmAvailable(), false, 'a real key on disk never reaches a provider from the suite');
+  __setLlmCall(() => '{"stubbed":true}');
+  assert.equal(llmAvailable(), true, 'the __setLlmCall stub still counts in test mode');
+  __setLlmCall(null);
+  delete process.env.NODE_ENV;
 });
 
 test('openai provider honours LLM_BASE_URL — Gemini OpenAI-compatible surface', async () => {
@@ -108,4 +118,22 @@ test('openai provider honours LLM_BASE_URL — Gemini OpenAI-compatible surface'
   delete process.env.LLM_API_KEY;
   delete process.env.LLM_MODEL;
   process.env.LLM_PROVIDER = 'gemini';
+});
+
+test('retries once on transient 429, not on other errors', async () => {
+  const geminiReply = () => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"ok":true,"engine":"llm"}' }] } }] }) });
+  let n = 0;
+  globalThis.fetch = async () => { n++; calls.push({}); return n === 1 ? { ok: false, status: 429, json: async () => ({}) } : geminiReply(); };
+  calls = [];
+  const out = await llmJson({ system: 's', user: 'u' });
+  assert.deepEqual(out, { ok: true, engine: 'llm' });
+  assert.equal(calls.length, 2, 'one retry after 429');
+
+  let m = 0;
+  globalThis.fetch = async () => { m++; calls.push({}); return { ok: false, status: 500, json: async () => ({}) }; };
+  calls = [];
+  await assert.rejects(() => llmJson({ system: 's', user: 'u' }), /LLM 500/);
+  assert.equal(calls.length, 1, '500 is not retried');
+
+  globalThis.fetch = geminiReply;
 });

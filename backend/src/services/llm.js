@@ -20,6 +20,9 @@ export function __setLlmCall(fn) { callImpl = fn; }
 
 export function llmAvailable() {
   if (callImpl) return true;
+  // Hermetic suite: a real key on disk must never reach a provider from tests
+  // (NODE_ENV=test is set by npm test); only the __setLlmCall stub counts there.
+  if (process.env.NODE_ENV === 'test') return false;
   const provider = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase();
   if (provider === 'gemini') return Boolean(process.env.GEMINI_API_KEY || process.env.LLM_API_KEY);
   return Boolean(process.env.LLM_API_KEY);
@@ -38,8 +41,20 @@ function defaultModel(provider) {
   if (process.env.LLM_MODEL) return process.env.LLM_MODEL;
   if (provider === 'openai') return 'gpt-4o-mini';
   if (provider === 'opencode-go') return 'mimo-v2.6-flash';
-  if (provider === 'gemini') return 'gemini-2.0-flash';
+  if (provider === 'gemini') return 'gemini-3.1-flash-lite';
   return 'claude-3-5-haiku-latest';
+}
+
+// One retry on transient upstream throttling (Gemini free tier returns 503
+// under demand and 429 on bursts); anything else returns immediately.
+async function post(url, opts) {
+  let res = await fetch(url, opts);
+  if (!res.ok && (res.status === 429 || res.status === 503)) {
+    await Promise.resolve(res.body?.cancel()).catch(() => {});
+    await new Promise((r) => setTimeout(r, 750));
+    res = await fetch(url, opts);
+  }
+  return res;
 }
 
 /**
@@ -66,7 +81,7 @@ export async function llmJson({ system, user, maxTokens = 2000, session, userAge
     // per conversation for routing/prompt-cache; JSON enforced by prompt only
     // (response_format isn't universally supported on the gateway).
     const base = (process.env.LLM_BASE_URL || 'https://opencode.ai/inference/go/openai/v1').replace(/\/+$/, '');
-    const res = await fetch(`${base}/chat/completions`, {
+    const res = await post(`${base}/chat/completions`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -83,7 +98,7 @@ export async function llmJson({ system, user, maxTokens = 2000, session, userAge
     // Google Generative Language API. Key from GEMINI_API_KEY (or LLM_API_KEY).
     const geminiKey = process.env.GEMINI_API_KEY || key;
     const base = (process.env.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-    const res = await fetch(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
+    const res = await post(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({
@@ -99,9 +114,9 @@ export async function llmJson({ system, user, maxTokens = 2000, session, userAge
     // OpenAI-compatible endpoints. LLM_BASE_URL lets any compatible gateway
     // serve the call — e.g. Gemini's OpenAI-compatible surface:
     //   LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-    //   LLM_MODEL=gemini-2.5-pro
+    //   LLM_MODEL=gemini-3-flash-preview
     const base = (process.env.LLM_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-    const res = await fetch(`${base}/chat/completions`, {
+    const res = await post(`${base}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, temperature: 0, max_tokens: maxTokens, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
@@ -110,7 +125,7 @@ export async function llmJson({ system, user, maxTokens = 2000, session, userAge
     if (!res.ok) throw new Error(`LLM ${res.status}`);
     reply = (await res.json())?.choices?.[0]?.message?.content;
   } else {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await post('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] }),

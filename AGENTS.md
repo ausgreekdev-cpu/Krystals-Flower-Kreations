@@ -43,12 +43,13 @@ npm run build       # Vite build + PWA
 ## LLM (procedure analysis + document enrichment)
 
 - `backend/src/services/llm.js` is the single provider-agnostic transport (JSON-in/JSON-out). Providers: `anthropic` (default) | `openai` | `opencode-go` | `gemini`.
-- `LLM_PROVIDER` picks the provider; `LLM_API_KEY` is the key — the **gemini** provider also accepts `GEMINI_API_KEY` (Google AI Studio key, `https://aistudio.googleapis.com` shape: `AIza…`). `LLM_MODEL` overrides the model (defaults: `claude-3-5-haiku-latest` / `gpt-4o-mini` / `mimo-v2.6-flash` / `gemini-2.0-flash`); `LLM_BASE_URL` overrides the base.
+- `LLM_PROVIDER` picks the provider; `LLM_API_KEY` is the key — the **gemini** provider also accepts `GEMINI_API_KEY` (Google AI Studio key, `https://aistudio.googleapis.com` shape: `AIza…`). `LLM_MODEL` overrides the model (defaults: `claude-3-5-haiku-latest` / `gpt-4o-mini` / `mimo-v2.6-flash` / `gemini-3.1-flash-lite`); `LLM_BASE_URL` overrides the base.
 - Gemini request shape: `systemInstruction` + `contents[]` + `generationConfig.responseMimeType: application/json`; key sent as the `x-goog-api-key` header. Plain `fetch` — no SDK dependency.
-- **Custom OpenAI-compatible endpoints**: the `openai` provider now honours `LLM_BASE_URL` (it used to be hardcoded to api.openai.com), so Gemini's compat surface works as a drop-in: `LLM_PROVIDER=openai` + `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` + `LLM_MODEL=gemini-2.5-pro` + `LLM_API_KEY=<key>`.
+- **Transient throttling**: one retry after 750ms on upstream 429/503 (Gemini free tier flips 503 under demand); anything else falls back to rules immediately.
+- **Custom OpenAI-compatible endpoints**: the `openai` provider now honours `LLM_BASE_URL` (it used to be hardcoded to api.openai.com), so Gemini's compat surface works as a drop-in: `LLM_PROVIDER=openai` + `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` + `LLM_MODEL=gemini-3-flash-preview` + `LLM_API_KEY=<key>`.
 - **No key = no LLM**: `llmAvailable()` is false, and `procedureAnalyzer` falls back to its rules engine (still works, less rich) — same for `documentEnricher` (returns null).
 - Keys are **server-side env only** — never a setting in the DB and never in the frontend. Prod keys live in the Netlify env (see `.env.netlify.template`); local ones in `backend/.env` (gitignored).
-- Tests stub the transport (`__setLlmCall` in `lib/llm.js` consumers) or `globalThis.fetch` — the suite never calls a provider.
+- Tests stub the transport (`__setLlmCall` in `lib/llm.js` consumers) or `globalThis.fetch` — the suite never calls a provider. **Hard guarantee**: `llmAvailable()` returns false whenever `NODE_ENV=test` (only the `__setLlmCall` stub counts there), so a real key on disk can never leak a network call into `npm test`.
 
 ## Env files (all gitignored except template)
 

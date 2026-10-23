@@ -40,7 +40,8 @@ before(async () => {
 });
 after(async () => {
   await prisma.procedureImport.deleteMany({ where: { sourceName: { contains: UNIQUE } } }).catch(() => {});
-  await prisma.rawMaterial.deleteMany({ where: { sku: { startsWith: `PI-${UNIQUE}` } } }).catch(() => {});
+  // PI- skus are test-only: purge ALL runs' leftovers, not just this UNIQUE
+  await prisma.rawMaterial.deleteMany({ where: { sku: { startsWith: 'PI-' } } }).catch(() => {});
   await srv.close();
 });
 
@@ -187,31 +188,34 @@ test('approve creates materials + recipe + draft product + procedure document', 
   });
   assert.equal(approved.status, 200, JSON.stringify(approved.body).slice(0, 300));
   assert.equal(approved.body.import.status, 'approved');
-  const result = approved.body.result;
-  assert.ok(result.productId && result.recipeId && result.procedureDocumentId, JSON.stringify(result));
-  assert.equal(result.createdMaterialIds.length, 2, 'tape + wire created (cardstock was matched)');
+  const result = approved.body.result || {};
+  try {
+    assert.ok(result.productId && result.recipeId && result.procedureDocumentId, JSON.stringify(result));
+    assert.equal(result.createdMaterialIds?.length, 2, 'tape + wire created (cardstock was matched)');
 
-  const prod = await prisma.product.findUnique({ where: { id: result.productId } });
-  assert.equal(prod.isActive, false, 'product is a draft until published');
-  assert.equal(prod.type, 'made_to_order');
-  assert.equal(Number(prod.price), Number(approved.body.import.pricing.retail), 'priced from the snapshot');
+    const prod = await prisma.product.findUnique({ where: { id: result.productId } });
+    assert.equal(prod.isActive, false, 'product is a draft until published');
+    assert.equal(prod.type, 'made_to_order');
+    assert.equal(Number(prod.price), Number(approved.body.import.pricing.retail), 'priced from the snapshot');
 
-  const recipe = await prisma.bOMRecipe.findUnique({ where: { id: result.recipeId }, include: { lines: true } });
-  assert.equal(recipe.lines.length, 3);
-  assert.equal(recipe.labourMinutesPerUnit, 45);
-  assert.equal(recipe.cricutMinutesPerUnit, 8);
+    const recipe = await prisma.bOMRecipe.findUnique({ where: { id: result.recipeId }, include: { lines: true } });
+    assert.equal(recipe.lines.length, 3);
+    assert.equal(recipe.labourMinutesPerUnit, 45);
+    assert.equal(recipe.cricutMinutesPerUnit, 8);
 
-  const doc = await prisma.procedureDocument.findUnique({ where: { id: result.procedureDocumentId } });
-  assert.equal(doc.status, 'draft');
-  assert.equal(doc.category, 'PAPER_FLOWER');
-  assert.match(doc.contentMarkdown, /Cut petals/);
-
-  // cleanup (hard deletes — test artefacts)
-  await prisma.bOMLine.deleteMany({ where: { recipeId: result.recipeId } });
-  await prisma.bOMRecipe.delete({ where: { id: result.recipeId } }).catch(() => {});
-  await prisma.procedureDocument.delete({ where: { id: result.procedureDocumentId } }).catch(() => {});
-  await prisma.product.delete({ where: { id: result.productId } }).catch(() => {});
-  await prisma.rawMaterial.deleteMany({ where: { id: { in: result.createdMaterialIds } } }).catch(() => {});
+    const doc = await prisma.procedureDocument.findUnique({ where: { id: result.procedureDocumentId } });
+    assert.equal(doc.status, 'draft');
+    assert.equal(doc.category, 'PAPER_FLOWER');
+    assert.match(doc.contentMarkdown, /Cut petals/);
+  } finally {
+    // cleanup (hard deletes — test artefacts) — runs even when an assert throws,
+    // otherwise a failed run leaks materials/products that break the NEXT run
+    await prisma.bOMLine.deleteMany({ where: { recipeId: result.recipeId } }).catch(() => {});
+    await prisma.bOMRecipe.delete({ where: { id: result.recipeId } }).catch(() => {});
+    await prisma.procedureDocument.delete({ where: { id: result.procedureDocumentId } }).catch(() => {});
+    await prisma.product.delete({ where: { id: result.productId } }).catch(() => {});
+    await prisma.rawMaterial.deleteMany({ where: { id: { in: result.createdMaterialIds || [] } } }).catch(() => {});
+  }
 });
 
 test('approve can bind an existing product and skip the procedure doc', async () => {
