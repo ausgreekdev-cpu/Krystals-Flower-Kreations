@@ -44,3 +44,10 @@ stripe_backup_code.txt
 freebuff/
 .freebuff/
 backups/
+
+# Generated output of scripts/generate-paper-flower-svgs.mjs (regenerable —
+# the served assets live tracked in frontend/public/svg/)
+SVG/
+
+# 73MB LUX-session dump that landed in this repo by accident (other project)
+docs/krystals-creations.json
