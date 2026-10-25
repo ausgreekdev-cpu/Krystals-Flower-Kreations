@@ -28,11 +28,14 @@ export function estimateLocalPrice(spec: ConfiguratorSpecState, s: Record<string
   const base = num(s.configurator_floor, 45);
   const perStem = spec.stemCount * num(s.configurator_per_stem, 9.5);
   const paperPremium = (Number(paperPremiumPerStem) || 0) * spec.stemCount;
+  const weightSurcharge = spec.weight === '80lb' ? num(s.configurator_weight_80lb, 0) : spec.weight === '110lb' ? num(s.configurator_weight_110lb, 0) : 0;
+  const heightExtra = Math.max(0, Number(spec.heightMm) - 400);
+  const heightSurcharge = Math.floor(heightExtra / 100) * num(s.configurator_height_per_100mm, 0);
   const greenery = spec.addGreenery ? num(s.configurator_greenery, 12) : 0;
   const vase = spec.vaseIncluded ? num(s.configurator_vase, 22) : 0;
   const dome = spec.domeIncluded ? num(s.configurator_dome, 45) : 0;
   const led = spec.ledIncluded ? num(s.configurator_led, 18) : 0;
-  const unitPrice = Math.round((base + perStem + paperPremium + greenery + vase + dome + led) * 100) / 100;
+  const unitPrice = Math.round((base + perStem + paperPremium + weightSurcharge + heightSurcharge + greenery + vase + dome + led) * 100) / 100;
   const estimatedMinutes = Math.round(22 + spec.stemCount * 6 + (spec.heightMm / 60) + (spec.domeIncluded ? 10 : 0) + (spec.ledIncluded ? 3 : 0));
   return { unitPrice, totalPrice: unitPrice, estimatedMinutes };
 }

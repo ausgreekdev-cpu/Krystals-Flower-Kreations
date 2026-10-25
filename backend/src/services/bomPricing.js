@@ -48,10 +48,10 @@ export function estimateWithAddOns(baseRetail, spec, addOns = {}) {
   return Math.max(floor + (spec?.stemCount || 7) * perStem, total);
 }
 
-export async function findRecipeFor(prisma, { productId, variantId }) {
+export async function findRecipeFor(prisma, { productId, variantId, templateId }) {
   let recipe = null;
-  if (variantId) recipe = await prisma.bOMRecipe.findFirst({ where: { variantId }, include: { lines: { include: { rawMaterial: true } } } });
+  if (templateId) recipe = await prisma.bOMRecipe.findUnique({ where: { templateId }, include: { lines: { include: { rawMaterial: true } } } });
+  if (!recipe && variantId) recipe = await prisma.bOMRecipe.findFirst({ where: { variantId }, include: { lines: { include: { rawMaterial: true } } } });
   if (!recipe && productId) recipe = await prisma.bOMRecipe.findFirst({ where: { productId, variantId: null }, include: { lines: { include: { rawMaterial: true } } } });
-  if (!recipe) recipe = await prisma.bOMRecipe.findFirst({ include: { lines: { include: { rawMaterial: true } } } });
   return recipe;
 }

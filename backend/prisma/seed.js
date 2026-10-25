@@ -179,39 +179,50 @@ async function main() {
   }
   if (!SKIP_DEMO) console.log(`Seeded ${papers.length} configurator papers`);
 
-  // BOM recipe for paper rose (baseline 7-stem bouquet)
-  const rose = await prisma.product.findUnique({ where: { slug: 'eucalyptus-paper-rose-bouquet-blush' } });
-  if (rose) {
-    const existingRecipe = await prisma.bOMRecipe.findFirst({ where: { productId: rose.id, variantId: null } });
+  // BOM recipes per template (was single fallback findFirst({}) for every flower style)
+  const blushMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-CARD-65-BLUSH' } });
+  const sageMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-CARD-65-SAGE' } });
+  const wireMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-WIRE-18GA' } });
+  const tapeMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-TAPE-FLORAL' } });
+  const glueMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-GLUE-STICK' } });
+  const templateRecipes = [
+    { templateId: 'wattle-sprig', labour: 25, cricut: 8, lines: [ { mat: blushMat, qty: 8 }, { mat: wireMat, qty: 2.5 }, { mat: tapeMat, qty: 0.4 }, { mat: glueMat, qty: 3 } ] },
+    { templateId: 'paper-rose', labour: 35, cricut: 10, lines: [ { mat: blushMat, qty: 10 }, { mat: wireMat, qty: 3.5 }, { mat: tapeMat, qty: 0.5 }, { mat: glueMat, qty: 4 } ] },
+    { templateId: 'banksia-petal', labour: 30, cricut: 12, lines: [ { mat: sageMat, qty: 9 }, { mat: wireMat, qty: 4 }, { mat: tapeMat, qty: 0.6 }, { mat: glueMat, qty: 5 } ] },
+    { templateId: 'origami-lily', labour: 20, cricut: 6, lines: [ { mat: blushMat, qty: 6 }, { mat: wireMat, qty: 2 }, { mat: tapeMat, qty: 0.3 }, { mat: glueMat, qty: 2 } ] },
+  ];
+  for (const t of templateRecipes) {
+    if (!t.lines[0].mat) continue;
+    const existing = await prisma.bOMRecipe.findUnique({ where: { templateId: t.templateId } });
     let recipeId;
-    if (existingRecipe) {
-      recipeId = existingRecipe.id;
+    if (existing) {
+      recipeId = existing.id;
       await prisma.bOMLine.deleteMany({ where: { recipeId } });
-      await prisma.bOMRecipe.update({ where: { id: recipeId }, data: { labourMinutesPerUnit: 35, cricutMinutesPerUnit: 10 } });
+      await prisma.bOMRecipe.update({ where: { id: recipeId }, data: { labourMinutesPerUnit: t.labour, cricutMinutesPerUnit: t.cricut } });
     } else {
-      const rec = await prisma.bOMRecipe.create({ data: { productId: rose.id, labourMinutesPerUnit: 35, cricutMinutesPerUnit: 10 } });
+      const rec = await prisma.bOMRecipe.create({ data: { templateId: t.templateId, labourMinutesPerUnit: t.labour, cricutMinutesPerUnit: t.cricut } });
       recipeId = rec.id;
     }
-    const blush = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-CARD-65-BLUSH' } });
-    const wire = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-WIRE-18GA' } });
-    const tape = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-TAPE-FLORAL' } });
-    const glue = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-GLUE-STICK' } });
-    const bomLines = [
-      { rawMaterialId: blush.id, qtyPerUnit: 10, wasteFactor: 0.08 }, // 10 sheets per 7-stem bouquet
-      { rawMaterialId: wire.id, qtyPerUnit: 3.5, wasteFactor: 0.05 }, // meters
-      { rawMaterialId: tape.id, qtyPerUnit: 0.5, wasteFactor: 0.02 },
-      { rawMaterialId: glue.id, qtyPerUnit: 4, wasteFactor: 0.10 },
-    ];
-    for (const l of bomLines) await prisma.bOMLine.create({ data: { recipeId, ...l } });
-    console.log('Seeded BOM recipe for paper rose');
+    for (const l of t.lines) {
+      if (!l.mat) continue;
+      await prisma.bOMLine.create({ data: { recipeId, rawMaterialId: l.mat.id, qtyPerUnit: l.qty, wasteFactor: 0.05 } });
+    }
   }
+  console.log('Seeded BOM recipes per template (wattle-sprig, paper-rose, banksia-petal, origami-lily)');
 
-  // Generic BOM fallback for configurator (used when no product-specific recipe)
-  const blushMat = await prisma.rawMaterial.findUnique({ where: { sku: 'RM-CARD-65-BLUSH' } });
-  if (blushMat && !(await prisma.bOMRecipe.findFirst({ where: { productId: null, variantId: null } }))) {
-    // Create a generic recipe without product link for configurator baseline — store as product-less
-    // Use rawMaterials generic via first product as placeholder; alternative: handle in customOrders route fallback
-    console.log('Generic BOM handled via fallback in customOrders route');
+  // Legacy product-linked recipe kept for compat (paper rose product) — ensure it exists without templateId for old orders
+  const rose = await prisma.product.findUnique({ where: { slug: 'eucalyptus-paper-rose-bouquet-blush' } });
+  if (rose) {
+    const legacy = await prisma.bOMRecipe.findFirst({ where: { productId: rose.id, templateId: null } });
+    if (!legacy) {
+      const rec = await prisma.bOMRecipe.create({ data: { productId: rose.id, labourMinutesPerUnit: 35, cricutMinutesPerUnit: 10 } });
+      if (blushMat && wireMat && tapeMat && glueMat) {
+        for (const l of [ { mat: blushMat, qty: 10 }, { mat: wireMat, qty: 3.5 }, { mat: tapeMat, qty: 0.5 }, { mat: glueMat, qty: 4 } ]) {
+          await prisma.bOMLine.create({ data: { recipeId: rec.id, rawMaterialId: l.mat.id, qtyPerUnit: l.qty, wasteFactor: 0.05 } });
+        }
+      }
+      console.log('Seeded legacy product-linked BOM recipe');
+    }
   }
 
   // Studio Settings (tax, labour, ABN) — for Admin hub + notebook
