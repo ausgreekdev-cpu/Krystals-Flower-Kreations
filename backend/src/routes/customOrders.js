@@ -36,6 +36,7 @@ const specSchema = z.object({
   domeIncluded: z.boolean().default(false),
   ledIncluded: z.boolean().default(false),
   palette: z.string().min(1).max(50).optional().nullable(),
+  paperStockId: z.string().min(8).max(100).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
 });
 const createSchema = z.object({
@@ -92,15 +93,21 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
   }
   const addCfg = await getSettings({ onlyPublic: true }).catch(() => ({}));
   const price = (key, d) => { const n = Number(addCfg?.[key]); return addCfg?.[key] != null && addCfg[key] !== '' && Number.isFinite(n) ? n : d; };
+  let paperPremiumPerStem = 0;
+  if (data.spec.paperStockId) {
+    const paper = await prisma.paperStock.findUnique({ where: { id: data.spec.paperStockId }, select: { pricePremiumPerStem: true, isActive: true } }).catch(()=>null);
+    if (paper?.isActive) paperPremiumPerStem = Number(paper.pricePremiumPerStem) || 0;
+  }
+  const paperPremiumTotal = Math.round(paperPremiumPerStem * stemCount * 100) / 100;
   const LABOUR_RATE = (await pricingConfig()).labourPerHour / 60;
   const rawPrice = costPrice + (estimatedMinutes * LABOUR_RATE);
   const bouquetTotal = Math.round((rawPrice * (await pricingConfig()).margin) * 100) / 100;
-  // Floor prices the bouquet only; add-ons are real goods and always bill on top.
+  // Floor prices the bouquet only; add-ons + paper premium are real goods and always bill on top.
   const addOnsTotal = (data.spec.vaseIncluded ? price('configurator_vase', 22) : 0)
     + (data.spec.addGreenery ? price('configurator_greenery', 12) : 0)
     + (data.spec.domeIncluded ? price('configurator_dome', 45) : 0)
     + (data.spec.ledIncluded ? price('configurator_led', 18) : 0);
-  const finalPrice = Math.max(price('configurator_floor', 45) + stemCount * price('configurator_per_stem', 9.5), bouquetTotal) + addOnsTotal;
+  const finalPrice = Math.max(price('configurator_floor', 45) + stemCount * price('configurator_per_stem', 9.5), bouquetTotal) + addOnsTotal + paperPremiumTotal;
   const order = await prisma.customArtOrder.create({
     data: {
       orderNumber: orderNumber(),
@@ -175,7 +182,15 @@ router.patch('/:id/state', authenticate, requireRole('admin','developer','maker'
     for (const line of (order.bomSnapshot || [])) {
       try {
         await prisma.rawMaterial.update({ where: { id: line.rawMaterialId }, data: { onHand: { decrement: line.effectiveQty } } });
-        await prisma.stockMovement.create({ data: { productId: order.productId || undefined, rawMaterialId: line.rawMaterialId, type: 'bom_deduct', quantity: -Math.round(line.effectiveQty), reason: `Custom order ${order.orderNumber} → Cricut Cutting`, reference: order.id, userId: req.user.id } });
+        await prisma.stockMovement.create({ data: { productId: order.productId || undefined, rawMaterialId: line.rawMaterialId, type: 'bom_deduct', quantity: -Math.round(line.effectiveQty), reason: `Custom order ${order.orderNumber} → Cutting`, reference: order.id, userId: req.user.id } });
+      } catch {}
+    }
+    // Deduct sellable paper stock if chosen
+    const paperId = order.spec && typeof order.spec === 'object' ? order.spec.paperStockId : null;
+    if (paperId) {
+      try {
+        const paper = await prisma.paperStock.findUnique({ where: { id: paperId } });
+        if (paper) await prisma.paperStock.update({ where: { id: paperId }, data: { onHand: { decrement: order.spec.stemCount || 1 } } });
       } catch {}
     }
   }

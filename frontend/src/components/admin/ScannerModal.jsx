@@ -3,6 +3,17 @@ import Cropper from 'react-easy-crop';
 import { adminApi } from '../../lib/api/customClient';
 import { frameSignals, allGood, CHIP } from '../../lib/scanGuidance';
 
+const CATEGORIES = ['STOCKTAKE', 'SUPPLIER', 'INVOICE', 'PROCEDURE', 'EXPORT', 'MEDIA', 'OTHER'];
+const SUBCATEGORIES = {
+  STOCKTAKE: ['CARDSTOCK', 'WIRE_TAPE', 'ADHESIVES', 'PACKAGING', 'FINISHED'],
+  SUPPLIER: ['PAPER_SUPPLIER', 'HARDWARE_SUPPLIER', 'PACKAGING_SUPPLIER', 'GENERAL_SUPPLIER'],
+  INVOICE: ['PURCHASE_INVOICE', 'SALES_INVOICE', 'RECEIPT', 'QUOTE', 'CREDIT_NOTE'],
+  PROCEDURE: ['PETAL_ASSEMBLY', 'ORIGAMI_FOLD', 'WIRING_TAPING', 'PACKAGING_GUIDE', 'QC_CHECK'],
+  EXPORT: ['ORDER_EXPORT', 'INVENTORY_EXPORT', 'BACKUP', 'REPORT'],
+  MEDIA: ['PRODUCT_PHOTO', 'WORKSHOP_PHOTO', 'BRAND_ASSET', 'REFERENCE', 'SOCIAL'],
+  OTHER: ['GENERAL'],
+};
+
 // Phone-camera document capture: live preview → capture frame → rotate/crop
 // (react-easy-crop) → upload as a business document → auto-run OCR. Falls
 // back to a capture-attributed file input when getUserMedia is unavailable
@@ -16,6 +27,8 @@ export default function ScannerModal({ token, onDone, onClose }) {
   const [zoom, setZoom] = useState(1);
   const [area, setArea] = useState(null);
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('OTHER');
+  const [subcategory, setSubcategory] = useState('');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [mode, setMode] = useState('single'); // single | pages (multi-page PDF)
@@ -172,7 +185,7 @@ export default function ScannerModal({ token, onDone, onClose }) {
       }
 
       setBusy('Uploading…');
-      const r = await adminApi.documents.upload(file, token);
+      const r = await adminApi.documents.upload(file, token, undefined, category, subcategory || undefined);
       const doc = r.document;
       if (r.deduped) {
         setBusy('');
@@ -221,7 +234,7 @@ export default function ScannerModal({ token, onDone, onClose }) {
         files.push(new File([blob], `page-${i + 1}.jpg`, { type: 'image/jpeg' }));
       }
       setBusy('Reading text…');
-      const r = await adminApi.documents.assemble(files, (title.trim() || `Scan ${new Date().toLocaleDateString('en-AU')}`).slice(0, 80), token);
+      const r = await adminApi.documents.assemble(files, (title.trim() || `Scan ${new Date().toLocaleDateString('en-AU')}`).slice(0, 80), token, category, subcategory || undefined);
       onDone?.(r.document, r.deduped ? 'reused' : `${r.pages} pages · OCR done`);
     } catch (e) {
       setErr(e.message || 'Could not assemble the PDF');
@@ -323,6 +336,13 @@ export default function ScannerModal({ token, onDone, onClose }) {
               <button type="button" onClick={rotate} className="text-xs font-semibold border border-line-strong rounded-xl px-3 py-1.5">↻ Rotate</button>
               <button type="button" onClick={() => { setShot(null); setArea(null); }} className="text-xs text-muted hover:underline">Retake</button>
               <div className="flex-1" />
+              <select value={category} onChange={(e) => { setCategory(e.target.value); setSubcategory(''); }} aria-label="Category" className="border border-line-strong rounded-xl px-3 py-1.5 text-xs bg-surface2 text-ink">
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} aria-label="Sub-category" className="border border-line-strong rounded-xl px-3 py-1.5 text-xs bg-surface2 text-ink">
+                <option value="">— Sub —</option>
+                {(SUBCATEGORIES[category] || []).map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+              </select>
               <input className="border border-line-strong rounded-xl px-3 py-1.5 text-xs w-44" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Scan title" />
               {mode === 'pages' ? (
                 <>

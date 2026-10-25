@@ -31,7 +31,7 @@ export default function Product(){
       if (item) trackEvent('view_item', { currency: 'AUD', value: item.price, items: [item] });
     }).catch(e=>{
       setErr(e.message); setP({ error:true });
-      updateSeo({ title: `Product not found — ${ORG}`, description: 'This paper bloom could not be found — browse the shop for everlasting bouquets and Cricut templates.' });
+      updateSeo({ title: `Product not found — ${ORG}`, description: 'This paper bloom could not be found — browse the shop for everlasting bouquets and templates.' });
     });
   }, [slug]);
   // Field definitions drive labels/types for p.customFields — same list for every product
@@ -196,7 +196,7 @@ export default function Product(){
             {p.careInstructions && <div className="text-xs text-muted">Care: {p.careInstructions}</div>}
           </div>
         )}
-        {s.show_cricut === '1' && p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Cricut-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
+        {s.show_cricut === '1' && p.cricutCompatible && <div className="mt-3 text-sm bg-surface border border-bloom-100 rounded-xl p-3">✓ Machine-compatible — {p.paperStock || 'cardstock'} • SVG available</div>}
         {!isDigital && p.madeToOrderDays && <div className="mt-2 text-sm text-muted">Made to order — {p.madeToOrderDays} days • Perth studio</div>}
         {customRows.length>0 && (
           <div className="mt-3 bg-surface border border-bloom-100 rounded-xl p-3 text-sm space-y-1">
@@ -231,7 +231,7 @@ export default function Product(){
         <section className="mt-10 border-t pt-8" aria-label="Related blooms">
           <h2 className="text-xl font-black text-ink">More like this</h2>
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {related.map(r=> <ProductCard key={r.id} p={r} showCricut={s.show_cricut==='1'} />)}
+            {related.map(r=> <ProductCard key={r.id} p={r} show={s.show_cricut==='1'} />)}
           </div>
         </section>
       )}

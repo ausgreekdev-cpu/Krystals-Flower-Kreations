@@ -18,6 +18,7 @@ import ImportQueue from '../components/admin/ImportQueue';
 import SupplierDetail from '../components/admin/SupplierDetail';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import StatusBadge from '../components/admin/Badge';
+import PaperStocksManager from '../components/admin/PaperStocksManager';
 import ScanModal from '../components/scan/ScanModal';
 import ScannerIndicator from '../components/scan/ScannerIndicator';
 import { useWedgeScanner } from '../components/scan/useWedgeScanner';
@@ -29,6 +30,7 @@ const TABS = [
   { id: 'orders', label: 'Orders', icon: '🧾' },
   { id: 'inventory', label: 'Inventory', icon: '📦' },
   { id: 'products', label: 'Products', icon: '🌹' },
+  { id: 'papers', label: 'Papers', icon: '📄' },
   { id: 'recipes', label: 'Recipes', icon: '🧪' },
   { id: 'collections', label: 'Collections', icon: '🗂️' },
   { id: 'workshops', label: 'Workshops', icon: '🎨' },
@@ -36,7 +38,7 @@ const TABS = [
   { id: 'reviews', label: 'Reviews', icon: '⭐' },
   { id: 'blog', label: 'Blog', icon: '📝' },
   { id: 'procedures', label: 'Procedures', icon: '📐' },
-  { id: 'documents', label: 'Documents', icon: '📁' },
+  { id: 'database', label: 'Database', icon: '🗄️' },
   { id: 'media', label: 'Media', icon: '🖼️' },
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'meta', label: 'Meta Sync', icon: '🔗' },
@@ -56,8 +58,8 @@ const ORDER_FLOW = ['pending_payment', 'paid', 'making', 'ready', 'shipped', 'de
 const NAV_GROUPS = [
   { label: null, tabs: ['overview'] },
   { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
-  { label: 'Catalog', tabs: ['products', 'collections', 'recipes', 'inventory'] },
-  { label: 'Content', tabs: ['blog', 'procedures', 'documents', 'reviews', 'meta', 'notebook'] },
+  { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory'] },
+  { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers'] },
   { label: 'System', tabs: ['users', 'settings'] },
 ];
@@ -67,7 +69,9 @@ const byNameNatural = (a, b) => String(a?.name || '').localeCompare(String(b?.na
 
 function AdminInner({ user }) {
   const params = new URLSearchParams(window.location.search);
-  const [tab, setTab] = useState(params.get('tab') || 'overview');
+  const rawTab = params.get('tab') || 'overview';
+  const initialTab = rawTab === 'documents' ? 'database' : rawTab;
+  const [tab, setTab] = useState(TABS.some((t) => t.id === initialTab) ? initialTab : 'overview');
   const [navQ, setNavQ] = useState('');
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(false);
@@ -195,7 +199,8 @@ function AdminInner({ user }) {
   // skip the effect's URL write so history's sub/inv params stay intact).
   useEffect(() => {
     const onPop = () => {
-      const t = new URLSearchParams(window.location.search).get('tab') || 'overview';
+      const raw = new URLSearchParams(window.location.search).get('tab') || 'overview';
+      const t = raw === 'documents' ? 'database' : raw;
       if (t !== tabRef.current && TABS.some((x) => x.id === t)) {
         skipUrlWriteRef.current = true;
         setTab(t);
@@ -314,7 +319,8 @@ function AdminInner({ user }) {
                   {tab === 'reviews' && <Reviews data={data} reload={() => load('reviews')} token={token} />}
                   {tab === 'blog' && <Blog data={data} reload={() => load('blog')} token={token} />}
                   {tab === 'procedures' && <Procedures token={token} role={user?.role} />}
-                  {tab === 'documents' && <DocumentCentre token={token} role={user?.role} onOpenImports={() => setTab('recipes')} />}
+                  {tab === 'papers' && <PaperStocksManager token={token} />}
+                  {tab === 'database' && <DocumentCentre token={token} role={user?.role} onOpenImports={() => setTab('recipes')} />}
                   {tab === 'media' && <MediaLibrary token={token} role={user?.role} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
@@ -1578,7 +1584,7 @@ function ProductModal({ product, onClose, onSaved, onChanged, token }) {
       </div>
       {isDigitalForm && (
         <div className="mt-4 border border-line rounded-xl p-3">
-          <label className={label}>Full SVG file (Cricut-ready — emailed to buyers after payment)</label>
+          <label className={label}>Full SVG file (Ready — emailed to buyers after payment)</label>
           <div className="flex items-center gap-2 mt-1">
             <input type="file" accept=".svg,image/svg+xml" className="text-xs" disabled={svgUploading || !product?.id}
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadSvgFile(f); }} />
@@ -1900,7 +1906,7 @@ function RecipeModal({ recipe, materials, products, onClose, onSaved, token }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className={label}>Labour min/unit</label><input type="number" className={input} value={labour} onChange={(e) => setLabour(e.target.value)} /></div>
-        <div><label className={label}>Cricut min/unit</label><input type="number" className={input} value={cricut} onChange={(e) => setCricut(e.target.value)} /></div>
+        <div><label className={label}>Machine min/unit</label><input type="number" className={input} value={cricut} onChange={(e) => setCricut(e.target.value)} /></div>
       </div>
       <div>
         <div className="flex items-center justify-between mb-1"><label className="text-xs font-semibold text-muted">Material lines</label><button onClick={addLine} className="text-xs text-royal-700 font-semibold hover:underline">+ Add material</button></div>

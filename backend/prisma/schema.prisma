@@ -879,6 +879,33 @@ model Supplier {
   @@map("suppliers")
 }
 
+// ── Configurator paper catalogue (sellable materials, not products) ─
+// Each row is a colour+type+texture+weight combo with its own per-stem premium and optional image/stock.
+// Picked in the configurator via spec.paperStockId; legacy spec.paperColor/paperTexture/weight remain for compat.
+model PaperStock {
+  id                    String   @id @default(cuid())
+  name                  String   @unique // e.g. "Blush Pearl 80lb"
+  colour                String // e.g. Blush
+  colourHex             String? // e.g. #F8C4B4
+  paperType             String // e.g. Canson, Colorplan, Quill
+  texture               String // textured | smooth | pearl | linen
+  weight                String // 65lb | 80lb | 110lb | 160gsm etc
+  pricePremiumPerStem   Decimal  @default(0) @db.Decimal(10, 2) // added per stem on top of floor+perStem
+  imageUrl              String? // storage ref or /uploads/papers/...
+  variants              Json? // { webp: {400,800}, avif: {...} }
+  width                 Int?
+  height                Int?
+  isActive              Boolean  @default(true)
+  sortOrder             Int      @default(0)
+  onHand                Float    @default(0)
+  lowThreshold          Float    @default(5)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("paper_stocks")
+}
+
 // ── Custom BOM & Kanban (Supabase-synced) ──────────────────────────
 
 enum CustomOrderState {
@@ -1249,6 +1276,7 @@ model BusinessDocument {
   sha256       String // dedup: identical bytes reuse the existing row
   kind         DocumentKind     @default(OTHER)
   category     DocumentCategory @default(OTHER)
+  subcategory  String? // imposed sub-category within category (e.g. STOCKTAKE:CARDSTOCK)
   tags         String[]         @default([])
   extractedText String?         @db.Text // searchable payload: csv/md/txt + pdf text + xlsx rows (≤256KB)
   thumbRef      String?          // private "bucket/key" webp preview for images (M2)
@@ -1270,6 +1298,7 @@ model BusinessDocument {
 
   @@index([kind, deletedAt])
   @@index([category, deletedAt])
+  @@index([subcategory, deletedAt])
   @@index([sha256])
   @@index([deletedAt, createdAt])
   @@map("business_documents")

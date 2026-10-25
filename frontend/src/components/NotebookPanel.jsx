@@ -19,7 +19,7 @@ export default function NotebookPanel({ compact=false, query='' }){
   }
   return (
     <details className="bg-surface2 border rounded-2xl">
-      <summary className="px-4 py-3 font-bold text-sm cursor-pointer">📓 NotebookLM — {query || 'Cricut settings & BOM'}</summary>
+      <summary className="px-4 py-3 font-bold text-sm cursor-pointer">📓 NotebookLM — {query || 'settings & BOM'}</summary>
       <div className="p-4 border-t">
         <p className="text-xs text-muted">Ask in NotebookLM: “What pressure for {query || '65lb Blush'} in Perth humidity?” — sources include paper stocks, wire guides.</p>
         <a href={href} target="_blank" rel="noopener" className="mt-2 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Open NotebookLM →</a>

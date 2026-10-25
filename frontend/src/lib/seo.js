@@ -4,7 +4,7 @@
 // OG/twitter tags; pages can only improve what Google sees, never those.
 const DEFAULT_TITLE = 'Krystals Flower Creations — Paper Florist Perth WA';
 const DEFAULT_DESCRIPTION =
-  'Custom paper florist & sculptural art workshop — Cricut + origami blooms. Perth WA. Everlasting bouquets, SVG templates & workshops. Handmade in Perth, GST-inclusive.';
+  'Custom paper florist & sculptural art workshop — origami blooms. Perth WA. Everlasting bouquets, SVG templates & workshops. Handmade in Perth, GST-inclusive.';
 
 function getMeta(content) {
   let el = document.head.querySelector(`meta[name="${content}"]`);

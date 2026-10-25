@@ -125,6 +125,14 @@
   path = "/loyalty"
   function = "markdown"
 
+[[edge_functions]]
+  path = "/notebook"
+  function = "markdown"
+
+[[edge_functions]]
+  path = "/terms"
+  function = "markdown"
+
 # ── Per-route OG/Twitter meta edge function (netlify/edge-functions/meta.ts) ──
 # Rewrites <head> og:/twitter:/canonical for link-preview bots only (FB,
 # WhatsApp, Twitter, Slack, Googlebot, …) — humans get a zero-cost pass-through.
@@ -168,6 +176,14 @@
 
 [[edge_functions]]
   path = "/loyalty"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/notebook"
+  function = "meta"
+
+[[edge_functions]]
+  path = "/terms"
   function = "meta"
 
 # ── Public-API edge cache (netlify/edge-functions/apiCache.ts) ──

@@ -42,6 +42,7 @@ import documentRoutes from './routes/documents.js';
 import mediaRoutes from './routes/media.js';
 import procedureImportRoutes from './routes/procedureImports.js';
 import downloadRoutes from './routes/downloads.js';
+import paperStockRoutes from './routes/paperStocks.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -191,6 +192,8 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/procedures', procedureRoutes);
 app.use('/api/documents', documentRoutes); // private business document centre
+app.use('/api/database', documentRoutes); // alias — Documents renamed to Database in the admin menu
+app.use('/api/paper-stocks', paperStockRoutes); // configurator papers — sellable materials, not products
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
 app.use('/api/dl', downloadRoutes); // token-gated digital template delivery

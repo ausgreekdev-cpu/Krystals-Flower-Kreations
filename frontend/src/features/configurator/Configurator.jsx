@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useConfiguratorStore, estimateLocalPrice, DEFAULT_SPEC } from './useConfiguratorStore';
-import { ordersApi } from '../../lib/api/customClient';
+import { ordersApi, paperStocksApi } from '../../lib/api/customClient';
 import { addToCart } from '../../lib/cartClient';
 import { usePublicSettings } from '../../lib/publicSettings';
 import ARViewer from '../../components/ARViewer';
@@ -49,7 +49,23 @@ const isPresetActive = (spec, apply) =>
 export default function Configurator(){
   const { spec, setSpec } = useConfiguratorStore();
   const s = usePublicSettings();
-  const est = estimateLocalPrice(spec, s);
+  const [papers, setPapers] = useState([]);
+  const [paperQ, setPaperQ] = useState('');
+  const [paperTypeFilter, setPaperTypeFilter] = useState('');
+  const [paperTextureFilter, setPaperTextureFilter] = useState('');
+  useEffect(()=>{ paperStocksApi.list().then(setPapers).catch(()=>{}); }, []);
+  const selectedPaper = papers.find(p=> p.id===spec.paperStockId) || null;
+  const paperPremium = selectedPaper ? Number(selectedPaper.pricePremiumPerStem) || 0 : 0;
+  const est = estimateLocalPrice(spec, s, paperPremium);
+  const paperTypes = [...new Set(papers.map(p=> p.paperType).filter(Boolean))].sort();
+  const paperTextures = [...new Set(papers.map(p=> p.texture).filter(Boolean))].sort();
+  const filteredPapers = papers.filter(p=> {
+    const q = paperQ.trim().toLowerCase();
+    if (q && ![p.name, p.colour, p.paperType, p.weight].some(v=> String(v||'').toLowerCase().includes(q))) return false;
+    if (paperTypeFilter && p.paperType !== paperTypeFilter) return false;
+    if (paperTextureFilter && p.texture !== paperTextureFilter) return false;
+    return true;
+  });
   const num = (v, d) => (v === undefined || v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
   const greeneryPrice = num(s.configurator_greenery, 12);
   const vasePrice = num(s.configurator_vase, 22);
@@ -93,7 +109,7 @@ export default function Configurator(){
   return (
     <Page>
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Configurator'}]} />} title="Custom Bouquet Configurator"
-        lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • height • Cricut template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • height — live AUD price + Perth ETA.'} />
+        lede={s.show_cricut === '1' ? 'Colour • texture • weight • stems • height • template — live AUD price + Perth ETA.' : 'Colour • texture • weight • stems • height — live AUD price + Perth ETA.'} />
       <div className="space-y-3 sm:space-y-4 mt-6 pb-24 sm:pb-0">
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
           <h2 className="font-bold flex items-center gap-2">Start from a look</h2>
@@ -107,16 +123,65 @@ export default function Configurator(){
             <button onClick={()=>setSpec({ ...DEFAULT_SPEC })} className={`${CHIP} ${CHIP_OFF}`}>Reset</button>
           </div>
         </section>
-        <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-        <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Paper Colour</h2>
-        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper palette">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} aria-pressed={spec.palette===p.id} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
-        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper colour">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} aria-pressed={spec.paperColor===c && !spec.palette} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
-        </section>
-        <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-        <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Texture &amp; Weight</h2>
-        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper texture">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} aria-pressed={spec.paperTexture===t} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
-        <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
-        </section>
+        {papers.length > 0 ? (
+          <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
+            <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Paper — pick colour & type {paperPremium > 0 && <span className="text-xs font-normal text-muted">+${paperPremium.toFixed(2)}/stem</span>}</h2>
+            <div className="flex flex-wrap gap-2 mt-3 items-center">
+              <input value={paperQ} onChange={(e)=> setPaperQ(e.target.value)} placeholder="Search papers…" className="flex-1 min-w-[160px] border border-line-strong rounded-xl px-3 py-2 text-sm" />
+              <select value={paperTypeFilter} onChange={(e)=> setPaperTypeFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs">
+                <option value="">All types</option>{paperTypes.map(t=> <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={paperTextureFilter} onChange={(e)=> setPaperTextureFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs">
+                <option value="">All textures</option>{paperTextures.map(t=> <option key={t} value={t}>{t}</option>)}
+              </select>
+              {(paperQ || paperTypeFilter || paperTextureFilter) && <button onClick={()=> { setPaperQ(''); setPaperTypeFilter(''); setPaperTextureFilter('');}} className="text-xs underline">Clear</button>}
+              <span className="text-xs text-muted">{filteredPapers.length} of {papers.length}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
+              {filteredPapers.map((p)=> (
+                <button key={p.id} onClick={()=> setSpec({ paperStockId: p.id, paperColor: p.colour, paperTexture: p.texture, weight: p.weight, palette: null })} aria-pressed={spec.paperStockId===p.id} className={`text-left rounded-2xl border-2 overflow-hidden transition ${spec.paperStockId===p.id ? 'border-bloom-500 ring-2 ring-bloom-200' : 'border-line hover:border-bloom-200'}`}>
+                  <div className="h-24 bg-surface3 relative">
+                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full grid place-items-center text-2xl" style={{backgroundColor: p.colourHex || '#f3f4f6'}}>{p.colour.slice(0,1)}</div>}
+                    <span className="absolute top-2 left-2 w-6 h-6 rounded-full border-2 border-white shadow" style={{backgroundColor: p.colourHex || '#fff'}} title={p.colour} />
+                    {Number(p.pricePremiumPerStem) > 0 && <span className="absolute top-2 right-2 text-[10px] font-bold bg-bloom-500 text-white px-1.5 py-0.5 rounded-full">+${Number(p.pricePremiumPerStem).toFixed(2)}</span>}
+                    {p.onHand <= (p.lowThreshold ?? 5) && <span className="absolute bottom-1 right-1 text-[10px] bg-amber-500 text-white px-1 rounded">low</span>}
+                  </div>
+                  <div className="p-2">
+                    <div className="text-xs font-bold text-ink truncate">{p.name}</div>
+                    <div className="text-[11px] text-muted truncate">{p.paperType} • {p.texture} • {p.weight}</div>
+                    <div className="text-[11px] text-muted">{p.colour} {Number(p.pricePremiumPerStem)===0 ? '• included' : `• +$${Number(p.pricePremiumPerStem).toFixed(2)}/stem`}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {selectedPaper && <div className="mt-3 text-xs text-muted">Selected: <span className="font-semibold text-ink">{selectedPaper.name}</span> — {selectedPaper.paperType} {selectedPaper.weight} • +${Number(selectedPaper.pricePremiumPerStem).toFixed(2)}/stem × {spec.stemCount} stems = <span className="font-bold text-highlight">+${(paperPremium * spec.stemCount).toFixed(2)}</span></div>}
+            <div className="mt-3 bg-surface border rounded-xl p-3 text-xs space-y-1">
+              <div className="font-semibold text-ink">Price breakdown</div>
+              <div className="flex justify-between"><span className="text-muted">Floor</span><span>${Number(s.configurator_floor || 45).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-muted">Stems ({spec.stemCount} × ${Number(s.configurator_per_stem || 9.5).toFixed(2)})</span><span>${(spec.stemCount * Number(s.configurator_per_stem || 9.5)).toFixed(2)}</span></div>
+              {paperPremium > 0 && <div className="flex justify-between"><span className="text-muted">Paper premium ({spec.stemCount} × ${paperPremium.toFixed(2)})</span><span className="text-highlight font-bold">+${(paperPremium * spec.stemCount).toFixed(2)}</span></div>}
+              {(spec.addGreenery || spec.vaseIncluded || spec.domeIncluded || spec.ledIncluded) && <div className="flex justify-between"><span className="text-muted">Add-ons</span><span>+${((spec.addGreenery? Number(s.configurator_greenery||12):0)+(spec.vaseIncluded? Number(s.configurator_vase||22):0)+(spec.domeIncluded? Number(s.configurator_dome||45):0)+(spec.ledIncluded? Number(s.configurator_led||18):0)).toFixed(2)}</span></div>}
+              <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span>${est.totalPrice.toFixed(2)} AUD</span></div>
+              <div className="text-[11px] text-muted">BOM-heavy bouquets may be charged above this estimate — final price confirmed at proofing.</div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={()=> setSpec({ paperStockId: null })} className={`${CHIP} ${!spec.paperStockId ? CHIP_ON : CHIP_OFF}`}>No paper premium</button>
+            </div>
+          </section>
+        ) : (
+          <>
+            <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
+              <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Paper Colour</h2>
+              <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper palette">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} aria-pressed={spec.palette===p.id} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
+              <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper colour">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} aria-pressed={spec.paperColor===c && !spec.palette} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
+            </section>
+            <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
+              <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Texture &amp; Weight</h2>
+              <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper texture">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} aria-pressed={spec.paperTexture===t} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
+              <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{w}</button>)}</div>
+            </section>
+          </>
+        )}
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border space-y-3">
           <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Height</h2>
           <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-stems" className="shrink-0">Stems</label> <input id="cfg-stems" type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.stemCount} stems`} /> <span aria-hidden="true" className="shrink-0 w-6 text-right">{spec.stemCount}</span></div>
@@ -129,8 +194,8 @@ export default function Configurator(){
           </div>
         </section>
         {s.show_cricut === '1' && <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Cricut Template — free preview</h2>
-          <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Cricut template">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} aria-pressed={spec.templateId===t.id} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
+          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Template — free preview</h2>
+          <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="template">{TEMPLATES.map(t=> <button key={t.id} onClick={()=>setSpec({templateId:t.id})} aria-pressed={spec.templateId===t.id} className={`${CHIP} ${spec.templateId===t.id?CHIP_ON:CHIP_OFF}`}>{t.label}</button>)}</div>
           <div className="mt-4 bg-surface2 border rounded-xl overflow-hidden">
             <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="w-full h-48 object-contain p-4" onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
             <div style={{display:'none'}} className="bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label}</div>

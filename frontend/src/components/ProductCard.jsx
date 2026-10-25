@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import ResponsiveImage from './ResponsiveImage';
 
 // Catalog card (Shop grid). Stock badge reflects fulfilment type; price and
-// Cricut hint are display-only — the product page owns the buy flow.
+// machine-cut hint are display-only — the product page owns the buy flow.
 export default function ProductCard({ p, showCricut = false }) {
   return (
     <Link to={`/product/${p.slug}`} className="bg-surface2 rounded-2xl overflow-hidden border hover:shadow-lg hover:border-bloom-100 transition group">
@@ -15,7 +15,7 @@ export default function ProductCard({ p, showCricut = false }) {
       <div className="p-3">
         <div className="font-bold text-ink line-clamp-2 text-sm md:text-[15px] leading-tight">{p.title}</div>
         <div className="text-highlight font-bold mt-1.5">${Number(p.price).toFixed(2)} <span className="text-xs font-normal text-muted">AUD</span></div>
-        <div className="text-xs text-muted mt-1">{p.paperStock || 'Canson 65lb'} {showCricut && p.cricutCompatible && '• Cricut'}</div>
+        <div className="text-xs text-muted mt-1">{p.paperStock || 'Canson 65lb'} {showCricut && p.cricutCompatible && '• SVG'}</div>
         {(p.flowerType || p.colourFamily) && (
           <div className="flex gap-1 mt-1.5 flex-wrap">
             {p.flowerType && <span className="text-[10px] font-semibold capitalize bg-bloom-50 text-bloom-700 border border-bloom-100 px-1.5 py-0.5 rounded-full">{p.flowerType}</span>}

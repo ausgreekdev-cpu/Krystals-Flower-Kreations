@@ -60,7 +60,7 @@ async function main() {
   const collections = [
     { title: 'Paper Bouquets', slug: 'paper-bouquets', description: 'Handcrafted paper blooms — everlasting beauty', sortOrder: 1 },
     { title: 'Sculptural Art', slug: 'sculptural-art', description: 'Sculptural wire & paper sculptures', sortOrder: 2 },
-    { title: 'Cricut Templates', slug: 'cricut-templates', description: 'SVG cut files for your Maker', sortOrder: 3 },
+    { title: 'Cutting Templates', slug: 'cricut-templates', description: 'SVG cut files for your maker', sortOrder: 3 },
     { title: 'Origami', slug: 'origami', description: 'Folded paper creations', sortOrder: 4 },
     { title: 'Workshop Kits', slug: 'workshop-kits', description: 'Take-home kits with materials + guide', sortOrder: 5 },
   ];
@@ -69,12 +69,12 @@ async function main() {
   }
 
   const products = [
-    { title: 'Eucalyptus Paper Rose Bouquet — Blush', slug: 'eucalyptus-paper-rose-bouquet-blush', description: '12-stem blush paper roses with eucalyptus, 250gsm textured cardstock. Made to order 3-5 days. Cricut-compatible petals.', price: 89, sku: 'KFK-ROSE-BLUSH-12', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 5, paperStock: '250gsm Canson blush + sage', cricutCompatible: true, isFeatured: true, weightGrams: 450, flowerType: 'rose', colourFamily: 'blush', stemLengthMm: 400, occasions: ['birthday', 'anniversary', 'mothers-day'], careInstructions: 'Keep dry and away from direct sun; dust gently with a soft brush.' },
+    { title: 'Eucalyptus Paper Rose Bouquet — Blush', slug: 'eucalyptus-paper-rose-bouquet-blush', description: '12-stem blush paper roses with eucalyptus, 250gsm textured cardstock. Made to order 3-5 days. Machine-compatible petals.', price: 89, sku: 'KFK-ROSE-BLUSH-12', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 5, paperStock: '250gsm Canson blush + sage', cricutCompatible: true, isFeatured: true, weightGrams: 450, flowerType: 'rose', colourFamily: 'blush', stemLengthMm: 400, occasions: ['birthday', 'anniversary', 'mothers-day'], careInstructions: 'Keep dry and away from direct sun; dust gently with a soft brush.' },
     { title: 'Banksia Statement Sculpture', slug: 'banksia-statement-sculpture', description: 'Sculptural banksia on wire frame, 45cm. Each piece unique — sculptural art workshop technique.', price: 195, sku: 'KFK-SCULPT-BANKSIA-L', type: 'physical', stockMode: 'tracked', isFeatured: true, weightGrams: 800, flowerType: 'banksia', colourFamily: 'mixed', stemLengthMm: 450, occasions: ['wedding', 'anniversary'], careInstructions: 'Dust gently; keep indoors away from moisture.' },
-    { title: 'Cricut SVG — Wattle Sprig (Digital)', slug: 'cricut-svg-wattle-sprig', description: 'Instant download — layered SVG + PNG for Cricut Maker. Includes 3 sizes + assembly guide PDF. For personal use.', price: 14.95, sku: 'KFK-SVG-WATTLE-01', type: 'digital_template', stockMode: 'digital', cricutCompatible: true, weightGrams: 0, flowerType: 'wattle', colourFamily: 'mixed' },
+    { title: 'SVG — Wattle Sprig (Digital)', slug: 'cricut-svg-wattle-sprig', description: 'Instant download — layered SVG + PNG for cutting machines. Includes 3 sizes + assembly guide PDF. For personal use.', price: 14.95, sku: 'KFK-SVG-WATTLE-01', type: 'digital_template', stockMode: 'digital', cricutCompatible: true, weightGrams: 0, flowerType: 'wattle', colourFamily: 'mixed' },
     { title: 'Origami Crane Mobile — Pastel', slug: 'origami-crane-mobile-pastel', description: '25 hand-folded cranes on driftwood, pastel palette. Nursery-ready.', price: 65, sku: 'KFK-ORIGAMI-CRANE-MOB', type: 'physical', stockMode: 'tracked', weightGrams: 320 },
     { title: 'Paper Peony — Single Stem (Ivory)', slug: 'paper-peony-ivory-single', description: 'Single peony stem, ivory 220gsm + wire. Perfect for adding to bouquets.', price: 18, sku: 'KFK-PEONY-IVORY-1', type: 'physical', stockMode: 'tracked', weightGrams: 40, flowerType: 'peony', colourFamily: 'ivory', stemLengthMm: 300, occasions: ['wedding', 'mothers-day'], careInstructions: 'Keep dry; store upright in a vase without water.' },
-    { title: 'Workshop Ticket — Cricut Blooms 101 (Perth)', slug: 'workshop-cricut-blooms-101', description: '3hr beginner workshop — Perth Studio. Make a 7-stem bouquet to take home. All materials included. Max 12. Next: see sessions.', price: 135, sku: 'KFK-WS-CRICUT-101', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
+    { title: 'Workshop Ticket — Blooms 101 (Perth)', slug: 'workshop-cricut-blooms-101', description: '3hr beginner workshop — Perth Studio. Make a 7-stem bouquet to take home. All materials included. Max 12. Next: see sessions.', price: 135, sku: 'KFK-WS-CRICUT-101', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
     { title: 'Workshop Ticket — Origami Bouquet Masterclass', slug: 'workshop-origami-bouquet-masterclass', description: '4hr intermediate — folded roses + lilies + assembly. Kit posted if you join online.', price: 165, sku: 'KFK-WS-ORIGAMI-MAST', type: 'workshop_ticket', stockMode: 'made_to_order', weightGrams: 0 },
     { title: 'Everlasting Native Bundle — Table Centre', slug: 'native-bundle-table-centre', description: 'Low centrepiece — paper natives + dried eucalyptus on sculpted base. 30cm wide.', price: 125, sku: 'KFK-NATIVE-CENTRE-30', type: 'made_to_order', stockMode: 'made_to_order', madeToOrderDays: 7, isFeatured: true, weightGrams: 600, flowerType: 'mixed', colourFamily: 'eucalyptus', stemLengthMm: 300, occasions: ['wedding', 'sympathy'], careInstructions: 'Dust gently; keep away from moisture and direct sun.' },
   ];
@@ -133,7 +133,7 @@ async function main() {
   await prisma.discount.upsert({ where: { code: 'PERTHFREE' }, update: {}, create: { code: 'PERTHFREE', description: 'Free Perth delivery over $100', type: 'fixed', value: 12 } });
 
   // Workshops
-  const w1 = await prisma.workshop.upsert({ where: { slug: 'cricut-blooms-101' }, update: {}, create: { title: 'Cricut Blooms 101', slug: 'cricut-blooms-101', description: 'Learn to cut, curl & assemble paper roses with your Cricut Maker. Take home a 7-stem bouquet.', location: 'Perth Studio, WA', price: 135, capacity: 12, durationMinutes: 180, level: 'beginner' } });
+  const w1 = await prisma.workshop.upsert({ where: { slug: 'cricut-blooms-101' }, update: {}, create: { title: 'Blooms 101', slug: 'cricut-blooms-101', description: 'Learn to cut, curl & assemble paper roses. Take home a 7-stem bouquet.', location: 'Perth Studio, WA', price: 135, capacity: 12, durationMinutes: 180, level: 'beginner' } });
   const w2 = await prisma.workshop.upsert({ where: { slug: 'origami-bouquet-masterclass' }, update: {}, create: { title: 'Origami Bouquet Masterclass', slug: 'origami-bouquet-masterclass', description: 'Fold roses, lilies & leaves — assemble a full bouquet. Paper kit included.', location: 'Perth Studio, WA', price: 165, capacity: 10, durationMinutes: 240, level: 'intermediate' } });
   const nextSat = new Date(); nextSat.setDate(nextSat.getDate() + (6 - nextSat.getDay() + 7) % 7); nextSat.setHours(10,0,0,0);
   for (const w of [w1, w2]) {
@@ -164,6 +164,20 @@ async function main() {
     await prisma.rawMaterial.upsert({ where: { sku: m.sku }, update: {}, create: { ...m } });
   }
   if (!SKIP_DEMO) console.log(`Seeded ${rawMaterials.length} raw materials`);
+
+  // Configurator papers — sellable materials with per-stem premium (not products)
+  const papers = [
+    { name: 'Blush 65lb Textured', colour: 'Blush', colourHex: '#F8C4B4', paperType: 'Canson', texture: 'textured', weight: '65lb', pricePremiumPerStem: 0, sortOrder: 1, onHand: 50 },
+    { name: 'Sage 65lb Textured', colour: 'Sage', colourHex: '#9CAF88', paperType: 'Canson', texture: 'textured', weight: '65lb', pricePremiumPerStem: 0, sortOrder: 2, onHand: 40 },
+    { name: 'Ivory 80lb Pearl', colour: 'Ivory', colourHex: '#FFF8E7', paperType: 'Colorplan', texture: 'pearl', weight: '80lb', pricePremiumPerStem: 1.5, sortOrder: 3, onHand: 30 },
+    { name: 'Dusty Pink 80lb Smooth', colour: 'Dusty Pink', colourHex: '#D4A5A5', paperType: 'Colorplan', texture: 'smooth', weight: '80lb', pricePremiumPerStem: 1.5, sortOrder: 4, onHand: 30 },
+    { name: 'Eucalyptus 110lb Linen', colour: 'Eucalyptus', colourHex: '#8A9A8B', paperType: 'Quill', texture: 'linen', weight: '110lb', pricePremiumPerStem: 2.5, sortOrder: 5, onHand: 20 },
+    { name: 'Paper White 110lb Pearl', colour: 'Paper White', colourHex: '#FFFFFF', paperType: 'Quill', texture: 'pearl', weight: '110lb', pricePremiumPerStem: 2, sortOrder: 6, onHand: 25 },
+  ];
+  for (const p of papers) {
+    await prisma.paperStock.upsert({ where: { name: p.name }, update: {}, create: p });
+  }
+  if (!SKIP_DEMO) console.log(`Seeded ${papers.length} configurator papers`);
 
   // BOM recipe for paper rose (baseline 7-stem bouquet)
   const rose = await prisma.product.findUnique({ where: { slug: 'eucalyptus-paper-rose-bouquet-blush' } });

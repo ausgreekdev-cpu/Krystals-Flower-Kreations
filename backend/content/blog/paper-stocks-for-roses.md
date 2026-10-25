@@ -1,10 +1,10 @@
 ---
 title: 5 Paper Stocks That Make Roses Look Real
 slug: paper-stocks-for-roses
-excerpt: Canson, Colorplan and the one stock that survives Perth humidity — with GSM, cost and Cricut cut settings.
+excerpt: Canson, Colorplan and the one stock that survives Perth humidity — with GSM, cost and cutting settings.
 metaTitle: 5 Paper Stocks for Realistic Paper Roses | Krystal's Perth
-metaDescription: Perth florist Krystal compares five paper stocks for lifelike paper roses — GSM, cost, petal behaviour and Cricut cut settings included.
-tags: cricut, tutorial, paper, roses
+metaDescription: Perth florist Krystal compares five paper stocks for lifelike paper roses — GSM, cost, petal behaviour and cutting settings included.
+tags: cutting, tutorial, paper, roses
 cover: /og-cover.jpg
 productSlugs: eucalyptus-paper-rose-bouquet-blush, cricut-svg-wattle-sprig, workshop-cricut-blooms-101
 status: published
@@ -15,7 +15,7 @@ publishedAt: 2026-09-08
 
 I have made thousands of paper roses in my Perth studio, and the difference between a bloom that looks almost real and one that looks like a craft project almost always comes down to the paper. Petal edges, how light passes through the flower, whether a curled tip springs back or flops over — none of that is glue technique. It is stock choice.
 
-These are the five papers I actually buy, what each one is good for, and the cut settings I run on my Cricut Maker so you are not guessing.
+These are the five papers I actually buy, what each one is good for, and the cut settings I run so you are not guessing.
 
 ## 1. Canson 65lb textured cardstock — my everyday rose
 
@@ -57,7 +57,7 @@ Traditional Italian crepe stretches, which lets you cup a petal with your thumbs
 - **Cost:** inexpensive per roll, wildly efficient per bloom
 - **Watch out for:** crepe fades in direct sun — keep it out of that west-facing Perth window
 
-## Cricut cut settings I actually use
+## Cut settings I actually use
 
 - **Canson 65lb / Colorplan 175:** Cardstock (heavy), blade 4, pressure more, **two passes** for anything under 3cm
 - **Mi-Teintes 160:** Cardstock, blade 3, pressure default, check the small pieces before lifting
@@ -68,6 +68,6 @@ If petals start snagging, the blade is dull, not the setting. I swap mine every 
 
 ## Which stock for your first bouquet
 
-Start with Canson 65lb. It forgives mistakes, curls predictably, and comes in the colours Perth brides ask for most. When you are ready to cut your own, my [Wattle Sprig SVG](/product/cricut-svg-wattle-sprig) includes layered files sized for these weights, and [Cricut Blooms 101](/product/workshop-cricut-blooms-101) runs monthly in the studio if you would rather learn with me beside you.
+Start with Canson 65lb. It forgives mistakes, curls predictably, and comes in the colours Perth brides ask for most. When you are ready to cut your own, my [Wattle Sprig SVG](/product/cricut-svg-wattle-sprig) includes layered files sized for these weights, and [Blooms 101](/product/workshop-cricut-blooms-101) runs monthly in the studio if you would rather learn with me beside you.
 
 And if you would rather skip the cutting entirely, browse the [finished bouquets in the shop](/shop) — same papers, already assembled.

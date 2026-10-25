@@ -35,7 +35,7 @@ export function storageDriver() {
 
 // Bucket create specs. product-images keeps its original 5MB/image-only rule;
 // procedure-media carries the spec-pack types (PDF/SVG/ZIP/STL/video) at 25MB.
-// digital-assets is PRIVATE (no public URL) — purchased Cricut SVGs live here
+// digital-assets is PRIVATE (no public URL) — purchased SVGs live here
 // and are only reachable through the tokenized /api/dl/:token route.
 // business-documents is PRIVATE too — stocktakes/supplier exports may hold PII
 // and cost data; served only via the authed /api/documents/:id/file route.

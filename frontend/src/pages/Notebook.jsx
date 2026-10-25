@@ -13,7 +13,7 @@ export default function Notebook(){
   const [notebookUrl, setNotebookUrl] = useState(NOTEBOOK_URL);
   const [copied,setCopied]=useState(false);
   const s = usePublicSettings();
-  const showCricut = s.show_cricut === '1';
+  const show= s.show_cricut === '1';
   const showWorkshops = s.show_workshops === '1';
 
   useEffect(()=>{
@@ -29,7 +29,7 @@ export default function Notebook(){
   return (
     <Page width="wide">
       <PageHeader crumbs={<Breadcrumbs items={[{label:'Notebook'}]} />} title="Perth Studio Notebook — Research Hub"
-        lede={showCricut ? 'NotebookLM sources — Cricut settings for Perth humidity, BOM paper costs, wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.' : 'NotebookLM sources — BOM paper costs, wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.'}
+        lede={show? 'NotebookLM sources — cutting settings for Perth humidity, BOM paper costs, wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.' : 'NotebookLM sources — BOM paper costs, wire guides, origami folds. Curated by Krystal. Ask questions, listen to Audio Overview, and explore sources.'}
         action={
           <div className="flex gap-2 mt-3 md:mt-0">
             <a href={notebookUrl} target="_blank" rel="noopener" className="bg-bloom-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-bloom-700">Open in NotebookLM →</a>
@@ -54,7 +54,7 @@ export default function Notebook(){
           style={{ width:'100%', height:'80vh', border:0, background:'#FFF7F0' }}
         />
         <div className="bg-surface3 border-t px-4 py-3 flex flex-col sm:flex-row justify-between gap-2 text-xs text-ink">
-          <span>{showCricut ? 'Sources: paper stocks, Cricut Maker settings, wire guides • Audio overview available inside NotebookLM' : 'Sources: paper stocks, wire guides • Audio overview available inside NotebookLM'}</span>
+          <span>{show? 'Sources: paper stocks, maker settings, wire guides • Audio overview available inside NotebookLM' : 'Sources: paper stocks, wire guides • Audio overview available inside NotebookLM'}</span>
           <a href={FALLBACK_URL} target="_blank" rel="noopener" className="underline">Try fallback notebook.google.com →</a>
         </div>
       </div>
@@ -70,12 +70,12 @@ export default function Notebook(){
         </div>
         <div className="bg-surface2 border rounded-2xl p-4">
           <h3 className="font-bold text-ink text-sm">Perth tips</h3>
-          <p className="text-xs text-muted mt-2">{showCricut ? 'Notebook holds our studio-tested Cricut Maker settings: 65lb Canson Blush — pressure 210, 80lb Sage — pressure 230, blade 45°, humidity 40-60%.' : 'Notebook holds our studio-tested paper recipes: 65lb Canson Blush, 80lb Sage, fold guides and humidity notes for Perth.'}</p>
+          <p className="text-xs text-muted mt-2">{show? 'Notebook holds our studio-tested maker settings: 65lb Canson Blush — pressure 210, 80lb Sage — pressure 230, blade 45°, humidity 40-60%.' : 'Notebook holds our studio-tested paper recipes: 65lb Canson Blush, 80lb Sage, fold guides and humidity notes for Perth.'}</p>
           <Link to="/configurator" className="mt-3 inline-block text-xs bg-bloom-500 text-white px-3 py-1.5 rounded-full">Try Configurator →</Link>
         </div>
         {showWorkshops && <div className="bg-surface2 border rounded-2xl p-4">
           <h3 className="font-bold text-ink text-sm">For workshops</h3>
-          <p className="text-xs text-muted mt-2">Before you book, explore guide: Cricut Blooms 101 kit list, origami lily folds.</p>
+          <p className="text-xs text-muted mt-2">Before you book, explore guide: Blooms 101 kit list, origami lily folds.</p>
           <Link to="/workshops" className="mt-3 inline-block text-xs border rounded-full px-3 py-1.5 hover:bg-surface3">View Workshops →</Link>
         </div>}
       </div>

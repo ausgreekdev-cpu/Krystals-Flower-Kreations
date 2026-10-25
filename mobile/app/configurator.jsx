@@ -39,7 +39,7 @@ export default function Configurator() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#FFF7F0' }} contentContainerStyle={{ padding: 16, gap: 14 }}>
       <Text style={{ fontSize: 22, fontWeight: '800', color: '#4A2C2A' }}>Custom Bouquet Configurator</Text>
-      <Text style={{ color: '#6B4A4A' }}>Paper colour, texture, weight • stem count • structure height • Cricut template — real-time price + Perth studio ETA.</Text>
+      <Text style={{ color: '#6B4A4A' }}>Paper colour, texture, weight • stem count • structure height  template — real-time price + Perth studio ETA.</Text>
 
       {/* Colour */}
       <Section title="1 · Paper Colour">
@@ -78,7 +78,7 @@ export default function Configurator() {
       </Section>
 
       {/* Template */}
-      <Section title="4 · Cricut Precision Template">
+      <Section title="4 · Precision Template">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {TEMPLATES.map(t => (
             <Chip key={t.id} label={t.label} active={spec.templateId === t.id} onPress={() => setSpec({ templateId: t.id })} />
@@ -86,7 +86,7 @@ export default function Configurator() {
         </View>
         <View style={{ marginTop: 12, backgroundColor: '#FDE8E0', borderRadius: 12, padding: 12, alignItems: 'center' }}>
           <Text style={{ color: '#4A2C2A', fontWeight: '700' }}>{TEMPLATES.find(t=>t.id===spec.templateId)?.label} — SVG preview</Text>
-          <Text style={{ color: '#6B4A4A', fontSize: 12, marginTop: 4 }}>Cricut cut lines overlaid on {spec.paperColor} {spec.weight} {spec.paperTexture} paper</Text>
+          <Text style={{ color: '#6B4A4A', fontSize: 12, marginTop: 4 }}>Cut lines overlaid on {spec.paperColor} {spec.weight} {spec.paperTexture} paper</Text>
           <View style={{ marginTop: 8, width: '100%', height: 80, borderRadius: 8, backgroundColor: '#E8CFCF', borderWidth: 1, borderColor: '#D6A8A8', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: '#4A2C2A' }}>✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight}</Text>
           </View>

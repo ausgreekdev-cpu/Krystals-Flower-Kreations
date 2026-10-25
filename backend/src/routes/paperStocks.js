@@ -1,0 +1,161 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import crypto from 'crypto';
+import sharp from 'sharp';
+import prisma from '../lib/prisma.js';
+import { authenticate, requireRole } from '../lib/auth.js';
+import { validate } from '../middleware/validate.js';
+import { asyncHandler } from '../middleware/async-handler.js';
+import { rateLimit } from '../middleware/rate-limit.js';
+import { audit } from '../lib/audit.js';
+import { upload } from '../middleware/upload.js';
+import { putObject, deleteObjectByUrl } from '../services/storage.js';
+import { buildVariants, masterDimensions } from '../services/imageVariants.js';
+
+const router = Router();
+
+const paperSchema = z.object({
+  name: z.string().min(2).max(100),
+  colour: z.string().min(1).max(40),
+  colourHex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().nullable(),
+  paperType: z.string().min(1).max(60),
+  texture: z.enum(['textured','smooth','pearl','linen']).default('textured'),
+  weight: z.string().min(1).max(20),
+  pricePremiumPerStem: z.number().finite().min(0).max(1000).default(0),
+  isActive: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).max(10000).default(0),
+  onHand: z.number().finite().min(0).max(1000000).default(0),
+  lowThreshold: z.number().finite().min(0).max(1000000).default(5),
+}).strict();
+
+// Public — only active papers, sorted, for configurator
+router.get('/', asyncHandler(async (req, res) => {
+  const papers = await prisma.paperStock.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  res.json(papers);
+}));
+
+// Admin — all papers
+router.get('/all', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const papers = await prisma.paperStock.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  res.json(papers);
+}));
+
+router.get('/low-stock', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const all = await prisma.paperStock.findMany({ orderBy: { name: 'asc' } });
+  const low = all.filter(p => Number(p.onHand) <= Number(p.lowThreshold));
+  res.json(low);
+}));
+
+const bulkSchema = z.object({ papers: z.array(paperSchema).min(1).max(100) }).strict();
+router.post('/bulk', authenticate, requireRole('admin','developer','maker','staff'), validate(bulkSchema), asyncHandler(async (req, res) => {
+  const { papers } = req.validated;
+  const created = [];
+  const errors = [];
+  for (const [i, data] of papers.entries()) {
+    try {
+      const paper = await prisma.paperStock.create({ data });
+      created.push(paper);
+    } catch (e) {
+      errors.push({ index: i, name: data.name, error: e.code === 'P2002' ? 'duplicate name' : e.message });
+    }
+  }
+  if (created.length) audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'paper_bulk_create', entityType: 'paper_stock', details: { count: created.length } });
+  res.status(created.length ? 201 : 400).json({ created, errors, count: created.length });
+}));
+
+router.get('/:id', asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const paper = await prisma.paperStock.findUnique({ where: { id } });
+  if (!paper) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  // public can see only active, staff can see all
+  if (!paper.isActive) {
+    const header = req.headers.authorization;
+    if (!header?.startsWith('Bearer ')) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+    try { const { verifyToken } = await import('../lib/auth.js'); verifyToken(header.slice(7)); } catch { return res.status(404).json({ error: 'Not found', code: 'not_found' }); }
+  }
+  res.json(paper);
+}));
+
+router.post('/', authenticate, requireRole('admin','developer','maker','staff'), validate(paperSchema), asyncHandler(async (req, res) => {
+  const data = req.validated;
+  const paper = await prisma.paperStock.create({ data });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'paper_create', entityType: 'paper_stock', entityId: paper.id, details: { name: paper.name, colour: paper.colour } });
+  res.status(201).json(paper);
+}));
+
+router.patch('/:id', authenticate, requireRole('admin','developer','maker','staff'), validate(paperSchema.partial().strict()), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const data = req.validated;
+  if (!Object.keys(data).length) return res.status(400).json({ error: 'No fields', code: 'validation_failed' });
+  const paper = await prisma.paperStock.update({ where: { id }, data });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'paper_update', entityType: 'paper_stock', entityId: paper.id, details: { fields: Object.keys(data) } });
+  res.json(paper);
+}));
+
+router.delete('/:id', authenticate, requireRole('admin','developer'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const paper = await prisma.paperStock.findUnique({ where: { id } });
+  if (!paper) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (paper.imageUrl) await deleteObjectByUrl(paper.imageUrl).catch(()=>{});
+  if (paper.variants) {
+    const urls = [];
+    try { const v = typeof paper.variants === 'string' ? JSON.parse(paper.variants) : paper.variants; for (const bucket of Object.values(v)) for (const url of Object.values(bucket)) urls.push(String(url)); } catch {}
+    await Promise.all(urls.map((u)=> deleteObjectByUrl(String(u)).catch(()=>{})));
+  }
+  await prisma.paperStock.delete({ where: { id } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'paper_delete', entityType: 'paper_stock', entityId: id, details: { name: paper.name } });
+  res.json({ ok: true });
+}));
+
+// Image upload — single image per paper, with variants
+const imageLimit = rateLimit('paper_image', 60, 5);
+router.post('/:id/image', authenticate, requireRole('admin','developer','maker','staff'), imageLimit, upload.single('image'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const paper = await prisma.paperStock.findUnique({ where: { id } });
+  if (!paper) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (!req.file) return res.status(400).json({ error: 'No image', code: 'validation_failed' });
+  let resized;
+  try {
+    resized = await sharp(req.file.buffer).rotate().resize(800,800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+  } catch {
+    return res.status(400).json({ error: 'Not a readable image', code: 'invalid_image' });
+  }
+  // delete old
+  if (paper.imageUrl) await deleteObjectByUrl(paper.imageUrl).catch(()=>{});
+  if (paper.variants) {
+    try { const v = typeof paper.variants === 'string' ? JSON.parse(paper.variants) : paper.variants; const urls=[]; for(const b of Object.values(v)) for(const u of Object.values(b)) urls.push(String(u)); await Promise.all(urls.map((u)=> deleteObjectByUrl(String(u)).catch(()=>{}))); } catch {}
+  }
+  const base = `papers/${id}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+  let built = [];
+  try { built = await buildVariants(resized); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'paper variant encode failed', err: e?.message })); }
+  const uploads = [
+    { key: `${base}.jpg`, buf: resized, contentType: 'image/jpeg' },
+    ...built.map((v) => ({ key: `${base}-${v.width}.${v.ext}`, buf: v.buf, contentType: v.contentType })),
+  ];
+  const urls = [];
+  for (const u of uploads) urls.push(await putObject(u.key, u.buf, u.contentType));
+  const [imageUrl, ...variantUrls] = urls;
+  let variants = null;
+  if (built.length) {
+    variants = {};
+    built.forEach((v, i) => { variants[v.ext] = { ...(variants[v.ext] || {}), [String(v.width)]: variantUrls[i] }; });
+  }
+  const { width, height } = await masterDimensions(resized).catch(() => ({ width: null, height: null }));
+  const updated = await prisma.paperStock.update({ where: { id }, data: { imageUrl, variants, width, height } });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'paper_image_upload', entityType: 'paper_stock', entityId: id, details: { imageUrl } });
+  res.json(updated);
+}));
+
+router.delete('/:id/image', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0,100);
+  const paper = await prisma.paperStock.findUnique({ where: { id } });
+  if (!paper) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  if (paper.imageUrl) await deleteObjectByUrl(paper.imageUrl).catch(()=>{});
+  if (paper.variants) {
+    try { const v = typeof paper.variants === 'string' ? JSON.parse(paper.variants) : paper.variants; const urls=[]; for(const b of Object.values(v)) for(const u of Object.values(b)) urls.push(String(u)); await Promise.all(urls.map((u)=> deleteObjectByUrl(String(u)).catch(()=>{}))); } catch {}
+  }
+  const updated = await prisma.paperStock.update({ where: { id }, data: { imageUrl: null, variants: null, width: null, height: null } });
+  res.json(updated);
+}));
+
+export default router;

@@ -4,7 +4,7 @@ import prisma from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { audit } from '../lib/audit.js';
-import { getSettings, validateSettingsBody, schemaMetadata, SETTINGS_BY_KEY } from '../lib/settingsSchema.js';
+import { getSettings, clearSettingsCache, validateSettingsBody, schemaMetadata, SETTINGS_BY_KEY } from '../lib/settingsSchema.js';
 import { sendEmail, emailProviderStatus } from '../services/email.js';
 
 const router = Router();
@@ -46,6 +46,7 @@ router.put('/', requireAuth, requireRole('admin','developer'), asyncHandler(asyn
       update: { value },
     }))
   );
+  clearSettingsCache();
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'settings_update', entityType: 'setting', details: { keys: Object.keys(values) } });
   res.json({ ok: true, updated: Object.keys(values).length, values });
 }));
@@ -58,6 +59,7 @@ router.post('/reset', requireAuth, requireRole('admin','developer'), asyncHandle
   const unknown = keys.filter(k => !SETTINGS_BY_KEY[k]);
   if (unknown.length) return res.status(400).json({ error: 'Unknown settings', code: 'invalid_settings', details: Object.fromEntries(unknown.map(k => [k, 'unknown setting'])) });
   const { count } = await prisma.setting.deleteMany({ where: { key: { in: keys } } });
+  clearSettingsCache();
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'settings_reset', entityType: 'setting', details: { keys, removed: count } });
   res.json({ ok: true, reset: keys, removed: count, values: await getSettings() });
 }));

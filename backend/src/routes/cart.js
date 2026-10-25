@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma.js';
+import { authenticate } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
@@ -123,7 +124,7 @@ router.post('/email', cartEmailLimit, validate(cartEmailSchema), asyncHandler(as
   res.json({ ok: true });
 }));
 
-router.delete('/:cartId', asyncHandler(async (req, res) => {
+router.delete('/:cartId', authenticate, asyncHandler(async (req, res) => {
   await prisma.cartItem.deleteMany({ where: { cartId: req.params.cartId } });
   await prisma.cart.delete({ where: { id: req.params.cartId } }).catch(()=>{});
   res.json({ ok: true });
