@@ -129,8 +129,11 @@ export default function PaperStocksManager({ token }) {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filtered.map((p)=> (
           <div key={p.id} className={`bg-surface2 border rounded-2xl overflow-hidden ${!p.isActive ? 'opacity-60' : ''}`}>
-            <div className="h-32 bg-surface3 relative">
+            <div className="h-32 bg-surface3 relative overflow-hidden">
               {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full grid place-items-center text-muted text-xs" style={{backgroundColor: p.colourHex || '#f3f4f6'}}>{p.colour}</div>}
+              {p.texture==='linen' && <div className="absolute inset-0 opacity-[0.08] mix-blend-multiply" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent 0 2px, #000 2px 3px), repeating-linear-gradient(90deg, transparent 0 2px, #000 2px 3px)' }} aria-hidden />}
+              {p.texture==='pearl' && <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.85), transparent 60%), linear-gradient(120deg, transparent 40%, rgba(255,255,255,0.5) 50%, transparent 60%)' }} aria-hidden />}
+              {p.texture==='textured' && <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E")` }} aria-hidden />}
               <span className="absolute top-2 left-2 w-6 h-6 rounded-full border-2 border-white shadow" style={{backgroundColor: p.colourHex || '#fff'}} />
               {Number(p.pricePremiumPerStem) > 0 ? <span className="absolute top-2 right-2 text-[10px] font-bold bg-bloom-500 text-white px-2 py-0.5 rounded-full">+${Number(p.pricePremiumPerStem).toFixed(2)}/stem</span> : <span className="absolute top-2 right-2 text-[10px] bg-surface2 border px-2 py-0.5 rounded-full">included</span>}
               {!p.isActive && <span className="absolute bottom-1 left-1 text-[10px] bg-gray-800 text-white px-1.5 rounded">hidden</span>}

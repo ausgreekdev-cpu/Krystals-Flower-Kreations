@@ -115,7 +115,7 @@ test('custom order price scales past the stem cap without NaN on add-ons', async
     method: 'POST',
     body: JSON.stringify({
       customerEmail: 'edge_addons@test.com', customerName: 'Edge Addons',
-      spec: { paperColor: 'Ivory', paperTexture: 'smooth', weight: '80lb', stemCount: 25, heightMm: 500, templateId: 'rose-standard', addGreenery: true, vaseIncluded: true, domeIncluded: true, ledIncluded: true, palette: 'romantic-blush' },
+      spec: { paperColor: 'Ivory', paperTexture: 'smooth', weight: '80lb', stemCount: 25, heightMm: 500, templateId: 'paper-rose', addGreenery: true, vaseIncluded: true, domeIncluded: true, ledIncluded: true, palette: 'romantic-blush' },
     }),
   });
   assert.equal(status, 201, JSON.stringify(body).slice(0, 300));

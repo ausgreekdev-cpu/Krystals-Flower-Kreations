@@ -77,15 +77,17 @@ export async function handler(event, context){
     try {
       if (S.low_stock_alerts_enabled !== '0') {
       const defaultThreshold = Number(S.low_stock_default) || 5;
-      const [mats, levels, variants] = await Promise.all([
+      const [mats, levels, variants, papers] = await Promise.all([
         prisma.rawMaterial.findMany().catch(()=>[]),
         prisma.inventoryLevel.findMany({ where: { variantId: null }, include: { product: { select: { title: true } } } }).catch(()=>[]),
         prisma.productVariant.findMany({ include: { product: { select: { title: true } } } }).catch(()=>[]),
+        prisma.paperStock.findMany().catch(()=>[]),
       ]);
       const lowStock = [
         ...mats.filter(m => m.onHand <= m.lowThreshold).map(m => `${m.name} (${m.onHand}/${m.lowThreshold})`),
         ...levels.filter(l => l.onHand <= (l.lowStockThreshold ?? defaultThreshold)).map(l => `${l.product?.title || l.productId} (${l.onHand}/${l.lowStockThreshold ?? defaultThreshold})`),
         ...variants.filter(v => v.inventoryQuantity <= defaultThreshold).map(v => `${v.product?.title} — ${v.title} (${v.inventoryQuantity}/${defaultThreshold})`),
+        ...papers.filter(p => Number(p.onHand) <= Number(p.lowThreshold)).map(p => `Paper ${p.name} (${p.onHand}/${p.lowThreshold})`),
       ];
       lowCount = lowStock.length;
       if (lowStock.length>0) {
