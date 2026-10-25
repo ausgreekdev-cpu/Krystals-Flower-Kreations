@@ -1014,6 +1014,11 @@ model CustomArtOrder {
   shippingCountry  String?                 @default("AU")
   pickupReadyAt    DateTime?
   dispatchedAt     DateTime?
+  neededBy         DateTime?
+  fulfilment       String? // pickup | post
+  paymentStatus    String                  @default("unpaid") // unpaid | deposit_paid | paid
+  proofApprovedAt  DateTime?
+  statusToken      String?                 @unique // 32 random bytes hex (64 chars), for public status link
   history          CustomArtOrderHistory[]
   ticket           Ticket?
   createdAt        DateTime                @default(now())
@@ -1021,6 +1026,7 @@ model CustomArtOrder {
 
   @@index([state])
   @@index([customerEmail])
+  @@index([statusToken])
   @@map("custom_art_orders")
 }
 

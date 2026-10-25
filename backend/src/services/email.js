@@ -218,8 +218,32 @@ export async function sendCustomOrderConfirmation(order) {
   if (spec.domeIncluded) bits.push('Glass dome included');
   if (spec.ledIncluded) bits.push('Fairy lights included');
   const specBlock = bits.length ? `\n\nYour design:\n${bits.map(b => `  • ${b}`).join('\n')}` : '';
+  const neededByLine = order.neededBy ? `\nNeeded by: ${new Date(order.neededBy).toLocaleDateString('en-AU')}` : '';
+  const fulfilmentLine = order.fulfilment ? `\nFulfilment: ${order.fulfilment === 'post' ? 'Post (delivery)' : 'Pickup (Perth Studio)'}` : '';
+  const statusToken = order.statusToken ? `${(process.env.FRONTEND_URL || 'https://krystalsflowercreations.com.au').replace(/\/+$/, '')}/custom-order/status/${order.statusToken}` : null;
+  const statusBlock = statusToken ? `\n\nTrack your order: ${statusToken}\n` : '';
+  // Deposit / bank instructions — reuse existing bank keys, fallback to custom setting
+  let depositBlock = '';
+  const depositPct = Number(s.custom_order_deposit_percent);
+  if (Number.isFinite(depositPct) && depositPct > 0) {
+    const depositAmt = Math.round(Number(order.totalPrice) * depositPct / 100 * 100) / 100;
+    depositBlock += `\nDeposit: ${depositPct}% ($${depositAmt.toFixed(2)} of $${Number(order.totalPrice).toFixed(2)}) — `;
+    const instr = s.bank_transfer_instructions?.trim() || paymentInstructionsFor('bank_transfer', s);
+    depositBlock += instr ? `${instr}\n` : 'bank transfer details will be emailed.\n';
+    depositBlock += `Payment status: ${order.paymentStatus || 'unpaid'}\n`;
+  } else if (order.paymentStatus) {
+    depositBlock += `\nPayment: ${order.paymentStatus}\n`;
+  }
+  // Lead time note if neededBy inside lead time
+  let leadBlock = '';
+  if (order.neededBy) {
+    const leadDays = Number(s.custom_order_lead_days) || 7;
+    const leadDate = new Date(); leadDate.setDate(leadDate.getDate() + leadDays); leadDate.setHours(0,0,0,0);
+    const needed = new Date(order.neededBy); needed.setHours(0,0,0,0);
+    if (needed < leadDate) leadBlock = `\nNote: Your needed-by date is inside our standard ${leadDays}-day lead time — we'll confirm feasibility shortly.\n`;
+  }
   const subject = `Custom design received — ${order.orderNumber}`;
-  const text = `Hi ${order.customerName || 'there'},\n\nThanks for designing with us! We've received your custom bouquet request ${order.orderNumber}.\nEstimate: $${Number(order.totalPrice).toFixed(2)} (GST incl.)${specBlock}\n\nThe studio will review your design and be in touch from Perth within 1–2 business days with a proof and next steps.\n\nKeep this email — it has your order number.\n\n${await signatureBlock(s)}`;
+  const text = `Hi ${order.customerName || 'there'},\n\nThanks for designing with us! We've received your custom bouquet request ${order.orderNumber}.\nEstimate: $${Number(order.totalPrice).toFixed(2)} (GST incl.)${neededByLine}${fulfilmentLine}${specBlock}${depositBlock}${leadBlock}${statusBlock}\nThe studio will review your design and be in touch from Perth within 1–2 business days with a proof and next steps.\n\nKeep this email — it has your order number.\n\n${await signatureBlock(s)}`;
   const row = await enqueueEmail({ to: order.customerEmail, subject, text, template: 'custom_order_confirmation', payload: { orderNumber: order.orderNumber } });
   sendFromQueue(row).catch(()=>{});
   return row;
@@ -269,8 +293,18 @@ export async function sendAdminCustomOrderAlert(order) {
   if (!to || !order) return null;
   const spec = order.spec && typeof order.spec === 'object' ? order.spec : {};
   const specLine = [spec.paperColor, spec.paperTexture, spec.stemCount ? `${spec.stemCount} stems` : null, spec.heightMm ? `${spec.heightMm}mm` : null].filter(Boolean).join(' • ');
+  const neededByLine = order.neededBy ? `Needed by: ${new Date(order.neededBy).toLocaleDateString('en-AU')} (${order.fulfilment || 'pickup'})\n` : '';
+  let leadNote = '';
+  if (order.neededBy) {
+    const leadDays = Number(s.custom_order_lead_days) || 7;
+    const leadDate = new Date(); leadDate.setDate(leadDate.getDate() + leadDays); leadDate.setHours(0,0,0,0);
+    const needed = new Date(order.neededBy); needed.setHours(0,0,0,0);
+    if (needed < leadDate) leadNote = `⚠️ Needed inside standard lead time (${leadDays} days) - confirm feasibility\n`;
+  }
+  const depositLine = order.paymentStatus ? `Payment: ${order.paymentStatus}\n` : '';
+  const statusLine = order.statusToken ? `Status link: ${(process.env.FRONTEND_URL || 'https://krystalsflowercreations.com.au').replace(/\/+$/, '')}/custom-order/status/${order.statusToken}\n` : '';
   const subject = `New custom order ${order.orderNumber} — $${Number(order.totalPrice).toFixed(2)}`;
-  const text = `New custom design order ${order.orderNumber}\n\nName: ${order.customerName}\nEmail: ${order.customerEmail}${order.customerPhone ? `\nPhone: ${order.customerPhone}` : ''}\nEstimate: $${Number(order.totalPrice).toFixed(2)} (GST incl.)\n${specLine ? `Design: ${specLine}\n` : ''}${spec.palette ? `Palette: ${spec.palette}\n` : ''}${order.notes ? `\nCustomer note: ${order.notes}\n` : ''}\n${await signatureBlock(s)}`;
+  const text = `New custom design order ${order.orderNumber}\n\nName: ${order.customerName}\nEmail: ${order.customerEmail}${order.customerPhone ? `\nPhone: ${order.customerPhone}` : ''}\nEstimate: $${Number(order.totalPrice).toFixed(2)} (GST incl.)\n${neededByLine}${depositLine}${leadNote}${specLine ? `Design: ${specLine}\n` : ''}${spec.palette ? `Palette: ${spec.palette}\n` : ''}${statusLine}${order.notes ? `\nCustomer note: ${order.notes}\n` : ''}\n${await signatureBlock(s)}`;
   const row = await enqueueEmail({ to, subject, text, template: 'admin_custom_order_alert', payload: { orderNumber: order.orderNumber } });
   sendFromQueue(row).catch(()=>{});
   return row;

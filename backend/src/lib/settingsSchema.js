@@ -156,6 +156,11 @@ export const SETTINGS = [
   { key: 'pos_receipt_footer', section: 'pos', label: 'Receipt footer', type: 'textarea', default: "Thank you! — Krystals Flower Creations • Perth WA", public: false, max: 300 },
   { key: 'pos_till_float_default', section: 'pos', label: 'Default till float', type: 'number', default: '50', public: false, min: 0, max: 10000, unit: '$' },
 
+  // ── Custom orders ───────────────────────────────────────────
+  { key: 'custom_order_lead_days', section: 'orders', label: 'Custom order lead time', type: 'number', default: '7', public: true, min: 1, max: 90, unit: 'days', description: 'Needed-by dates inside this lead time trigger a feasibility note.' },
+  { key: 'custom_order_deposit_percent', section: 'orders', label: 'Custom order deposit', type: 'number', default: '50', public: true, min: 0, max: 100, unit: '%', description: 'Deposit required for custom orders (0 = full payment on completion).' },
+  { key: 'bank_transfer_instructions', section: 'payments', label: 'Bank transfer instructions', type: 'textarea', default: '', public: true, max: 1000, placeholder: 'BSB 000-000 Account 12345678 — Reference your order number', description: 'Shown in custom order confirmation email if set; otherwise uses bank Name/BSB/Account fields.' },
+
   // ── Appearance ────────────────────────────────────────────
   { key: 'default_color_mode', section: 'appearance', label: 'Default colour mode', type: 'select', default: 'system', public: true, options: COLOR_MODE_OPTIONS, description: 'For first-time visitors (their own choice is remembered).' },
   { key: 'show_color_mode_toggle', section: 'appearance', label: 'Show light/dark toggle', type: 'toggle', default: '1', public: true, description: 'Hides the switch in the storefront header when off.' },

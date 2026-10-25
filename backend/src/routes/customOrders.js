@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -10,6 +10,7 @@ import { sendCustomOrderConfirmation, sendAdminCustomOrderAlert } from '../servi
 import { quoteCustomOrder } from '../services/customOrderPricing.js';
 import { handleCustomOrderStateChange } from '../lib/customOrderState.js';
 import { ALLOWED_PAPER_COLORS, ALLOWED_PAPER_TEXTURES, ALLOWED_WEIGHTS, ALLOWED_TEMPLATES } from '../../../shared/configurator.js';
+import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
 const customOrderLimit = rateLimit('custom_order_create', 10, 1);
@@ -44,6 +45,8 @@ const createSchema = z.object({
   shippingSuburb: z.string().max(100).optional().nullable(),
   shippingState: z.string().max(50).default('WA'),
   shippingPostcode: z.string().max(10).optional().nullable(),
+  neededBy: z.coerce.date().optional().nullable(),
+  fulfilment: z.enum(['pickup','post']).default('pickup'),
 }).strict();
 
 router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (req, res) => {
@@ -54,6 +57,19 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
     if (existing) return res.json(existing);
   }
   const quoted = await quoteCustomOrder(data.spec);
+  const statusToken = randomBytes(32).toString('hex');
+  const neededBy = data.neededBy ? new Date(data.neededBy) : null;
+  const fulfilment = data.fulfilment || 'pickup';
+  // Lead time check
+  let leadNote = null;
+  if (neededBy) {
+    const S = await getSettings({ onlyPublic: true }).catch(()=>({}));
+    const leadDays = Number(S.custom_order_lead_days) || 7;
+    const leadDate = new Date(); leadDate.setDate(leadDate.getDate() + leadDays);
+    leadDate.setHours(0,0,0,0);
+    const needed = new Date(neededBy); needed.setHours(0,0,0,0);
+    if (needed < leadDate) leadNote = 'Needed inside standard lead time - confirm feasibility';
+  }
   const order = await prisma.customArtOrder.create({
     data: {
       orderNumber: orderNumber(),
@@ -74,6 +90,9 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
       shippingSuburb: data.shippingSuburb,
       shippingState: data.shippingState,
       shippingPostcode: data.shippingPostcode,
+      neededBy,
+      fulfilment,
+      statusToken,
     },
   });
   const qrPayload = `KFK-T-CA-${order.orderNumber}-${randomUUID().slice(0,8).toUpperCase()}`;
@@ -82,6 +101,7 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
   if (!quoted.bomSnapshot || quoted.bomSnapshot.length === 0) {
     historyNote = `No BOM recipe for ${data.spec.templateId}`;
   }
+  if (leadNote) historyNote = historyNote + `; ${leadNote}`;
   await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: historyNote } });
   const full = await prisma.customArtOrder.findUnique({ where: { id: order.id }, include: { history: true, ticket: true } });
   await sendCustomOrderConfirmation(full).catch(()=>{});
@@ -99,6 +119,32 @@ router.get('/', authenticate, requireRole('admin','developer','maker','staff'), 
 router.get('/kanban', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
   const counts = await prisma.customArtOrder.groupBy({ by: ['state'], _count: true, _sum: { totalPrice: true }, where: { state: { not: 'cancelled' } } });
   res.json(counts);
+}));
+
+const statusLimit = rateLimit('custom_order_status', 60, 1);
+const STATUS_LABELS = {
+  drafting_proofing: 'Drafting / Proofing',
+  cricut_cutting: 'Cutting',
+  hand_folding_assembly: 'Hand Folding & Assembly',
+  quality_check: 'Quality Check',
+  dispatched_pickup_ready: 'Dispatched / Pickup Ready',
+  cancelled: 'Cancelled',
+};
+
+router.get('/status/:token', statusLimit, asyncHandler(async (req, res) => {
+  const token = String(req.params.token).slice(0, 128);
+  if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const order = await prisma.customArtOrder.findUnique({ where: { statusToken: token }, select: { orderNumber: true, state: true, neededBy: true, fulfilment: true, paymentStatus: true, totalPrice: true } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  res.json({
+    orderNumber: order.orderNumber,
+    state: order.state,
+    stateLabel: STATUS_LABELS[order.state] || order.state,
+    neededBy: order.neededBy,
+    fulfilment: order.fulfilment,
+    paymentStatus: order.paymentStatus,
+    total: order.totalPrice,
+  });
 }));
 
 router.get('/by-number/:orderNumber', authenticate, asyncHandler(async (req, res) => {
@@ -122,6 +168,26 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 router.patch('/:id/state', authenticate, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
   const { state, note } = req.body;
   const updated = await handleCustomOrderStateChange({ orderId: req.params.id, targetState: state, note, actorId: req.user.id });
+  res.json(updated);
+}));
+
+router.patch('/:id/proof', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const { approved } = req.body;
+  const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const updated = await prisma.customArtOrder.update({ where: { id: order.id }, data: { proofApprovedAt: approved ? new Date() : null } });
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: order.state, toState: order.state, note: approved ? 'Proof approved' : 'Proof reset', byUserId: req.user.id } });
+  res.json(updated);
+}));
+
+router.patch('/:id/payment', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const { paymentStatus } = req.body;
+  const allowed = ['unpaid','deposit_paid','paid'];
+  if (!allowed.includes(paymentStatus)) return res.status(400).json({ error: 'Invalid paymentStatus', code: 'validation_failed' });
+  const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const updated = await prisma.customArtOrder.update({ where: { id: order.id }, data: { paymentStatus } });
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: order.state, toState: order.state, note: `Payment: ${paymentStatus}`, byUserId: req.user.id } });
   res.json(updated);
 }));
 
