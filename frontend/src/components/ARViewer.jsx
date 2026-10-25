@@ -1,17 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+
+function hexToRgba(hex) {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex || '');
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 
 // AR try-on via <model-viewer> (CDN loaded once in index.html). A GLB is only
 // rendered when /3d/<slug>.glb exists AND is a real model (>1KB) — the repo
 // ships 12-byte placeholders until the Blender export lands.
-export default function ARViewer({ productSlug = 'peony', title = 'Everlasting Bouquet' }) {
+// Supports tinting the model to the chosen paper colour via tintHex prop.
+export default function ARViewer({ productSlug = 'peony', title = 'Everlasting Bouquet', tintHex = null, onLoad = null }) {
   const glb = `/3d/${productSlug}.glb`;
   const [ready, setReady] = useState(false);
   const [probing, setProbing] = useState(true);
+  const viewerRef = useRef(null);
+  const [modelLoaded, setModelLoaded] = useState(false);
+
   useEffect(() => {
     let alive = true;
-    setProbing(true); setReady(false);
-    // Range GET: vite HEAD omits content-length; missing files fall back to
-    // SPA index.html (text/html) which must never count as a model.
+    setProbing(true); setReady(false); setModelLoaded(false);
     fetch(glb, { headers: { Range: 'bytes=0-1' } })
       .then(async (r) => {
         if (!alive || !r.ok) return;
@@ -26,6 +35,33 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
       .finally(() => { if (alive) setProbing(false); });
     return () => { alive = false; };
   }, [glb]);
+
+  const applyTint = () => {
+    const el = viewerRef.current;
+    if (!el) return;
+    // External handler first (Configurator passes its own tint logic)
+    if (typeof onLoad === 'function') {
+      try { onLoad(el); } catch {}
+    }
+    // Internal tint via material API — guard for GLBs without named material
+    if (!tintHex) return;
+    const rgb = hexToRgba(tintHex);
+    if (!rgb) return;
+    const mats = el.model?.materials;
+    if (!Array.isArray(mats) || mats.length === 0) return;
+    for (const mat of mats) {
+      try {
+        if (mat.pbrMetallicRoughness && typeof mat.pbrMetallicRoughness.setBaseColorFactor === 'function') {
+          mat.pbrMetallicRoughness.setBaseColorFactor([rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1]);
+        }
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (modelLoaded) applyTint();
+  }, [tintHex, modelLoaded]);
+
   return (
     <div className="bg-gradient-to-br from-surface to-surface2 rounded-2xl border p-4">
       <div className="flex justify-between items-center">
@@ -35,6 +71,7 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
       <div className="mt-3 bg-surface2 rounded-xl border overflow-hidden" style={{ height: 220 }}>
         {ready ? (
           <model-viewer
+            ref={viewerRef}
             src={glb}
             alt={title}
             ar
@@ -44,6 +81,7 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
             shadow-intensity="1"
             environment-image="neutral"
             style={{ width: '100%', height: '220px', backgroundColor: 'transparent' }}
+            onLoad={() => { setModelLoaded(true); }}
           >
             <button slot="ar-button" className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-bloom-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow">View on your table</button>
           </model-viewer>
