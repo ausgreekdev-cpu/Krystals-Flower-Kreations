@@ -785,6 +785,7 @@ function InventoryStock({ data, reload, token, onOpen }) {
         <div className="space-y-1.5">
           {filteredMaterials.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-xs border-b border-line py-1.5 flex-wrap">
+              <MaterialThumb materialId={m.id} token={token} />
               <span className="font-medium text-ink flex-1 min-w-[160px] cursor-pointer hover:text-royal-700 hover:underline" title="View details" onClick={() => onOpen('material', m.id, m)}>{m.name} <span className="text-muted">{m.sku} • {m.unit} • ${Number(m.costPerUnit).toFixed(2)}</span>
                 {(m.brand || m.weightValue != null || m.colour || m.size || m.supplier) && <span className="block text-[11px] text-muted font-normal">{[m.supplier, m.brand, m.weightValue != null ? `${m.weightValue}${m.weightUnit || ''}` : null, m.colour, m.size].filter(Boolean).join(' • ')}</span>}
               </span>
@@ -855,6 +856,22 @@ function extractFieldErrors(details) {
     out[k] = Array.isArray(v) ? v[0] : (v && typeof v === 'object' ? (Array.isArray(v._errors) ? v._errors[0] : '') : String(v));
   }
   return out;
+}
+function MaterialThumb({ materialId, token }) {
+  const [url, setUrl] = useState(null);
+  useEffect(()=>{
+    let alive = true;
+    adminApi.media.attachments(token, 'RAW_MATERIAL', materialId).then(rows=>{
+      if (!alive) return;
+      const first = Array.isArray(rows) ? rows[0] : null;
+      const asset = first?.asset;
+      if (asset?.publicUrl) setUrl(asset.publicUrl);
+      else if (asset?.thumbRef) setUrl(null);
+    }).catch(()=>{});
+    return ()=>{ alive=false; };
+  }, [materialId, token]);
+  if (!url) return <div className="w-10 h-10 rounded-lg bg-surface3 border flex items-center justify-center text-[10px] text-muted shrink-0">—</div>;
+  return <img src={url} alt="" className="w-10 h-10 rounded-lg object-cover border shrink-0" />;
 }
 function MaterialModal({ material, locations, materials, suppliers = [], onClose, onSaved, token }) {
   const toast = useToast();
