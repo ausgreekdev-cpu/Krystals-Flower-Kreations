@@ -29,15 +29,21 @@ const BY_ID = {
 // Everything else: best-effort from the legacy value + the title.
 function fallback(doc) {
   const t = String(doc.title || '').toLowerCase();
-  const flowerish = /flower|rose|tulip|lily|lilies|peony|bloom|petal|blossom|daffodil|orchid/.test(t);
+  // Ranking matters: a 'Paper Flower Hoop Wreath' is decor made of flowers.
+  const decorish = /wreath|hoop|shadow box|monogram|frame|garland|mobile|centre piece|center piece|sculptur/.test(t);
+  const flowerish = /flower|rose|tulip|lily|lilies|peony|bloom|petal|blossom|daffodil|orchid|dahlia|ranunculus|hydrangea|carnation|sunflower|chrysanth|blossom/.test(t);
   const category = doc.category === 'MANUFACTURING_SPEC' ? 'MANUFACTURING_SPEC'
-    : doc.category === 'ORIGAMI' ? (flowerish ? 'FLOWER' : 'DECOR')
-    : flowerish ? 'FLOWER' : 'BOUQUET';
+    : decorish ? 'DECOR'
+    : /bouquet|arrangement/.test(t) ? 'BOUQUET'
+    : /foliage|\bleaf\b|leaves|eucalyptus/.test(t) && !flowerish ? 'FOLIAGE'
+    : flowerish ? 'FLOWER'
+    : doc.category === 'ORIGAMI' ? 'DECOR'
+    : 'FLOWER';
   const subcategory = doc.category === 'MANUFACTURING_SPEC' ? 'DIE_CUT'
-    : /die.?cut/.test(t) ? 'DIE_CUT'
+    : /die.?cut|die set|vinyl/.test(t) ? 'DIE_CUT'
     : /origami|fold/.test(t) ? 'ORIGAMI'
-    : /sculptur/.test(t) ? 'SCULPTURAL'
-    : /crepe/.test(t) ? 'CREPE_PAPER'
+    : /sculptur|wire frame/.test(t) ? 'SCULPTURAL'
+    : /crepe|petal|\bcup\b|curl/.test(t) ? 'CREPE_PAPER'
     : 'HAND_ASSEMBLY';
   return { category, subcategory };
 }
