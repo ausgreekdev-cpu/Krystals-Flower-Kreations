@@ -28,9 +28,18 @@ const paperSchema = z.object({
   lowThreshold: z.number().finite().min(0).max(1000000).default(5),
 }).strict();
 
-// Public — only active papers, sorted, for configurator
+// Public — only active papers, sorted, for configurator — optionally filter by template compatibility
 router.get('/', asyncHandler(async (req, res) => {
-  const papers = await prisma.paperStock.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  const templateId = String(req.query.templateId || '').trim();
+  const where = { isActive: true };
+  if (templateId && ['wattle-sprig','paper-rose','banksia-petal','origami-lily'].includes(templateId)) {
+    // empty array = compatible with all; otherwise must contain templateId
+    where.OR = [
+      { compatibleTemplates: { isEmpty: true } },
+      { compatibleTemplates: { has: templateId } },
+    ];
+  }
+  const papers = await prisma.paperStock.findMany({ where, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
   res.json(papers);
 }));
 

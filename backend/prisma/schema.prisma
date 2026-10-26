@@ -899,6 +899,7 @@ model PaperStock {
   sortOrder             Int      @default(0)
   onHand                Float    @default(0)
   lowThreshold          Float    @default(5)
+  compatibleTemplates   String[] @default([]) // e.g. ["wattle-sprig","paper-rose"] — empty = all templates
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

@@ -63,7 +63,7 @@ export default function Configurator(){
   const [paperQ, setPaperQ] = useState('');
   const [paperTypeFilter, setPaperTypeFilter] = useState('');
   const [paperTextureFilter, setPaperTextureFilter] = useState('');
-  useEffect(()=>{ paperStocksApi.list().then(setPapers).catch(()=>{}); }, []);
+  useEffect(()=>{ paperStocksApi.list(spec.templateId).then(setPapers).catch(()=>{}); }, [spec.templateId]);
   const availablePapers = papers.filter(p=> Number(p.onHand) > 0);
   const selectedPaper = papers.find(p=> p.id===spec.paperStockId) || null;
   const paperPremium = selectedPaper ? Number(selectedPaper.pricePremiumPerStem) || 0 : 0;
