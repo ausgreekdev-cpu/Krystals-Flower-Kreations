@@ -65,7 +65,7 @@ export default function ARViewer({ productSlug = 'peony', title = 'Everlasting B
   return (
     <div className="bg-gradient-to-br from-surface to-surface2 rounded-2xl border p-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-bold text-ink text-sm">AR Try-On — Free</h3>
+        <h2 className="font-bold text-ink text-sm">AR Try-On — Free</h2>
         <span className="text-[10px] bg-bloom-500 text-white px-2 py-1 rounded-full">No app install</span>
       </div>
       <div className="mt-3 bg-surface2 rounded-xl border overflow-hidden" style={{ height: 220 }}>

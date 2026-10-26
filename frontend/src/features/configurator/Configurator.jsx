@@ -383,7 +383,7 @@ export default function Configurator(){
               <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> {
                 const lbl = WEIGHT_LABELS[w];
                 const sur = w==='80lb' ? Number(s.configurator_weight_80lb || 0) : w==='110lb' ? Number(s.configurator_weight_110lb || 0) : 0;
-                return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className="text-[11px] font-normal opacity-70">({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className="block text-[10px] font-normal opacity-60">{lbl.description}</span></button>;
+                return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className={`text-[11px] font-normal ${spec.weight===w?'text-white/85':'opacity-70'}`}>({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className={`block text-[10px] font-normal ${spec.weight===w?'text-white/80':'opacity-60'}`}>{lbl.description}</span></button>;
               })}</div>
               {(() => {
                 const hExtra = Math.max(0, Number(spec.heightMm) - 400);
@@ -497,7 +497,7 @@ export default function Configurator(){
           <div className="flex flex-wrap gap-2" role="group" aria-label="Paper weight fallback">{WEIGHTS.map(w=> {
             const lbl = WEIGHT_LABELS[w];
             const sur = w==='80lb' ? Number(s.configurator_weight_80lb || 0) : w==='110lb' ? Number(s.configurator_weight_110lb || 0) : 0;
-            return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className="text-[11px] font-normal opacity-70">({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className="block text-[10px] font-normal opacity-60">{lbl.description}</span></button>;
+            return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className={`text-[11px] font-normal ${spec.weight===w?'text-white/85':'opacity-70'}`}>({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className={`block text-[10px] font-normal ${spec.weight===w?'text-white/80':'opacity-60'}`}>{lbl.description}</span></button>;
           })}</div>
           {(() => {
             const hExtra = Math.max(0, Number(spec.heightMm) - 400);
