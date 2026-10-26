@@ -38,7 +38,7 @@ export const schemas = {
     shippingPostcode: z.string().min(3).max(10).regex(/^[0-9A-Za-z ]+$/),
     discountCode: z.string().max(30).optional().nullable(),
     customerNote: z.string().max(2000).optional().nullable(),
-    paymentMethod: z.enum(['cash','bank_transfer','pickup','manual']).default('manual'),
+    paymentMethod: z.enum(['paypal','cash','bank_transfer','pickup','manual']).default('manual'),
   }).strict(),
   workshopBook: z.object({
     name: z.string().min(2).max(120),

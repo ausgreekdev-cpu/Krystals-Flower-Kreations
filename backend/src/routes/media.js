@@ -515,7 +515,12 @@ router.get('/:id/file', authenticate, requireRole(...EDITOR_ROLES), readLimit, a
     throw e;
   }
   res.setHeader('Content-Type', asset.mime);
-  res.setHeader('Content-Disposition', `inline; filename="${asset.title.replace(/[^\x20-\x7E]/g, '_')}.${(EXT_FOR[asset.mime] || 'bin')}"`);
+  const safeTitle = String(asset.title || 'file').replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+  const ext = EXT_FOR[asset.mime] || 'bin';
+  // filename* (RFC 5987) carries the original title; clients that support it
+  // prefer it over the legacy quoted filename= — the double-quote is therefore
+  // neutralised in both slots.
+  res.setHeader('Content-Disposition', `inline; filename="${safeTitle}.${ext}"; filename*=UTF-8''${encodeURIComponent(String(asset.title || 'file'))}`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'private, max-age=300');
   res.send(buffer);
@@ -534,6 +539,7 @@ router.get('/:id/thumb', authenticate, requireRole(...EDITOR_ROLES), readLimit, 
   if (!ref) return res.status(404).json({ error: 'No thumbnail', code: 'not_found' });
   const buffer = await getObject(String(ref));
   res.setHeader('Content-Type', 'image/webp');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'private, max-age=300');
   res.send(buffer);
 }));

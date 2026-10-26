@@ -1,4 +1,4 @@
-// Hardening for uploaded digital-template SVGs (paid Cricut files).
+// Hardening for uploaded digital-template SVGs (paid template files).
 //
 // Delivery is already safe-by-context (private bucket, tokenized /api/dl,
 // Content-Disposition: attachment + nosniff) — these guards are the
@@ -10,7 +10,7 @@
 //
 // safeOptimizeSvg() is deliberately NOT svgo's preset-default: cutting-machine
 // files must keep geometry, viewBox and id references byte-stable (path
-// re-precision, id cleanup or editor-namespace stripping can corrupt Cricut
+// re-precision, id cleanup or editor-namespace stripping can corrupt cutting
 // layers). Only debris is removed: doctype, XML prolog, comments, <metadata>.
 import { optimize } from 'svgo';
 

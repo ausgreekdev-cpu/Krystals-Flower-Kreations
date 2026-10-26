@@ -80,7 +80,7 @@ export const SETTINGS = [
   { key: 'shop_sort_default', section: 'storefront', label: 'Shop default sort', type: 'select', default: 'newest', public: true, options: SHOP_SORT_OPTIONS },
   { key: 'handling_days_text', section: 'storefront', label: 'Handling time', type: 'text', default: '3-7 days', public: true, max: 60 },
   { key: 'site_meta_title', section: 'storefront', label: 'Meta title (SEO)', type: 'text', default: "Krystals Flower Creations — Paper Florist Perth WA", public: true, max: 70 },
-  { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, sculptural art, Cricut SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
+  { key: 'site_meta_description', section: 'storefront', label: 'Meta description (SEO)', type: 'textarea', default: 'Handmade paper flowers, sculptural art, SVG templates & workshops. Perth, Western Australia.', public: true, max: 300 },
   { key: 'og_image_url', section: 'storefront', label: 'Social share image URL', type: 'url', default: '', public: true },
   { key: 'ga_measurement_id', section: 'storefront', label: 'Google Analytics ID', type: 'text', default: '', public: true, max: 40, placeholder: 'G-XXXXXXXXXX', description: 'GA4 measurement ID — storefront funnel events (view item, add to cart, checkout, purchase). Empty = no analytics loaded.' },
   { key: 'notebooklm_url', section: 'storefront', label: 'NotebookLM URL', type: 'url', default: '', public: true },
@@ -90,8 +90,11 @@ export const SETTINGS = [
   { key: 'configurator_greenery', section: 'storefront', label: 'Configurator greenery add-on', type: 'number', default: '12', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_dome', section: 'storefront', label: 'Configurator glass dome add-on', type: 'number', default: '45', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'configurator_led', section: 'storefront', label: 'Configurator LED fairy lights add-on', type: 'number', default: '18', public: true, min: 0, max: 100000, unit: '$' },
+  { key: 'configurator_weight_80lb', section: 'storefront', label: 'Configurator Standard (80lb) surcharge', type: 'number', default: '0', public: true, min: 0, max: 100000, unit: '$' },
+  { key: 'configurator_weight_110lb', section: 'storefront', label: 'Configurator Sturdy (110lb) surcharge', type: 'number', default: '0', public: true, min: 0, max: 100000, unit: '$' },
+  { key: 'configurator_height_per_100mm', section: 'storefront', label: 'Configurator height surcharge per 100mm over 400mm', type: 'number', default: '0', public: true, min: 0, max: 100000, unit: '$' },
   { key: 'show_workshops', section: 'storefront', label: 'Show Workshops', type: 'toggle', default: '0', public: true, description: 'Off = hides all workshop links, cards, nav and the /workshops page.' },
-  { key: 'show_cricut', section: 'storefront', label: 'Show Cricut content', type: 'toggle', default: '0', public: true, description: 'Off = hides Cricut mentions in the hero, shop chips, configurator section and notebook copy.' },
+  { key: 'show_cricut', section: 'storefront', label: 'Show cutting templates', type: 'toggle', default: '0', public: true, description: 'Off = hides template mentions in the hero, shop chips, configurator section and notebook copy.' },
   { key: 'show_kanban', section: 'storefront', label: 'Show Kanban board', type: 'toggle', default: '0', public: true, description: 'Off = hides the staff custom-order board link and route.' },
   { key: 'about_story', section: 'storefront', label: 'About page story', type: 'textarea', default: 'Krystals Flower Creations is a small paper-flower studio in Perth, Western Australia. Every bloom is handcrafted from quality cardstock — everlasting bouquets, sculptural art and origami pieces that never wilt. Designed and made to order in our Perth studio, with local pickup and delivery available across WA.', public: true, max: 2000 },
 
@@ -153,6 +156,11 @@ export const SETTINGS = [
   { key: 'pos_receipt_footer', section: 'pos', label: 'Receipt footer', type: 'textarea', default: "Thank you! — Krystals Flower Creations • Perth WA", public: false, max: 300 },
   { key: 'pos_till_float_default', section: 'pos', label: 'Default till float', type: 'number', default: '50', public: false, min: 0, max: 10000, unit: '$' },
 
+  // ── Custom orders ───────────────────────────────────────────
+  { key: 'custom_order_lead_days', section: 'orders', label: 'Custom order lead time', type: 'number', default: '7', public: true, min: 1, max: 90, unit: 'days', description: 'Needed-by dates inside this lead time trigger a feasibility note.' },
+  { key: 'custom_order_deposit_percent', section: 'orders', label: 'Custom order deposit', type: 'number', default: '50', public: true, min: 0, max: 100, unit: '%', description: 'Deposit required for custom orders (0 = full payment on completion).' },
+  { key: 'bank_transfer_instructions', section: 'payments', label: 'Bank transfer instructions', type: 'textarea', default: '', public: true, max: 1000, placeholder: 'BSB 000-000 Account 12345678 — Reference your order number', description: 'Shown in custom order confirmation email if set; otherwise uses bank Name/BSB/Account fields.' },
+
   // ── Appearance ────────────────────────────────────────────
   { key: 'default_color_mode', section: 'appearance', label: 'Default colour mode', type: 'select', default: 'system', public: true, options: COLOR_MODE_OPTIONS, description: 'For first-time visitors (their own choice is remembered).' },
   { key: 'show_color_mode_toggle', section: 'appearance', label: 'Show light/dark toggle', type: 'toggle', default: '1', public: true, description: 'Hides the switch in the storefront header when off.' },
@@ -188,9 +196,23 @@ export function defaultsMap(onlyPublic = false) {
   return out;
 }
 
+// ◪ Cached: getSettings() previously hit the DB on every public request (maintenance gate at app.js:142) — 2-7s cross-region tax per miss.
+// Memoised 30s per visibility (public vs all) — invalidated on PUT /api/settings.
+const SETTINGS_TTL_MS = 30_000;
+const _settingsCache = {
+  public: { data: null, at: 0 },
+  all: { data: null, at: 0 },
+};
+export function clearSettingsCache() {
+  _settingsCache.public.data = null; _settingsCache.public.at = 0;
+  _settingsCache.all.data = null; _settingsCache.all.at = 0;
+}
 // Fetch stored settings merged over schema defaults.
 // onlyPublic=true returns just the storefront-safe subset.
 export async function getSettings({ onlyPublic = false } = {}) {
+  const key = onlyPublic ? 'public' : 'all';
+  const hit = _settingsCache[key];
+  if (process.env.NODE_ENV !== 'test' && hit.data && Date.now() - hit.at < SETTINGS_TTL_MS) return hit.data;
   const rows = await prisma.setting.findMany();
   const out = defaultsMap(onlyPublic);
   for (const row of rows) {
@@ -199,6 +221,7 @@ export async function getSettings({ onlyPublic = false } = {}) {
     if (onlyPublic && !entry.public) continue;
     out[row.key] = row.value;
   }
+  if (process.env.NODE_ENV !== 'test') { hit.data = out; hit.at = Date.now(); }
   return out;
 }
 

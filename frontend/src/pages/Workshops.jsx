@@ -88,7 +88,7 @@ export default function Workshops(){
   return (
     <Page>
       {eventsLd.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(eventsLd)}} />}
-      <PageHeader crumbs={<Breadcrumbs items={[{label:'Workshops'}]} />} title="Workshops — Perth Studio" lede="Cricut Blooms 101, Origami Bouquet & Sculptural Art. Max 12, kits included." />
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Workshops'}]} />} title="Workshops — Perth Studio" lede="Blooms 101, Origami Bouquet & Sculptural Art. Max 12, kits included." />
       <div className="mt-4 bg-surface border rounded-xl px-4 py-3 flex flex-wrap justify-between items-center gap-2">
         <span className="text-sm text-ink">Before you book, explore Notebook guide — supplies & folding previews</span>
         <Btn to="/notebook?workshop=cricut-blooms-101" variant="soft" size="pill" className="text-xs">Notebook →</Btn>

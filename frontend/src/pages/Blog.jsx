@@ -16,7 +16,7 @@ export default function Blog(){
     '@type': 'Blog',
     name: 'Journal — Krystals Flower Creations',
     url: `${window.location.origin}/blog`,
-    description: 'Tutorials, Cricut tips, origami folds & studio behind-the-scenes from a Perth paper florist.',
+    description: 'Tutorials, studio tips, origami folds & studio behind-the-scenes from a Perth paper florist.',
     blogPost: posts.slice(0, 20).map(p => ({
       '@type': 'BlogPosting',
       headline: p.title,
@@ -28,7 +28,7 @@ export default function Blog(){
   return (
     <Page width="default">
       {blogLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify(blogLd)}} />}
-      <PageHeader crumbs={<Breadcrumbs items={[{label:'Journal'}]} />} title="Journal" lede="Tutorials, Cricut tips, origami folds & studio behind-the-scenes." />
+      <PageHeader crumbs={<Breadcrumbs items={[{label:'Journal'}]} />} title="Journal" lede="Tutorials, studio tips, origami folds & studio behind-the-scenes." />
       {err && <Alert tone="danger" className="mt-4">Failed to load posts: {err}</Alert>}
       {posts === null && !err && (
         <div className="mt-6 grid sm:grid-cols-2 gap-4">

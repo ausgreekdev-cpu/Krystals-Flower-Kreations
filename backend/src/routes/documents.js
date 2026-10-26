@@ -26,9 +26,29 @@ const EDITOR_ROLES = ['admin', 'developer', 'maker', 'staff'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KINDS = ['PDF', 'CSV', 'SPREADSHEET', 'IMAGE', 'MARKDOWN', 'TEXT', 'OTHER'];
 const CATEGORIES = ['STOCKTAKE', 'SUPPLIER', 'INVOICE', 'PROCEDURE', 'EXPORT', 'MEDIA', 'OTHER'];
+// ◪ Suitable sub-categories per category for a paper-florist studio — kept as strings (not an enum) so additions don't require a migration.
+export const SUBCATEGORIES = {
+  STOCKTAKE: ['CARDSTOCK', 'WIRE_TAPE', 'ADHESIVES', 'PACKAGING', 'FINISHED'],
+  SUPPLIER: ['PAPER_SUPPLIER', 'HARDWARE_SUPPLIER', 'PACKAGING_SUPPLIER', 'GENERAL_SUPPLIER'],
+  INVOICE: ['PURCHASE_INVOICE', 'SALES_INVOICE', 'RECEIPT', 'QUOTE', 'CREDIT_NOTE'],
+  PROCEDURE: ['PETAL_ASSEMBLY', 'ORIGAMI_FOLD', 'WIRING_TAPING', 'PACKAGING_GUIDE', 'QC_CHECK'],
+  EXPORT: ['ORDER_EXPORT', 'INVENTORY_EXPORT', 'BACKUP', 'REPORT'],
+  MEDIA: ['PRODUCT_PHOTO', 'WORKSHOP_PHOTO', 'BRAND_ASSET', 'REFERENCE', 'SOCIAL'],
+  OTHER: ['GENERAL'],
+};
+const ALL_SUBCATEGORIES = new Set(Object.values(SUBCATEGORIES).flat());
+function normaliseSubcategory(cat, sub) {
+  const c = String(cat || '').toUpperCase();
+  const s = String(sub || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_').slice(0, 40);
+  if (!s) return null;
+  if (ALL_SUBCATEGORIES.has(s)) return s;
+  // allow any subcategory under OTHER, otherwise reject unknown
+  if (c === 'OTHER' && /^[A-Z0-9_]{1,40}$/.test(s)) return s;
+  return null;
+}
 const META_SELECT = {
   id: true, title: true, originalName: true, mime: true, sizeBytes: true, sha256: true,
-  kind: true, category: true, tags: true, linkedSupplierId: true, linkedProcedureId: true,
+  kind: true, category: true, subcategory: true, tags: true, linkedSupplierId: true, linkedProcedureId: true,
   uploadedById: true, thumbRef: true, createdAt: true, updatedAt: true,
 };
 
@@ -166,6 +186,7 @@ async function makeThumb(buffer) {
 const patchSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   category: z.enum(['STOCKTAKE', 'SUPPLIER', 'INVOICE', 'PROCEDURE', 'EXPORT', 'MEDIA', 'OTHER']).optional(),
+  subcategory: z.string().trim().max(40).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(32)).max(10).optional(),
   linkedSupplierId: z.string().uuid().nullable().optional(),
   linkedProcedureId: z.string().uuid().nullable().optional(),
@@ -173,17 +194,19 @@ const patchSchema = z.object({
   extractedText: z.string().max(262144).nullable().optional(),
 });
 
-// ── List (Editor+): search over title/name/tags + kind/category filters ─────
+// ── List (Editor+): search over title/name/tags + kind/category/subcategory filters ─────
 router.get('/', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 100);
   const kind = KINDS.includes(req.query.kind) ? req.query.kind : undefined;
   const category = CATEGORIES.includes(req.query.category) ? req.query.category : undefined;
+  const subcategory = String(req.query.subcategory || '').trim().toUpperCase();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 25));
   const where = {
     deletedAt: null,
     ...(kind ? { kind } : {}),
     ...(category ? { category } : {}),
+    ...(subcategory && ALL_SUBCATEGORIES.has(subcategory) ? { subcategory } : {}),
     ...(q ? { OR: [
       { title: { contains: q, mode: 'insensitive' } },
       { originalName: { contains: q, mode: 'insensitive' } },
@@ -322,6 +345,9 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
   const confAvg = ocrPages.length
     ? Math.round(ocrPages.reduce((a, p) => a + p.conf, 0) / ocrPages.length)
     : null;
+  const pickedCategory = String(req.body?.category || '').toUpperCase();
+  const category = CATEGORIES.includes(pickedCategory) ? pickedCategory : categoryFor(`${title}.pdf`, 'PDF');
+  const subcategory = normaliseSubcategory(category, req.body?.subcategory);
   const row = await prisma.businessDocument.create({
     data: {
       title,
@@ -331,7 +357,8 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
       storageRef,
       sha256,
       kind: 'PDF',
-      category: categoryFor(`${title}.pdf`, 'PDF'),
+      category,
+      subcategory,
       extractedText: clip(extracted),
       ocrWords: { pages: ocrPages.map((p, i) => ({ pageIndex: i, w: p.w, h: p.h, words: p.words })) },
       ocrConfidence: confAvg,
@@ -390,6 +417,8 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
   if (!['reuse', 'ask', 'replace', 'keep_new', 'skip'].includes(onDuplicate)) {
     return res.status(400).json({ error: 'on_duplicate must be reuse|ask|replace|keep_new|skip', code: 'validation_failed' });
   }
+  const pickedIncoming = String(req.body?.category || '').toUpperCase();
+  const incomingCategory = CATEGORIES.includes(pickedIncoming) ? pickedIncoming : categoryFor(file.originalname, kind);
   if (existing && onDuplicate === 'ask') {
     return res.status(409).json({
       error: `"${file.originalname}" is an exact duplicate of an existing document`,
@@ -399,7 +428,7 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
         originalName: String(file.originalname || '').slice(0, 255),
         sizeBytes: file.buffer.length,
         sha256, kind,
-        category: categoryFor(file.originalname, kind),
+        category: incomingCategory,
       },
     });
   }
@@ -464,10 +493,13 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
     if (tbuf) thumbRef = await putObject(key.replace(/\.[^.]+$/, '') + '-thumb.webp', tbuf, 'image/webp', { bucket: 'business-documents' });
   }
   const title = String(file.originalname || 'Untitled').replace(/\.[^.]+$/, '').slice(0, 200) || 'Untitled';
+  const pickedCategory = String(req.body?.category || '').toUpperCase();
+  const category = CATEGORIES.includes(pickedCategory) ? pickedCategory : categoryFor(file.originalname, kind);
+  const subcategory = normaliseSubcategory(category, req.body?.subcategory);
   const row = await prisma.businessDocument.create({
     data: {
       title, originalName: String(file.originalname || title).slice(0, 255), mime: outMime,
-      sizeBytes: buf.length, storageRef, sha256, kind, category: categoryFor(file.originalname, kind),
+      sizeBytes: buf.length, storageRef, sha256, kind, category, subcategory,
       extractedText: await extractText(kind, file.buffer), thumbRef, uploadedById: req.user.id,
     },
   });
@@ -605,7 +637,21 @@ router.patch('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(patchS
   const body = req.validated;
   const data = {};
   if (body.title !== undefined) data.title = body.title;
-  if (body.category !== undefined) data.category = body.category;
+  if (body.category !== undefined) {
+    data.category = body.category;
+    // if category changes, keep subcategory only if it fits the new category
+    if (body.subcategory === undefined && doc.subcategory) {
+      const keep = normaliseSubcategory(body.category, doc.subcategory);
+      data.subcategory = keep;
+    }
+  }
+  if (body.subcategory !== undefined) {
+    const cat = body.category !== undefined ? body.category : doc.category;
+    data.subcategory = body.subcategory === null ? null : normaliseSubcategory(cat, body.subcategory);
+    if (body.subcategory !== null && data.subcategory === null) {
+      return res.status(400).json({ error: `Invalid subcategory "${body.subcategory}" for category ${cat}`, code: 'validation_failed' });
+    }
+  }
   if (body.tags !== undefined) data.tags = [...new Set(body.tags.map((t) => t.toLowerCase()))];
   if (body.linkedSupplierId !== undefined) data.linkedSupplierId = body.linkedSupplierId;
   if (body.linkedProcedureId !== undefined) data.linkedProcedureId = body.linkedProcedureId;

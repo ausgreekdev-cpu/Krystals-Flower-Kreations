@@ -1,7 +1,7 @@
 // Strip fields that must never reach non-staff clients.
 //
 // - `svgUrl` is the PRIVATE digital-assets storage ref for the purchased
-//   Cricut template (delivered only via tokenized /api/dl/:token) — the ref
+//   template (delivered only via tokenized /api/dl/:token) — the ref
 //   itself is not a public URL but it is an internal storage key.
 // - `cost` is unit cost (margin) — storefront display uses `price` only.
 // Staff routes (`?all=1`, admin CRUD responses) keep the raw row; every

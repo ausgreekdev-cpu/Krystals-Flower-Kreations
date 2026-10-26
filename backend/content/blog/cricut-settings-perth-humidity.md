@@ -1,10 +1,10 @@
 ---
-title: Cricut Settings for Perth Humidity
+title: Cutting Settings for Perth Humidity
 slug: cricut-settings-perth-humidity
 excerpt: Perth's humidity wrecks clean cuts — blade pressure, mat tack and paper conditioning that keep petals sharp all summer.
-metaTitle: Cricut Cut Settings for Perth Humidity | Paper Florist Tips
+metaTitle: Cutting Settings for Perth Humidity | Paper Florist Tips
 metaDescription: Perth humidity makes cardstock damp and cuts fuzzy. Krystal shares the blade, pressure and mat-tack settings she runs for clean paper petals year-round.
-tags: cricut, tutorial, humidity, perth
+tags: cutting, tutorial, humidity, perth
 cover: /og-cover.jpg
 productSlugs: cricut-svg-wattle-sprig, workshop-cricut-blooms-101, eucalyptus-paper-rose-bouquet-blush
 status: published
@@ -48,6 +48,6 @@ If sheets are visibly wavy the moment you lay them down, do not fight it — sta
 
 ## Learn these in the studio
 
-The [Wattle Sprig SVG](/product/cricut-svg-wattle-sprig) has layered files sized for exactly these settings — a good test run: if your wattle cuts clean, your humidity routine is right. And [Cricut Blooms 101](/product/workshop-cricut-blooms-101) in my Perth studio dedicates its first hour to cutting and material setup, because everyone arrives with the same fuzzy-edge story and it is always the air.
+The [Wattle Sprig SVG](/product/cricut-svg-wattle-sprig) has layered files sized for exactly these settings — a good test run: if your wattle cuts clean, your humidity routine is right. And [Blooms 101](/product/workshop-cricut-blooms-101) in my Perth studio dedicates its first hour to cutting and material setup, because everyone arrives with the same fuzzy-edge story and it is always the air.
 
 When the cuts are right, assembly is the easy part — that is the [Blush Rose Bouquet](/product/eucalyptus-paper-rose-bouquet-blush) workflow end to end.

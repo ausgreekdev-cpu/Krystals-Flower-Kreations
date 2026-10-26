@@ -177,7 +177,7 @@ export default function ImportReviewModal({ importId, token, onClose, onSaved, o
           <label className="text-xs text-muted">Labour min/unit
             <input className={`${input} ml-1 w-16`} type="number" min="0" value={minutes.labour} onChange={(e) => setMinutes({ ...minutes, labour: Number(e.target.value) })} />
           </label>
-          <label className="text-xs text-muted">Cricut min/unit
+          <label className="text-xs text-muted">Machine min/unit
             <input className={`${input} ml-1 w-16`} type="number" min="0" value={minutes.cricut} onChange={(e) => setMinutes({ ...minutes, cricut: Number(e.target.value) })} />
           </label>
           <div className="flex-1" />

@@ -1,41 +1,36 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
-import { pricingConfig } from '../services/bomPricing.js';
 import { sendCustomOrderConfirmation, sendAdminCustomOrderAlert } from '../services/email.js';
+import { quoteCustomOrder } from '../services/customOrderPricing.js';
+import { handleCustomOrderStateChange } from '../lib/customOrderState.js';
+import { ALLOWED_PAPER_COLORS, ALLOWED_PAPER_TEXTURES, ALLOWED_WEIGHTS, ALLOWED_TEMPLATES } from '../../../shared/configurator.js';
 import { getSettings } from '../lib/settingsSchema.js';
 
 const router = Router();
 const customOrderLimit = rateLimit('custom_order_create', 10, 1);
 
-const STATE_ORDER = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready'];
-
-function nextState(current, target) {
-  if (target === 'cancelled') return true;
-  const ci = STATE_ORDER.indexOf(current);
-  const ti = STATE_ORDER.indexOf(target);
-  return ti === ci + 1 || ti === ci;
-}
 function orderNumber() {
   return `KFK-CA-${new Date().getFullYear()}-${Math.random().toString(36).toUpperCase().slice(2,6)}${Date.now().toString().slice(-3)}`;
 }
-const specSchema = z.object({
-  paperColor: z.string().min(1).max(50),
-  paperTexture: z.string().min(1).max(50),
-  weight: z.string().min(1).max(20),
+export const specSchema = z.object({
+  paperColor: z.enum(ALLOWED_PAPER_COLORS),
+  paperTexture: z.enum(ALLOWED_PAPER_TEXTURES),
+  weight: z.enum(ALLOWED_WEIGHTS),
   stemCount: z.number().int().finite().min(1).max(25),
   heightMm: z.number().int().finite().min(50).max(800),
-  templateId: z.string().min(1).max(100),
+  templateId: z.enum(ALLOWED_TEMPLATES),
   addGreenery: z.boolean().default(false),
   vaseIncluded: z.boolean().default(false),
   domeIncluded: z.boolean().default(false),
   ledIncluded: z.boolean().default(false),
   palette: z.string().min(1).max(50).optional().nullable(),
+  paperStockId: z.string().min(8).max(100).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
 });
 const createSchema = z.object({
@@ -50,6 +45,8 @@ const createSchema = z.object({
   shippingSuburb: z.string().max(100).optional().nullable(),
   shippingState: z.string().max(50).default('WA'),
   shippingPostcode: z.string().max(10).optional().nullable(),
+  neededBy: z.coerce.date().optional().nullable(),
+  fulfilment: z.enum(['pickup','post']).default('pickup'),
 }).strict();
 
 router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (req, res) => {
@@ -59,48 +56,20 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
     const existing = await prisma.customArtOrder.findUnique({ where: { idempotencyKey }, include: { history: true, ticket: true } });
     if (existing) return res.json(existing);
   }
-  let recipe = null;
-  if (data.variantId) recipe = await prisma.bOMRecipe.findFirst({ where: { variantId: data.variantId }, include: { lines: { include: { rawMaterial: true } } } });
-  if (!recipe && data.productId) recipe = await prisma.bOMRecipe.findFirst({ where: { productId: data.productId, variantId: null }, include: { lines: { include: { rawMaterial: true } } } });
-  if (!recipe) recipe = await prisma.bOMRecipe.findFirst({ include: { lines: { include: { rawMaterial: true } } } });
-  const stemCount = data.spec.stemCount;
-  let bomSnapshot = [];
-  let costPrice = 0;
-  let estimatedMinutes = 0;
-  if (recipe) {
-    const baseline = 7;
-    const scale = stemCount / baseline;
-    for (const l of recipe.lines) {
-      const eff = l.qtyPerUnit * (1 + l.wasteFactor) * scale;
-      const cost = eff * Number(l.rawMaterial.costPerUnit);
-      bomSnapshot.push({ rawMaterialId: l.rawMaterialId, sku: l.rawMaterial.sku, effectiveQty: eff, cost });
-      costPrice += cost;
-    }
-    estimatedMinutes = Math.round((recipe.labourMinutesPerUnit + recipe.cricutMinutesPerUnit) * scale);
-    if (data.spec.vaseIncluded) estimatedMinutes += 8;
-    if (data.spec.addGreenery) estimatedMinutes += 5;
-    if (data.spec.domeIncluded) estimatedMinutes += 10;
-    if (data.spec.ledIncluded) estimatedMinutes += 3;
-  } else {
-    estimatedMinutes = Math.round(22 + stemCount * 6 + (data.spec.heightMm / 60));
-    // add-ons take craft time in BOTH branches (was recipe-only — no-recipe
-    // orders undercounted dome/LED/vase/greenery minutes)
-    if (data.spec.vaseIncluded) estimatedMinutes += 8;
-    if (data.spec.addGreenery) estimatedMinutes += 5;
-    if (data.spec.domeIncluded) estimatedMinutes += 10;
-    if (data.spec.ledIncluded) estimatedMinutes += 3;
+  const quoted = await quoteCustomOrder(data.spec);
+  const statusToken = randomBytes(32).toString('hex');
+  const neededBy = data.neededBy ? new Date(data.neededBy) : null;
+  const fulfilment = data.fulfilment || 'pickup';
+  // Lead time check
+  let leadNote = null;
+  if (neededBy) {
+    const S = await getSettings({ onlyPublic: true }).catch(()=>({}));
+    const leadDays = Number(S.custom_order_lead_days) || 7;
+    const leadDate = new Date(); leadDate.setDate(leadDate.getDate() + leadDays);
+    leadDate.setHours(0,0,0,0);
+    const needed = new Date(neededBy); needed.setHours(0,0,0,0);
+    if (needed < leadDate) leadNote = 'Needed inside standard lead time - confirm feasibility';
   }
-  const addCfg = await getSettings({ onlyPublic: true }).catch(() => ({}));
-  const price = (key, d) => { const n = Number(addCfg?.[key]); return addCfg?.[key] != null && addCfg[key] !== '' && Number.isFinite(n) ? n : d; };
-  const LABOUR_RATE = (await pricingConfig()).labourPerHour / 60;
-  const rawPrice = costPrice + (estimatedMinutes * LABOUR_RATE);
-  const bouquetTotal = Math.round((rawPrice * (await pricingConfig()).margin) * 100) / 100;
-  // Floor prices the bouquet only; add-ons are real goods and always bill on top.
-  const addOnsTotal = (data.spec.vaseIncluded ? price('configurator_vase', 22) : 0)
-    + (data.spec.addGreenery ? price('configurator_greenery', 12) : 0)
-    + (data.spec.domeIncluded ? price('configurator_dome', 45) : 0)
-    + (data.spec.ledIncluded ? price('configurator_led', 18) : 0);
-  const finalPrice = Math.max(price('configurator_floor', 45) + stemCount * price('configurator_per_stem', 9.5), bouquetTotal) + addOnsTotal;
   const order = await prisma.customArtOrder.create({
     data: {
       orderNumber: orderNumber(),
@@ -112,23 +81,29 @@ router.post('/', customOrderLimit, validate(createSchema), asyncHandler(async (r
       variantId: data.variantId || null,
       spec: data.spec,
       state: 'drafting_proofing',
-      bomSnapshot,
-      estimatedMinutes,
-      totalPrice: Math.round(finalPrice * 100) / 100,
-      costPrice: Math.round(costPrice * 100) / 100,
+      bomSnapshot: quoted.bomSnapshot,
+      estimatedMinutes: quoted.estimatedMinutes,
+      totalPrice: quoted.total,
+      costPrice: quoted.costPrice,
       shippingName: data.shippingName,
       shippingAddress: data.shippingAddress,
       shippingSuburb: data.shippingSuburb,
       shippingState: data.shippingState,
       shippingPostcode: data.shippingPostcode,
+      neededBy,
+      fulfilment,
+      statusToken,
     },
   });
   const qrPayload = `KFK-T-CA-${order.orderNumber}-${randomUUID().slice(0,8).toUpperCase()}`;
   await prisma.ticket.create({ data: { customArtOrderId: order.id, qrPayload, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrPayload)}` } });
-  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: 'Created from configurator' } });
+  let historyNote = 'Created from configurator';
+  if (!quoted.bomSnapshot || quoted.bomSnapshot.length === 0) {
+    historyNote = `No BOM recipe for ${data.spec.templateId}`;
+  }
+  if (leadNote) historyNote = historyNote + `; ${leadNote}`;
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, toState: 'drafting_proofing', note: historyNote } });
   const full = await prisma.customArtOrder.findUnique({ where: { id: order.id }, include: { history: true, ticket: true } });
-  // Customer confirmation (non-blocking) — previously custom orders emailed
-  // nothing; the on-screen order number was the customer's only reference.
   await sendCustomOrderConfirmation(full).catch(()=>{});
   await sendAdminCustomOrderAlert(full).catch(()=>{});
   res.status(201).json(full);
@@ -144,6 +119,32 @@ router.get('/', authenticate, requireRole('admin','developer','maker','staff'), 
 router.get('/kanban', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
   const counts = await prisma.customArtOrder.groupBy({ by: ['state'], _count: true, _sum: { totalPrice: true }, where: { state: { not: 'cancelled' } } });
   res.json(counts);
+}));
+
+const statusLimit = rateLimit('custom_order_status', 60, 1);
+const STATUS_LABELS = {
+  drafting_proofing: 'Drafting / Proofing',
+  cricut_cutting: 'Cutting',
+  hand_folding_assembly: 'Hand Folding & Assembly',
+  quality_check: 'Quality Check',
+  dispatched_pickup_ready: 'Dispatched / Pickup Ready',
+  cancelled: 'Cancelled',
+};
+
+router.get('/status/:token', statusLimit, asyncHandler(async (req, res) => {
+  const token = String(req.params.token).slice(0, 128);
+  if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const order = await prisma.customArtOrder.findUnique({ where: { statusToken: token }, select: { orderNumber: true, state: true, neededBy: true, fulfilment: true, paymentStatus: true, totalPrice: true } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  res.json({
+    orderNumber: order.orderNumber,
+    state: order.state,
+    stateLabel: STATUS_LABELS[order.state] || order.state,
+    neededBy: order.neededBy,
+    fulfilment: order.fulfilment,
+    paymentStatus: order.paymentStatus,
+    total: order.totalPrice,
+  });
 }));
 
 router.get('/by-number/:orderNumber', authenticate, asyncHandler(async (req, res) => {
@@ -166,21 +167,27 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 
 router.patch('/:id/state', authenticate, requireRole('admin','developer','maker'), asyncHandler(async (req, res) => {
   const { state, note } = req.body;
-  const valid = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready','cancelled'];
-  if (!valid.includes(state)) return res.status(400).json({ error: 'Invalid state', code: 'validation_failed' });
+  const updated = await handleCustomOrderStateChange({ orderId: req.params.id, targetState: state, note, actorId: req.user.id });
+  res.json(updated);
+}));
+
+router.patch('/:id/proof', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const { approved } = req.body;
   const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id } });
   if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
-  if (!nextState(order.state, state)) return res.status(409).json({ error: `Cannot move ${order.state} → ${state}`, code: 'conflict' });
-  if (order.state === 'drafting_proofing' && state === 'cricut_cutting') {
-    for (const line of (order.bomSnapshot || [])) {
-      try {
-        await prisma.rawMaterial.update({ where: { id: line.rawMaterialId }, data: { onHand: { decrement: line.effectiveQty } } });
-        await prisma.stockMovement.create({ data: { productId: order.productId || undefined, rawMaterialId: line.rawMaterialId, type: 'bom_deduct', quantity: -Math.round(line.effectiveQty), reason: `Custom order ${order.orderNumber} → Cricut Cutting`, reference: order.id, userId: req.user.id } });
-      } catch {}
-    }
-  }
-  const updated = await prisma.customArtOrder.update({ where: { id: order.id }, data: { state, ...(state === 'dispatched_pickup_ready' ? { dispatchedAt: new Date() } : {}) } });
-  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: order.state, toState: state, note: note ? String(note).slice(0,500) : null, byUserId: req.user.id } });
+  const updated = await prisma.customArtOrder.update({ where: { id: order.id }, data: { proofApprovedAt: approved ? new Date() : null } });
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: order.state, toState: order.state, note: approved ? 'Proof approved' : 'Proof reset', byUserId: req.user.id } });
+  res.json(updated);
+}));
+
+router.patch('/:id/payment', authenticate, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const { paymentStatus } = req.body;
+  const allowed = ['unpaid','deposit_paid','paid'];
+  if (!allowed.includes(paymentStatus)) return res.status(400).json({ error: 'Invalid paymentStatus', code: 'validation_failed' });
+  const order = await prisma.customArtOrder.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const updated = await prisma.customArtOrder.update({ where: { id: order.id }, data: { paymentStatus } });
+  await prisma.customArtOrderHistory.create({ data: { orderId: order.id, fromState: order.state, toState: order.state, note: `Payment: ${paymentStatus}`, byUserId: req.user.id } });
   res.json(updated);
 }));
 

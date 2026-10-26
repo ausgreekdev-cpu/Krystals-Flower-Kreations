@@ -36,13 +36,13 @@ const ROUTE_TITLES = {
 // snippets). Dynamic routes (/product, /blog/:slug, /occasions) set their
 // own in their page effects — omitted keys are never overwritten.
 const ROUTE_DESCRIPTIONS = {
-  '/': 'Everlasting paper bouquets that never wilt. Custom Cricut + origami blooms, Perth studio. Shop, configurator & workshops — GST inclusive, free Perth delivery over $150.',
-  '/shop': 'Shop handmade paper flowers — everlasting bouquets, Cricut SVG templates & sculptural art from our Perth studio. GST inclusive, free Perth delivery over $150.',
+  '/': 'Everlasting paper bouquets that never wilt. Custom origami blooms, Perth studio. Shop, configurator & workshops — GST inclusive, free Perth delivery over $150.',
+  '/shop': 'Shop handmade paper flowers — everlasting bouquets, SVG templates & sculptural art from our Perth studio. GST inclusive, free Perth delivery over $150.',
   '/configurator': 'Design a custom paper bouquet — colour, texture, weight, stems, height & add-ons with live AUD pricing and a Perth craft-time estimate.',
-  '/workshops': 'Paper flower workshops in Perth — Cricut Blooms 101, Origami Bouquet & Sculptural Art. Kits included, max 12 per class.',
-  '/blog': 'Journal — paper florist tutorials, Cricut settings for Perth humidity, origami folds and studio behind-the-scenes.',
+  '/workshops': 'Paper flower workshops in Perth — Blooms 101, Origami Bouquet & Sculptural Art. Kits included, max 12 per class.',
+  '/blog': 'Journal — paper florist tutorials, cutting settings for Perth humidity, origami folds and studio behind-the-scenes.',
   '/loyalty': 'Bloom Points — earn 1 point per $1 at Krystals Flower Creations and redeem on paper blooms.',
-  '/notebook': 'Studio Notebook — paper florist knowledge base: glue tests, Cricut settings, origami instructions & studio notes.',
+  '/notebook': 'Studio Notebook — paper florist knowledge base: glue tests, cutting settings, origami instructions & studio notes.',
   '/about': 'About Krystals Flower Creations — Perth paper florist studio making everlasting bouquets, sculptural art and workshop kits.',
   '/privacy': 'Privacy policy — Krystals Flower Creations, Perth WA.',
   '/terms': 'Terms of service — handmade made-to-order paper florals, delivery, returns, workshops & ACL rights. Krystals Flower Creations, Perth WA.',

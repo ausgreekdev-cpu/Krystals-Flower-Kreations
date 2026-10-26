@@ -85,11 +85,15 @@ export const catalogApi = {
   list: (q = '') => req<{ products: any[]; nextCursor: string | null }>(`/api/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getBySlug: (slug: string) => req<any>(`/api/products/${slug}`),
 };
+export const paperStocksApi = {
+  list: () => req<any[]>('/api/paper-stocks'),
+  adminList: (token: string) => req<any[]>('/api/paper-stocks/all', { token }),
+};
 export const cartApi = {
   get: (cartId?: string) => req<any>(`/api/cart`, { headers: cartId ? { 'x-cart-id': cartId } : undefined }),
   add: (body: any) => req<{ cartId: string; cart: any }>('/api/cart/add', { method: 'POST', body: JSON.stringify(body) }),
   update: (body: any) => req<any>('/api/cart/update', { method: 'POST', body: JSON.stringify(body) }),
-  clear: (cartId: string) => req<any>(`/api/cart/${cartId}`, { method: 'DELETE' }),
+  clear: (cartId: string) => req<any>(`/api/cart/${cartId}`, { method: 'DELETE', token: getToken() }),
   // Abandoned-cart recovery: store an email against the cart (Cart page field
   // + debounced Checkout capture). Fire-and-forget from the callers.
   saveEmail: (cartId: string, email: string) => req<any>('/api/cart/email', { method: 'POST', body: JSON.stringify({ cartId, email }) }),
@@ -305,10 +309,12 @@ export const adminApi = {
     },
     get: (id: string, token: string) => req<any>(`/api/documents/${id}`, { token }),
     // One file per request (Netlify ~6 MB payload) — the centre uploads sequentially.
-    upload: (file: File, token: string, onDuplicate?: string) => {
+    upload: (file: File, token: string, onDuplicate?: string, category?: string, subcategory?: string) => {
       const fd = new FormData();
       fd.append('file', file, file.name);
       if (onDuplicate) fd.append('on_duplicate', onDuplicate);
+      if (category) fd.append('category', category);
+      if (subcategory) fd.append('subcategory', subcategory);
       return req<{ document: any; deduped: boolean }>(`/api/documents`, { method: 'POST', body: fd, token });
     },
     // S3: metadata enrichment from the document text (own request budget —
@@ -335,10 +341,12 @@ export const adminApi = {
     },
     // Multi-page scan: one document built from the captured pages (server
     // assembles the PDF and OCRs each page).
-    assemble: (files: File[], title: string, token: string) => {
+    assemble: (files: File[], title: string, token: string, category?: string, subcategory?: string) => {
       const fd = new FormData();
       files.forEach((f, i) => fd.append('files', f, f.name || `page-${i + 1}.jpg`));
       fd.append('title', title);
+      if (category) fd.append('category', category);
+      if (subcategory) fd.append('subcategory', subcategory);
       return req<{ document: any; deduped: boolean; pages: number }>(`/api/documents/assemble`, { method: 'POST', body: fd, token });
     },
     update: (id: string, body: any, token: string) => req<any>(`/api/documents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
@@ -465,6 +473,15 @@ export const adminApi = {
     remove: (id: string, token: string) => req<any>(`/api/collections/${id}`, { method: 'DELETE', token }),
     addProduct: (id: string, productId: string, sortOrder: number, token: string) => req<any>(`/api/collections/${id}/products`, { method: 'POST', body: JSON.stringify({ productId, sortOrder }), token }),
     removeProduct: (id: string, productId: string, token: string) => req<any>(`/api/collections/${id}/products/${productId}`, { method: 'DELETE', token }),
+  },
+  paperStocks: {
+    list: (token: string) => req<any[]>('/api/paper-stocks/all', { token }),
+    create: (body: any, token: string) => req<any>('/api/paper-stocks', { method: 'POST', body: JSON.stringify(body), token }),
+    bulk: (papers: any[], token: string) => req<any>('/api/paper-stocks/bulk', { method: 'POST', body: JSON.stringify({ papers }), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/paper-stocks/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+    remove: (id: string, token: string) => req<any>(`/api/paper-stocks/${id}`, { method: 'DELETE', token }),
+    uploadImage: (id: string, file: File, token: string) => { const fd = new FormData(); fd.append('image', file, file.name); return req<any>(`/api/paper-stocks/${id}/image`, { method: 'POST', body: fd, token }); },
+    deleteImage: (id: string, token: string) => req<any>(`/api/paper-stocks/${id}/image`, { method: 'DELETE', token }),
   },
   meta: {
     status: (token: string) => req<any>('/api/meta/status', { token }),

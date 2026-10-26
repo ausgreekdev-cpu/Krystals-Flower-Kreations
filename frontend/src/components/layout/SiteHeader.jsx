@@ -77,7 +77,7 @@ export default function SiteHeader() {
   const showModeToggle = s.show_color_mode_toggle !== '0';
   const showWorkshops = s.show_workshops === '1';
   const showKanban = s.show_kanban === '1';
-  const searchPlaceholder = s.show_cricut === '1' ? 'Search — rose, banksia, Cricut…' : 'Search — rose, banksia, origami…';
+  const searchPlaceholder = 'Search — rose, banksia, origami…';
   const customerItems = (
     <>
       <NavLink to="/" end className={navClass}>Home</NavLink>

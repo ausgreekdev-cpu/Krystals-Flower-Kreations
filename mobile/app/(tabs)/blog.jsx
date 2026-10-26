@@ -8,7 +8,7 @@ export default function Blog() {
   return (
     <ScrollView style={{flex:1, backgroundColor:'#FFF7F0'}} contentContainerStyle={{padding:16, gap:12}}>
       <Text style={{fontSize:22, fontWeight:'800', color:'#4A2C2A'}}>Journal</Text>
-      <Text style={{color:'#6B4A4A'}}>Tutorials, Cricut tips, origami folds + behind the scenes from the studio.</Text>
+      <Text style={{color:'#6B4A4A'}}>Tutorials, cutting tips, origami folds + behind the scenes from the studio.</Text>
       {posts.map(p=> (
         <View key={p.id} style={{backgroundColor:'white', borderRadius:16, padding:16, borderWidth:1, borderColor:'#E8CFCF'}}>
           <Text style={{fontWeight:'700', color:'#4A2C2A'}}>{p.title}</Text>

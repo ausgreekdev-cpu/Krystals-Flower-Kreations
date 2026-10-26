@@ -273,13 +273,13 @@ router.delete('/:productId/images/:imageId', requireAuth, requireRole('admin','d
   res.json({ ok: true });
 }));
 
-// ── Digital template file (Cricut SVG) upload ───────────────────────────────
+// ── Digital template file (SVG) upload ───────────────────────────────
 // Stores into the PRIVATE digital-assets bucket; the key is saved on
 // Product.svgUrl and only served via the tokenized GET /api/dl/:token route
 // after purchase. Replacing the file updates svgUrl — old emailed tokens keep
 // working (same line → same product → new file).
 const svgUploadLimit = rateLimit('product_svg', 30, 5);
-const SVG_CAP_BYTES = 2 * 1024 * 1024; // 2MB — Cricut SVGs are tiny vector files
+const SVG_CAP_BYTES = 2 * 1024 * 1024; // 2MB — SVGs are tiny vector files
 
 router.post('/:id/svg', requireAuth, requireRole('admin','developer','maker','staff'), svgUploadLimit, uploadDocs.single('file'), asyncHandler(async (req, res) => {
   const productId = String(req.params.id).slice(0, 100);

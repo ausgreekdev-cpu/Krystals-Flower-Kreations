@@ -101,3 +101,7 @@ export const metaApi = {
   sync: (productId: string, token: string) => req<any>(`/api/meta/sync/${productId}`, { method: 'POST', token }),
   syncAll: (token: string) => req<any>('/api/meta/sync-all', { method: 'POST', token }),
 };
+
+export const paperStocksApi = {
+  list: () => req<any[]>('/api/paper-stocks'),
+};

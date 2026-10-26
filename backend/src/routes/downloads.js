@@ -7,7 +7,7 @@ import { rateLimit } from '../middleware/rate-limit.js';
 
 const router = Router();
 
-// Token-gated delivery of purchased digital templates (Cricut SVGs).
+// Token-gated delivery of purchased digital templates (SVGs).
 // The token is a purpose-scoped JWT minted per OrderLine at purchase — the
 // same link lands in the confirmation email and works for 30 days. Payment
 // status is re-checked on every hit so unpaid/cancelled orders can't download.

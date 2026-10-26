@@ -4,9 +4,9 @@ import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, useDropp
 import { usePublicSettings } from '../../lib/publicSettings';
 
 const STATES = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready'];
-const LABEL = { drafting_proofing:'Drafting/Proofing', cricut_cutting:'Cricut Cutting', hand_folding_assembly:'Hand Folding', quality_check:'Quality Check', dispatched_pickup_ready:'Dispatched/Pickup Ready' };
+const LABEL = { drafting_proofing:'Drafting/Proofing', cricut_cutting:'Cutting', hand_folding_assembly:'Hand Folding', quality_check:'Quality Check', dispatched_pickup_ready:'Dispatched/Pickup Ready' };
 const STATE_HINT = {
-  drafting_proofing: 'Next: Cricut Cutting — deducts BOM (cardstock/wire/tape)',
+  drafting_proofing: 'Next: Cutting — deducts BOM (cardstock/wire/tape)',
   cricut_cutting: 'Next: Hand Folding & Assembly',
   hand_folding_assembly: 'Next: Quality Check',
   quality_check: 'Next: Dispatched / Pickup Ready — generates QR done',

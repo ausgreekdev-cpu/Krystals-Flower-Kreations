@@ -262,11 +262,11 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     // confirmation includes working links.
     await mintDigitalDownloadUrls(order);
     // Email receipt (non-blocking, logs when no email provider is configured)
-    await sendOrderConfirmation(order).catch(()=>{});
+    await sendOrderConfirmation(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendOrderConfirmation', orderNumber: order.orderNumber, err: e?.message })));
     // Studio alert (settings: admin_order_alert_enabled / _recipient)
-    await sendAdminOrderAlert(order).catch(()=>{});
+    await sendAdminOrderAlert(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: order.orderNumber, err: e?.message })));
     // Production BOM snapshot (materials + labour + lead days) — best-effort
-    await generateOrderBOM(order).catch(()=>{});
+    await generateOrderBOM(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: order.orderNumber, err: e?.message })));
   }
 
   return { order, shipping, gst, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) };
@@ -357,11 +357,11 @@ router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptur
   if (isNew) {
     // Finalize deferred from /paypal/create: loyalty + emails now money moved.
     // Mint digital download links first so the confirmation includes them.
-    await mintDigitalDownloadUrls(fresh);
-    await earnForOrder(prisma, { email: fresh.email, total: fresh.total, orderId: fresh.id, reason: 'purchase' });
-    await sendOrderConfirmation(fresh).catch(()=>{});
-    await sendAdminOrderAlert(fresh).catch(()=>{});
-    await generateOrderBOM(fresh).catch(()=>{});
+    await mintDigitalDownloadUrls(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'mintDigitalDownloadUrls', orderNumber: fresh.orderNumber, err: e?.message })));
+    await earnForOrder(prisma, { email: fresh.email, total: fresh.total, orderId: fresh.id, reason: 'purchase' }).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'earnForOrder', orderNumber: fresh.orderNumber, err: e?.message })));
+    await sendOrderConfirmation(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendOrderConfirmation', orderNumber: fresh.orderNumber, err: e?.message })));
+    await sendAdminOrderAlert(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: fresh.orderNumber, err: e?.message })));
+    await generateOrderBOM(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: fresh.orderNumber, err: e?.message })));
   }
   res.json({ order: fresh, captured: true, idempotent: !isNew });
 }));

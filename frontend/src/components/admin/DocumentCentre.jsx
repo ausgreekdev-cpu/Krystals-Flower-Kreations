@@ -12,6 +12,16 @@ import ConfirmDialog from './ConfirmDialog';
 // are deduped server-side and reported as "reused".
 const KINDS = ['PDF', 'CSV', 'SPREADSHEET', 'IMAGE', 'MARKDOWN', 'TEXT', 'OTHER'];
 const CATEGORIES = ['STOCKTAKE', 'SUPPLIER', 'INVOICE', 'PROCEDURE', 'EXPORT', 'MEDIA', 'OTHER'];
+// ◪ Suitable sub-categories per category for a paper-florist studio — mirrors backend/src/routes/documents.js SUBCATEGORIES
+const SUBCATEGORIES = {
+  STOCKTAKE: ['CARDSTOCK', 'WIRE_TAPE', 'ADHESIVES', 'PACKAGING', 'FINISHED'],
+  SUPPLIER: ['PAPER_SUPPLIER', 'HARDWARE_SUPPLIER', 'PACKAGING_SUPPLIER', 'GENERAL_SUPPLIER'],
+  INVOICE: ['PURCHASE_INVOICE', 'SALES_INVOICE', 'RECEIPT', 'QUOTE', 'CREDIT_NOTE'],
+  PROCEDURE: ['PETAL_ASSEMBLY', 'ORIGAMI_FOLD', 'WIRING_TAPING', 'PACKAGING_GUIDE', 'QC_CHECK'],
+  EXPORT: ['ORDER_EXPORT', 'INVENTORY_EXPORT', 'BACKUP', 'REPORT'],
+  MEDIA: ['PRODUCT_PHOTO', 'WORKSHOP_PHOTO', 'BRAND_ASSET', 'REFERENCE', 'SOCIAL'],
+  OTHER: ['GENERAL'],
+};
 const ACCEPT = '.pdf,.csv,.tsv,.txt,.md,.json,.xlsx,.xls,image/*,.svg,.zip,video/mp4,video/quicktime';
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -35,7 +45,7 @@ function Thumb({ id, token, kind }) {
 
 export default function DocumentCentre({ token, role, onOpenImports }) {
   const toast = useToast();
-  const [params, setParams] = useState({ q: '', kind: '', category: '', page: 1 });
+  const [params, setParams] = useState({ q: '', kind: '', category: '', subcategory: '', page: 1 });
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState(null);
   const [total, setTotal] = useState(0);
@@ -69,7 +79,15 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
     return () => { dead = true; };
   }, [params, token]);
 
-  const setF = (patch) => setParams((p) => ({ ...p, ...patch, page: 1 }));
+  const setF = (patch) => setParams((p) => {
+    const next = { ...p, ...patch, page: 1 };
+    if ('category' in patch) {
+      const cat = patch.category;
+      const subs = cat ? (SUBCATEGORIES[cat] || []) : [];
+      if (next.subcategory && !subs.includes(next.subcategory)) next.subcategory = '';
+    }
+    return next;
+  });
   const imageRows = (rows || []).filter((d) => d.kind === 'IMAGE');
   const refresh = () => setParams((p) => ({ ...p }));
 
@@ -94,7 +112,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
       if (f.size > MAX_BYTES) { failed.push(`${f.name} (over 25MB)`); continue; }
       setBusy(`Uploading ${i + 1}/${list.length} — ${f.name}`);
       try {
-        const r = await adminApi.documents.upload(f, token, onDuplicate);
+        const r = await adminApi.documents.upload(f, token, onDuplicate, params.category || undefined, params.subcategory || undefined);
         if (r.replaced) replaced++; else if (r.skipped) skipped++; else if (r.deduped) dupes++; else ok++;
         // S3: enrich metadata from the text in its own request (the upload may
         // already be busy with OCR) — best effort, never blocks the queue.
@@ -111,7 +129,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
           if (decision.applyAll) onDuplicate = decision.action;
           setBusy(`Uploading ${i + 1}/${list.length} — ${f.name}`);
           try {
-            const r = await adminApi.documents.upload(f, token, decision.action);
+            const r = await adminApi.documents.upload(f, token, decision.action, params.category || undefined, params.subcategory || undefined);
             if (r.replaced) replaced++; else if (r.skipped) skipped++; else if (r.deduped) dupes++; else ok++;
           } catch (e2) { failed.push(`${f.name}: ${e2.message}`); }
           continue;
@@ -143,7 +161,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
 
   async function saveEdit() {
     try {
-      const body = { title: editing.title.trim(), category: editing.category };
+      const body = { title: editing.title.trim(), category: editing.category, subcategory: editing.subcategory || null };
       body.tags = editing.tags.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 10);
       await adminApi.documents.update(editing.id, body, token);
       toast('Document updated');
@@ -222,6 +240,11 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             <option value="">All</option>
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select></div>
+        <div><label className={label} htmlFor="doc-subcat">Sub-category</label>
+          <select id="doc-subcat" className={input} value={params.subcategory} onChange={(e) => setF({ subcategory: e.target.value })} disabled={!params.category}>
+            <option value="">All</option>
+            {(params.category ? (SUBCATEGORIES[params.category] || []) : Object.values(SUBCATEGORIES).flat()).map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+          </select></div>
         <button type="button" onClick={runBatchOcr} disabled={!!batch}
           className="text-xs font-semibold border border-royal-200 text-royal-700 dark:text-royal-300 rounded-xl px-3 py-2 hover:bg-royal-50 dark:hover:bg-royal-950 disabled:opacity-50">
           {batch ? 'OCR running…' : 'Batch OCR (page)'}
@@ -266,6 +289,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
           </div>
           <span className={KIND_CHIP}>{d.kind}</span>
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-royal-50 dark:bg-royal-900 text-royal-700 dark:text-royal-300 border-royal-100 dark:border-royal-700">{d.category}</span>
+          {d.subcategory && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-amber-50 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-700">{d.subcategory.replace(/_/g, ' ')}</span>}
           {d.tags?.length > 0 && <span className="text-[10px] text-muted hidden md:inline">{d.tags.slice(0, 3).join(' · ')}</span>}
           {d.kind === 'IMAGE' && (
             <button onClick={() => setViewerIdx(imageRows.findIndex((x) => x.id === d.id))}
@@ -282,7 +306,7 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             className="text-xs font-semibold border border-emerald-200 dark:border-emerald-700 rounded-xl px-2.5 py-1 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950 disabled:opacity-50">
             → Recipe
           </button>
-          <button onClick={() => setEditing({ id: d.id, title: d.title, category: d.category, tags: (d.tags || []).join(', ') })}
+          <button onClick={() => setEditing({ id: d.id, title: d.title, category: d.category, subcategory: d.subcategory || '', tags: (d.tags || []).join(', ') })}
             className="text-xs font-semibold border border-line-strong rounded-xl px-2.5 py-1 text-ink hover:bg-surface3">Edit</button>
           <button onClick={() => setConfirmDel(d)} className="text-xs font-semibold border border-red-200 dark:border-red-700 rounded-xl px-2.5 py-1 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Delete</button>
         </div>
@@ -329,8 +353,13 @@ export default function DocumentCentre({ token, role, onOpenImports }) {
             <div><label className={label} htmlFor="doc-title">Title</label>
               <input id="doc-title" className={input} value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} maxLength={200} /></div>
             <div><label className={label} htmlFor="doc-ecat">Category</label>
-              <select id="doc-ecat" className={input} value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })}>
+              <select id="doc-ecat" className={input} value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value, subcategory: '' })}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select></div>
+            <div><label className={label} htmlFor="doc-esub">Sub-category</label>
+              <select id="doc-esub" className={input} value={editing.subcategory || ''} onChange={(e) => setEditing({ ...editing, subcategory: e.target.value })}>
+                <option value="">— None —</option>
+                {(SUBCATEGORIES[editing.category] || []).map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
               </select></div>
             <div><label className={label} htmlFor="doc-tags">Tags (comma separated)</label>
               <input id="doc-tags" className={input} value={editing.tags} onChange={(e) => setEditing({ ...editing, tags: e.target.value })} placeholder="stocktake, park-lane" /></div>

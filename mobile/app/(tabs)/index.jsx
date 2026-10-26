@@ -6,12 +6,12 @@ export default function Home() {
     <ScrollView style={{ flex: 1, backgroundColor: '#FFF7F0' }} contentContainerStyle={{ padding: 16 }}>
       <View style={{ backgroundColor: '#B85C5C', borderRadius: 20, padding: 24, marginBottom: 16 }}>
         <Text style={{ color: 'white', fontSize: 28, fontWeight: '800' }}>Krystal's Flower Kreations</Text>
-        <Text style={{ color: 'white', opacity: 0.9, marginTop: 8 }}>Paper florist & sculptural art — Perth WA. Cricut + origami blooms that last forever.</Text>
+        <Text style={{ color: 'white', opacity: 0.9, marginTop: 8 }}>Paper florist & sculptural art — Perth WA. origami blooms that last forever.</Text>
         <Link href="/shop" asChild><Pressable style={{ backgroundColor: 'white', marginTop: 16, paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}><Text style={{ color: '#B85C5C', fontWeight: '700' }}>Browse Bouquets →</Text></Pressable></Link>
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
         <Feature title="Shop" subtitle="Bouquets, sculptures & SVG templates" href="/shop" />
-        <Feature title="Configurator" subtitle="Custom: colour • stems • Cricut" href="/configurator" />
+        <Feature title="Configurator" subtitle="Custom: colour • stems " href="/configurator" />
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
         <Feature title="Workshops" subtitle="Perth studio + online kits" href="/workshops" />
