@@ -478,6 +478,7 @@ export const adminApi = {
     list: (token: string) => req<any[]>('/api/paper-stocks/all', { token }),
     create: (body: any, token: string) => req<any>('/api/paper-stocks', { method: 'POST', body: JSON.stringify(body), token }),
     bulk: (papers: any[], token: string) => req<any>('/api/paper-stocks/bulk', { method: 'POST', body: JSON.stringify({ papers }), token }),
+    importCsv: (csv: string, token: string) => req<any>('/api/paper-stocks/import', { method: 'POST', body: JSON.stringify({ csv }), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/paper-stocks/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/paper-stocks/${id}`, { method: 'DELETE', token }),
     uploadImage: (id: string, file: File, token: string) => { const fd = new FormData(); fd.append('image', file, file.name); return req<any>(`/api/paper-stocks/${id}/image`, { method: 'POST', body: fd, token }); },

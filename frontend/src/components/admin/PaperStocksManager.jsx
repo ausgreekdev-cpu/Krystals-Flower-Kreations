@@ -4,7 +4,7 @@ import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
 import MediaPickerModal from './media/MediaPickerModal';
 
-const TEXTURES = ['textured','smooth','pearl','linen'];
+const TEXTURES = ['textured','smooth','pearl','linen','glitter','metallic'];
 
 export default function PaperStocksManager({ token }) {
   const toast = useToast();
@@ -32,6 +32,10 @@ export default function PaperStocksManager({ token }) {
       paperType: editing.paperType.trim(),
       texture: editing.texture,
       weight: editing.weight.trim(),
+      sku: editing.sku?.trim() || null,
+      stockType: editing.stockType?.trim() || null,
+      packName: editing.packName?.trim() || null,
+      sellable: editing.sellable !== false,
       pricePremiumPerStem: Number(editing.pricePremiumPerStem) || 0,
       isActive: !!editing.isActive,
       sortOrder: Number(editing.sortOrder) || 0,
@@ -65,9 +69,16 @@ export default function PaperStocksManager({ token }) {
   }
 
   function downloadCsvTemplate() {
-    const header = 'name,colour,colourHex,paperType,texture,weight,pricePremiumPerStem,onHand,lowThreshold,sortOrder,isActive\n';
-    const example = 'Blush Pearl 80lb,Blush,#F8C4B4,Canson,pearl,80lb,1.5,30,5,1,true\n';
-    const blob = new Blob([header+example], { type: 'text/csv' });
+    // The studio intake format — one example row + the option lists Krystal picks from
+    const t = [
+      '"Colour Name","Image","colourHex","Type","Brand","Pack Name","Texture","GSM","Weight LB","SKU","onHand","lowThreshold","sortOrder","isActive","To Sell",',
+      '"Blush",,"#F8C4B4","Cardstock","Park Lane","Winter","Smooth",80,80,"CS-PL-WIN-BLUSH",30,5,1,TRUE,TRUE,',
+      ',,,"Paper","Quill",,"Textured",125,,,,,,,FALSE,"(stock only etc..)"',
+      ',,,"Foil","Anko",,"Glitter",176,,,,,,,',
+      ',,,,"Francheville",,"Metallic",210,,,,,,,',
+      ',,,,"Crafters Choice",,,300,,,,,,,',
+    ].join('\n') + '\n';
+    const blob = new Blob([t], { type: 'text/csv' });
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='papers-template.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   async function handleBulkFile(file) {
@@ -75,28 +86,8 @@ export default function PaperStocksManager({ token }) {
     setBulkBusy(true);
     try {
       const text = await file.text();
-      const lines = text.trim().split(/\r?\n/);
-      const hdr = lines[0].split(',').map((s)=> s.trim().toLowerCase());
-      const idx = (k)=> hdr.indexOf(k);
-      const rows = lines.slice(1).filter(Boolean).map((line)=>{
-        const cols = line.split(',').map((s)=> s.trim());
-        return {
-          name: cols[idx('name')] || '',
-          colour: cols[idx('colour')] || cols[idx('color')] || '',
-          colourHex: cols[idx('colourhex')] || cols[idx('colorhex')] || null,
-          paperType: cols[idx('papertype')] || 'Canson',
-          texture: (cols[idx('texture')] || 'textured').toLowerCase(),
-          weight: cols[idx('weight')] || '65lb',
-          pricePremiumPerStem: Number(cols[idx('pricepremiumperstem')] || 0),
-          onHand: Number(cols[idx('onhand')] || 0),
-          lowThreshold: Number(cols[idx('lowthreshold')] || 5),
-          sortOrder: Number(cols[idx('sortorder')] || 0),
-          isActive: String(cols[idx('isactive')] || 'true').toLowerCase() !== 'false',
-        };
-      }).filter((r)=> r.name && r.colour);
-      if (!rows.length) throw new Error('No valid rows — check CSV header');
-      const res = await adminApi.paperStocks.bulk(rows, token);
-      toast(`Bulk: ${res.count} created${res.errors?.length ? `, ${res.errors.length} errors` : ''}`);
+      const res = await adminApi.paperStocks.importCsv(text, token);
+      toast(`Import: ${res.created} created, ${res.updated} updated${res.skipped ? `, ${res.skipped} rows skipped` : ''}${res.errors?.length ? `, ${res.errors.length} errors` : ''}`);
       setShowBulk(false); load();
     } catch (e) { toast(e.message,'error'); }
     setBulkBusy(false);
@@ -124,7 +115,7 @@ export default function PaperStocksManager({ token }) {
         <div className="flex gap-2 shrink-0">
           <button onClick={downloadCsvTemplate} className="text-xs border rounded-xl px-3 py-2">CSV template</button>
           <button onClick={()=> setShowBulk(true)} className="text-xs border rounded-xl px-3 py-2">Bulk import</button>
-          <button onClick={()=> setEditing({ name:'', colour:'', colourHex:'#f8c4b4', paperType:'Canson', texture:'textured', weight:'65lb', pricePremiumPerStem:0, isActive:true, sortOrder:0, onHand:0, lowThreshold:5 })} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-4 py-2">+ Add paper</button>
+          <button onClick={()=> setEditing({ name:'', colour:'', colourHex:'#f8c4b4', paperType:'Canson', texture:'textured', weight:'65lb', sku:'', stockType:'', packName:'', sellable:true, pricePremiumPerStem:0, isActive:true, sortOrder:0, onHand:0, lowThreshold:5 })} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-4 py-2">+ Add paper</button>
         </div>
       </div>
 
@@ -190,7 +181,10 @@ export default function PaperStocksManager({ token }) {
               <div><label className={label}>Colour hex</label><input type="color" className="w-full h-10 rounded-xl border" value={editing.colourHex || '#f8c4b4'} onChange={(e)=> setEditing({...editing, colourHex:e.target.value})} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={label}>Paper type</label><input className={input} value={editing.paperType} onChange={(e)=> setEditing({...editing, paperType:e.target.value})} placeholder="Canson / Colorplan / Quill" /></div>
+              <div><label className={label}>Paper type (brand)</label><input className={input} value={editing.paperType} onChange={(e)=> setEditing({...editing, paperType:e.target.value})} placeholder="Canson / Park Lane / Quill" /></div>
+              <div><label className={label}>Type</label><input className={input} value={editing.stockType || ''} onChange={(e)=> setEditing({...editing, stockType:e.target.value})} placeholder="Cardstock / Paper / Foil" /></div>
+              <div><label className={label}>Pack name</label><input className={input} value={editing.packName || ''} onChange={(e)=> setEditing({...editing, packName:e.target.value})} placeholder="Winter / Brights" /></div>
+              <div><label className={label}>SKU</label><input className={input} value={editing.sku || ''} onChange={(e)=> setEditing({...editing, sku:e.target.value})} placeholder="CS-PL-WIN-BLUSH" maxLength={64} /></div>
               <div><label className={label}>Texture</label><select className={input} value={editing.texture} onChange={(e)=> setEditing({...editing, texture:e.target.value})}>{TEXTURES.map((t)=> <option key={t} value={t}>{t}</option>)}</select></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -202,7 +196,10 @@ export default function PaperStocksManager({ token }) {
               <div><label className={label}>Low at</label><input type="number" className={input} value={editing.lowThreshold} onChange={(e)=> setEditing({...editing, lowThreshold:e.target.value})} /></div>
               <div><label className={label}>Sort</label><input type="number" className={input} value={editing.sortOrder} onChange={(e)=> setEditing({...editing, sortOrder:e.target.value})} /></div>
             </div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!editing.isActive} onChange={(e)=> setEditing({...editing, isActive:e.target.checked})} /> Active (visible in configurator)</label>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!editing.isActive} onChange={(e)=> setEditing({...editing, isActive:e.target.checked})} /> Active (visible in configurator)</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.sellable !== false} onChange={(e)=> setEditing({...editing, sellable:e.target.checked})} /> To sell (untick = stock only)</label>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={()=> setEditing(null)} className="text-xs border rounded-xl px-4 py-2">Cancel</button>
               <button onClick={save} disabled={busy} className="text-xs font-bold bg-royal-600 text-white rounded-xl px-4 py-2 disabled:opacity-50">{busy ? 'Saving…' : editing.id ? 'Save' : 'Create'}</button>

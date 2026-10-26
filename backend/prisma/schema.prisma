@@ -898,6 +898,10 @@ model PaperStock {
   paperType             String // e.g. Canson, Colorplan, Quill
   texture               String // textured | smooth | pearl | linen
   weight                String // 65lb | 80lb | 110lb | 160gsm etc
+  sku                   String?  @unique // e.g. CS-PL-WIN-BLUSH (intake template SKU)
+  stockType             String? // Cardstock | Paper | Foil (intake template Type)
+  packName              String? // e.g. Winter (intake template Pack Name)
+  sellable              Boolean  @default(true) // false = stock only (intake template "To Sell")
   pricePremiumPerStem   Decimal  @default(0) @db.Decimal(10, 2) // added per stem on top of floor+perStem
   imageUrl              String? // storage ref or /uploads/papers/...
   variants              Json? // { webp: {400,800}, avif: {...} }
