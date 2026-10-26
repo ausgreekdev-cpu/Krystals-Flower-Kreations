@@ -318,7 +318,7 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
 // reference photos may point at STAFF assets.
 const attachSchema = z.object({
   assetId: z.string().uuid(),
-  attachableType: z.enum(['PRODUCT', 'POST', 'ORDER', 'PAGE']),
+  attachableType: z.enum(['PRODUCT', 'POST', 'ORDER', 'PAGE', 'PAPER_STOCK', 'RAW_MATERIAL']),
   attachableId: z.string().min(8).max(100),
   role: z.enum(['cover', 'gallery', 'reference']).default('gallery'),
   sortOrder: z.number().int().min(0).max(999).optional(),
@@ -326,7 +326,7 @@ const attachSchema = z.object({
 
 // NOTE: registered before GET /:id — "/attachments" must not be read as an id.
 router.get('/attachments', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
-  const type = ['PRODUCT', 'POST', 'ORDER', 'PAGE'].includes(req.query.attachableType) ? req.query.attachableType : null;
+  const type = ['PRODUCT', 'POST', 'ORDER', 'PAGE', 'PAPER_STOCK', 'RAW_MATERIAL'].includes(req.query.attachableType) ? req.query.attachableType : null;
   const targetId = String(req.query.attachableId || '').slice(0, 100);
   if (!type || !targetId) return res.status(400).json({ error: 'attachableType and attachableId are required', code: 'validation_failed' });
   const rows = await prisma.mediaAttachment.findMany({
@@ -380,6 +380,23 @@ router.post('/attach', authenticate, requireRole(...EDITOR_ROLES), validate(atta
     return res.status(201).json({ attachment });
   }
 
+  if (attachableType === 'PAPER_STOCK') {
+    const paper = await prisma.paperStock.findUnique({ where: { id: attachableId } });
+    if (!paper) return res.status(404).json({ error: 'Paper not found', code: 'not_found' });
+    await prisma.paperStock.update({ where: { id: attachableId }, data: { imageUrl: asset.publicUrl, variants: asset.variants ?? undefined, width: asset.width, height: asset.height } });
+    const attachment = await prisma.mediaAttachment.create({ data: { assetId, attachableType, attachableId, role, sortOrder: sortOrder ?? 0 } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_attach', entityType: 'media_asset', entityId: assetId, details: { attachableType, attachableId, role } });
+    return res.status(201).json({ attachment });
+  }
+
+  if (attachableType === 'RAW_MATERIAL') {
+    const mat = await prisma.rawMaterial.findUnique({ where: { id: attachableId } });
+    if (!mat) return res.status(404).json({ error: 'Material not found', code: 'not_found' });
+    const attachment = await prisma.mediaAttachment.create({ data: { assetId, attachableType, attachableId, role, sortOrder: sortOrder ?? 0 } });
+    audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_attach', entityType: 'media_asset', entityId: assetId, details: { attachableType, attachableId, role } });
+    return res.status(201).json({ attachment });
+  }
+
   // ORDER / PAGE: provenance row only (reference photos etc.)
   const attachment = await prisma.mediaAttachment.create({ data: { assetId, attachableType, attachableId, role, sortOrder: sortOrder ?? 0 } });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_attach', entityType: 'media_asset', entityId: assetId, details: { attachableType, attachableId, role } });
@@ -398,6 +415,13 @@ router.delete('/attachments/:id', authenticate, requireRole(...EDITOR_ROLES), as
     if (post && att.asset?.publicUrl && post.coverImageUrl === att.asset.publicUrl) {
       await prisma.post.update({ where: { id: att.attachableId }, data: { coverImageUrl: null } });
     }
+  } else if (att.attachableType === 'PAPER_STOCK') {
+    const paper = await prisma.paperStock.findUnique({ where: { id: att.attachableId } });
+    if (paper && att.asset?.publicUrl && paper.imageUrl === att.asset.publicUrl) {
+      await prisma.paperStock.update({ where: { id: att.attachableId }, data: { imageUrl: null, variants: null, width: null, height: null } });
+    }
+  } else if (att.attachableType === 'RAW_MATERIAL') {
+    // no snapshot to clear, just delete attachment
   }
   await prisma.mediaAttachment.delete({ where: { id } });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'media_detach', entityType: 'media_asset', entityId: att.assetId, details: { attachableType: att.attachableType, attachableId: att.attachableId } });

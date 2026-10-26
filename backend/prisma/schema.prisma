@@ -1333,6 +1333,8 @@ enum MediaAttachable {
   POST
   ORDER
   PAGE
+  PAPER_STOCK
+  RAW_MATERIAL
 }
 
 model MediaFolder {

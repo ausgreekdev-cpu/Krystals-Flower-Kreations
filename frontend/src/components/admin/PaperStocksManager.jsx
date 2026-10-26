@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { adminApi } from '../../lib/api/customClient';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
+import MediaPickerModal from './media/MediaPickerModal';
 
 const TEXTURES = ['textured','smooth','pearl','linen'];
 
@@ -15,6 +16,7 @@ export default function PaperStocksManager({ token }) {
   const [showLowOnly, setShowLowOnly] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [pickerFor, setPickerFor] = useState(null);
 
   async function load() {
     try { const rows = await adminApi.paperStocks.list(token); setPapers(rows); } catch (e) { toast(e.message,'error'); }
@@ -51,7 +53,15 @@ export default function PaperStocksManager({ token }) {
 
   async function uploadImage(id, file) {
     if (!file) return;
-    try { await adminApi.paperStocks.uploadImage(id, file, token); load(); toast('Image uploaded'); } catch(e){ toast(e.message,'error'); }
+    try { await adminApi.paperStocks.uploadImage(id, file, token); load(); toast('Image uploaded — also saved to gallery'); } catch(e){ toast(e.message,'error'); }
+  }
+  async function pickFromGallery(asset) {
+    if (!pickerFor || !asset?.id) return;
+    try {
+      await adminApi.media.attach(token, { assetId: asset.id, attachableType: 'PAPER_STOCK', attachableId: pickerFor, role: 'gallery' });
+      toast('Gallery image attached to paper');
+      setPickerFor(null); load();
+    } catch (e) { toast(e.message,'error'); }
   }
 
   function downloadCsvTemplate() {
@@ -144,7 +154,8 @@ export default function PaperStocksManager({ token }) {
               <div className="text-xs text-muted">{p.onHand} on hand {Number(p.onHand) <= Number(p.lowThreshold) && <span className="text-amber-600 font-bold">• low</span>}</div>
               <div className="flex gap-1.5 mt-2">
                 <button onClick={()=> setEditing(p)} className="flex-1 text-xs border rounded-xl py-1.5 font-semibold hover:bg-surface3">Edit</button>
-                <label className="flex-1 text-xs border rounded-xl py-1.5 font-semibold text-center hover:bg-surface3 cursor-pointer">Image<input type="file" accept="image/*" className="hidden" onChange={(e)=> uploadImage(p.id, e.target.files?.[0])} /></label>
+                <label className="flex-1 text-xs border rounded-xl py-1.5 font-semibold text-center hover:bg-surface3 cursor-pointer">Upload<input type="file" accept="image/*" className="hidden" onChange={(e)=> uploadImage(p.id, e.target.files?.[0])} /></label>
+                <button onClick={()=> setPickerFor(p.id)} className="flex-1 text-xs border rounded-xl py-1.5 font-semibold hover:bg-surface3">Gallery</button>
                 <button onClick={()=> setConfirmDel(p)} className="text-xs border border-red-200 text-red-600 rounded-xl px-3 py-1.5">Delete</button>
               </div>
             </div>
@@ -200,6 +211,7 @@ export default function PaperStocksManager({ token }) {
         </div>
       )}
 
+      {pickerFor && <MediaPickerModal token={token} onClose={()=> setPickerFor(null)} onPick={pickFromGallery} />}
       {confirmDel && <ConfirmDialog title="Delete paper" message={`Delete ${confirmDel.name}?`} onConfirm={remove} onClose={()=> setConfirmDel(null)} />}
     </div>
   );
