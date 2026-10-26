@@ -86,7 +86,7 @@ export const catalogApi = {
   getBySlug: (slug: string) => req<any>(`/api/products/${slug}`),
 };
 export const paperStocksApi = {
-  list: () => req<any[]>('/api/paper-stocks'),
+  list: (templateId?: string) => req<any[]>(`/api/paper-stocks${templateId ? `?templateId=${encodeURIComponent(templateId)}` : ''}`),
   adminList: (token: string) => req<any[]>('/api/paper-stocks/all', { token }),
 };
 export const cartApi = {

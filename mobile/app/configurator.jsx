@@ -38,7 +38,7 @@ export default function Configurator() {
     return d.toISOString().slice(0, 10);
   })();
 
-  useEffect(() => { paperStocksApi.list().then(setPapers).catch(() => {}); }, []);
+  useEffect(() => { paperStocksApi.list(spec.templateId).then(setPapers).catch(() => {}); }, [spec.templateId]);
   const selectedPaper = papers.find((p) => p.id === spec.paperStockId) || null;
   const paperPremium = selectedPaper ? Number(selectedPaper.pricePremiumPerStem) || 0 : 0;
   const availablePapers = papers.filter((p) => Number(p.onHand) > 0);

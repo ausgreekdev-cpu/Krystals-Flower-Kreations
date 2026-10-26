@@ -103,5 +103,5 @@ export const metaApi = {
 };
 
 export const paperStocksApi = {
-  list: () => req<any[]>('/api/paper-stocks'),
+  list: (templateId?: string) => req<any[]>(`/api/paper-stocks${templateId ? `?templateId=${encodeURIComponent(templateId)}` : ''}`),
 };
