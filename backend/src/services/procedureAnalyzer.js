@@ -25,7 +25,8 @@ export const analysisSchema = z.object({
   isProcedure: z.boolean(),
   confidence: z.number().min(0).max(1),
   title: z.string().max(200),
-  category: z.enum(['PAPER_FLOWER', 'ORIGAMI', 'MANUFACTURING_SPEC']),
+  category: z.enum(['FLOWER', 'BOUQUET', 'FOLIAGE', 'DECOR', 'PACKAGING', 'MANUFACTURING_SPEC']),
+  subcategory: z.enum(['ORIGAMI', 'CREPE_PAPER', 'DIE_CUT', 'SCULPTURAL', 'HAND_ASSEMBLY']).nullable().optional(),
   sku: z.string().max(50).nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
   materials: z.array(z.object({
@@ -139,14 +140,25 @@ export function analyzeWithRules(rawText, sourceName = '') {
   }
   const cricutMinutesPerUnit = /cricut|cutting machine/i.test(lower) ? 8 : 0;
 
-  const category = /origami|fold/i.test(lower) ? 'ORIGAMI'
-    : /manufactur|specification|\bspec\b|assembly/i.test(lower) ? 'MANUFACTURING_SPEC' : 'PAPER_FLOWER';
+  // Two-axis taxonomy: category = what it is, subcategory = how it's made.
+  const category = /manufactur|specification|\bspec\b|tolerance/i.test(lower) ? 'MANUFACTURING_SPEC'
+    : /bouquet|arrangement/i.test(lower) ? 'BOUQUET'
+    : /foliage|\bleaf\b|leaves|eucalyptus/i.test(lower) && !/flower|bloom|petal/i.test(lower) ? 'FOLIAGE'
+    : /packag|carton|cello/i.test(lower) ? 'PACKAGING'
+    : /sculptur|\bcrane\b|mobile|decor/i.test(lower) ? 'DECOR'
+    : 'FLOWER';
+  const subcategory = /origami|fold/i.test(lower) ? 'ORIGAMI'
+    : /die.?cut|die set/i.test(lower) ? 'DIE_CUT'
+    : /sculptur|wire frame/i.test(lower) ? 'SCULPTURAL'
+    : /crepe|petal|\bcup\b|curl/i.test(lower) ? 'CREPE_PAPER'
+    : 'HAND_ASSEMBLY';
 
   return {
     isProcedure,
     confidence: Math.min(0.9, 0.35 + 0.15 * score + (materials.length ? 0.15 : 0)),
     title: clip(titleLine, 200),
     category,
+    subcategory,
     sku: (text.match(/\bsku[:\s]+([A-Za-z0-9_-]{2,50})/i) || [])[1] || null,
     description: null,
     materials,
@@ -161,7 +173,7 @@ export function analyzeWithRules(rawText, sourceName = '') {
 
 const LLM_SYSTEM = `You are a data-extraction assistant for a paper-flower studio's manufacturing specs.
 Extract a procedure from the document text and reply with ONLY a JSON object (no prose, no code fences):
-{"isProcedure": boolean, "confidence": 0-1, "title": string, "category": "PAPER_FLOWER"|"ORIGAMI"|"MANUFACTURING_SPEC",
+{"isProcedure": boolean, "confidence": 0-1, "title": string, "category": "FLOWER"|"BOUQUET"|"FOLIAGE"|"DECOR"|"PACKAGING"|"MANUFACTURING_SPEC", "subcategory": "ORIGAMI"|"CREPE_PAPER"|"DIE_CUT"|"SCULPTURAL"|"HAND_ASSEMBLY"|null,
  "sku": string|null, "description": string|null,
  "materials": [{"name": string, "spec": string|null, "unit": "sheet"|"meter"|"stick"|"roll"|"piece"|"ml"|"gram",
    "qtyPerUnit": number, "wasteFactor": number, "estimatedCostPerUnit": number|null,

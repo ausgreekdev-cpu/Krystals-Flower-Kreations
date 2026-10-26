@@ -32,7 +32,7 @@ async function createDoc(token, overrides = {}) {
     headers: T(token),
     body: JSON.stringify({
       title: `Doc ${runId} ${Math.random().toString(36).slice(2, 8)}`,
-      category: 'PAPER_FLOWER',
+      category: 'FLOWER',
       contentMarkdown: '# Seed content\n\nBody.',
       ...overrides,
     }),
@@ -121,19 +121,26 @@ test('list: draft/archived/all require Editor role', async () => {
   assert.equal(bad.status, 400);
 });
 
-test('list: category, q, sku, difficulty (jsonb) filters + pagination', async () => {
+test('list: category, subcategory, q, sku, difficulty (jsonb) filters + pagination', async () => {
   const f1 = await createDoc(makerToken, {
     title: `Filter probe ${runId}`,
-    category: 'ORIGAMI',
+    category: 'DECOR',
+    subcategory: 'ORIGAMI',
     status: 'published',
     sku: `SKU-${runId}`,
     metadata: { difficulty: 'BEGINNER' },
   });
+  assert.equal(f1.subcategory, 'ORIGAMI', 'subcategory round-trips through create');
 
-  const byCatQ = await api(srv.base, `/api/procedures?category=ORIGAMI&q=${encodeURIComponent(`Filter probe ${runId}`)}`);
+  const byCatQ = await api(srv.base, `/api/procedures?category=DECOR&q=${encodeURIComponent(`Filter probe ${runId}`)}`);
   assert.equal(byCatQ.status, 200);
   assert.equal(byCatQ.body.total, 1, 'category+q narrow to one');
   assert.equal(byCatQ.body.procedures[0].id, f1.id);
+
+  const bySub = await api(srv.base, `/api/procedures?subcategory=ORIGAMI&q=${encodeURIComponent(`Filter probe ${runId}`)}`);
+  assert.equal(bySub.status, 200);
+  assert.equal(bySub.body.total, 1, 'subcategory filter matches');
+  assert.equal(bySub.body.procedures[0].id, f1.id);
 
   const bySku = await api(srv.base, `/api/procedures?sku=SKU-${runId}`);
   assert.equal(bySku.body.total, 1, 'exact sku match');
@@ -143,6 +150,8 @@ test('list: category, q, sku, difficulty (jsonb) filters + pagination', async ()
 
   const badCat = await api(srv.base, '/api/procedures?category=NOPE');
   assert.equal(badCat.status, 400);
+  const badSub = await api(srv.base, '/api/procedures?subcategory=NOPE');
+  assert.equal(badSub.status, 400);
   const badDiff = await api(srv.base, '/api/procedures?difficulty=IMPOSSIBLE');
   assert.equal(badDiff.status, 400);
 
@@ -186,13 +195,13 @@ test('revisions endpoint: Editor+ only, full bodies', async () => {
 
 test('create: RBAC, validation, duplicate sku 409, initial revision', async () => {
   const anon = await api(srv.base, '/api/procedures', {
-    method: 'POST', body: JSON.stringify({ title: 'Nope here', category: 'ORIGAMI', contentMarkdown: 'x' }),
+    method: 'POST', body: JSON.stringify({ title: 'Nope here', category: 'DECOR', contentMarkdown: 'x' }),
   });
   assert.equal(anon.status, 401);
 
   const cust = await api(srv.base, '/api/procedures', {
     method: 'POST', headers: T(customerToken),
-    body: JSON.stringify({ title: 'Nope here', category: 'ORIGAMI', contentMarkdown: 'x' }),
+    body: JSON.stringify({ title: 'Nope here', category: 'DECOR', contentMarkdown: 'x' }),
   });
   assert.equal(cust.status, 403);
 
@@ -212,7 +221,7 @@ test('create: RBAC, validation, duplicate sku 409, initial revision', async () =
 
   const second = await api(srv.base, '/api/procedures', {
     method: 'POST', headers: T(makerToken),
-    body: JSON.stringify({ title: 'Duplicate sku doc', category: 'ORIGAMI', contentMarkdown: 'y', sku: dupSku }),
+    body: JSON.stringify({ title: 'Duplicate sku doc', category: 'DECOR', contentMarkdown: 'y', sku: dupSku }),
   });
   assert.equal(second.status, 409, 'unique sku conflict');
 });

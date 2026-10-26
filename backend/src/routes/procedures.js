@@ -18,7 +18,11 @@ const router = Router();
 // (draft detail read). Published docs are public.
 const EDITOR_ROLES = ['admin', 'developer', 'maker', 'staff'];
 const ADMIN_ROLES = ['admin', 'developer'];
-const CATEGORIES = ['PAPER_FLOWER', 'ORIGAMI', 'MANUFACTURING_SPEC'];
+// Two-axis taxonomy: category = what it is, subcategory = how it's made.
+// (Legacy enum values PAPER_FLOWER/ORIGAMI/MANUFACTURING_SPEC still exist in
+// the DB enum but are retired — see scripts/migrate-procedure-taxonomy.mjs.)
+const CATEGORIES = ['FLOWER', 'BOUQUET', 'FOLIAGE', 'DECOR', 'PACKAGING', 'MANUFACTURING_SPEC'];
+const SUBCATEGORIES = ['ORIGAMI', 'CREPE_PAPER', 'DIE_CUT', 'SCULPTURAL', 'HAND_ASSEMBLY'];
 const STATUSES = ['draft', 'published', 'archived'];
 const DIFFICULTIES = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -72,6 +76,7 @@ const metadataSchema = z.object({
   difficulty: z.enum(DIFFICULTIES).optional(),
   estimatedTimeMinutes: z.number().int().min(1).max(100000).optional(),
   tools: z.array(z.string().min(1).max(120)).max(50).optional(),
+  materialType: z.string().max(60).optional(),
   materialGsm: z.number().min(1).max(1000).optional(),
   foldingComplexity: z.enum(['simple', 'moderate', 'complex']).optional(),
   notes: z.string().max(2000).optional(),
@@ -80,6 +85,7 @@ const metadataSchema = z.object({
 const createSchema = z.object({
   title: z.string().min(3).max(200),
   category: z.enum(CATEGORIES),
+  subcategory: z.enum(SUBCATEGORIES).nullish(),
   sku: z.string().min(2).max(64).regex(/^[A-Za-z0-9._-]+$/).optional(),
   contentMarkdown: z.string().min(1).max(500000),
   metadata: metadataSchema.optional(),
@@ -132,6 +138,11 @@ router.get('/', asyncHandler(async (req, res) => {
   if (category) {
     if (!CATEGORIES.includes(category)) return res.status(400).json({ error: 'Invalid category', code: 'validation_failed' });
     where.category = category;
+  }
+  const subcategory = req.query.subcategory ? String(req.query.subcategory).slice(0, 30) : undefined;
+  if (subcategory) {
+    if (!SUBCATEGORIES.includes(subcategory)) return res.status(400).json({ error: 'Invalid subcategory', code: 'validation_failed' });
+    where.subcategory = subcategory;
   }
   const sku = req.query.sku ? String(req.query.sku).slice(0, 64) : undefined;
   if (sku) where.sku = sku;
@@ -207,6 +218,7 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), validate(createSche
     data: {
       title: data.title,
       category: data.category,
+      subcategory: data.subcategory || null,
       sku: data.sku || null,
       contentMarkdown: data.contentMarkdown,
       metadata: data.metadata ?? undefined,

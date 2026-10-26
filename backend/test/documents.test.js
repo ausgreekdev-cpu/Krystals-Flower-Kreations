@@ -214,7 +214,7 @@ test('DELETE soft-deletes and removes the stored bytes', async () => {
 test('procedure soft-delete now cleans media rows and storage objects', async () => {
   const created = await api(srv.base, '/api/procedures', {
     method: 'POST', headers: auth(),
-    body: JSON.stringify({ title: 'M1 Test Proc', category: 'PAPER_FLOWER', contentMarkdown: '# m1', status: 'draft' }),
+    body: JSON.stringify({ title: 'M1 Test Proc', category: 'FLOWER', contentMarkdown: '# m1', status: 'draft' }),
   });
   assert.equal(created.status, 201, JSON.stringify(created.body).slice(0, 200));
   const procId = created.body.id;

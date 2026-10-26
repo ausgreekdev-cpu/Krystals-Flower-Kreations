@@ -291,7 +291,8 @@ router.post('/:id/approve', authenticate, requireRole(...EDITOR_ROLES), validate
     const doc = await prisma.procedureDocument.create({
       data: {
         title: String(extracted.title || 'Imported procedure').slice(0, 200),
-        category: ['PAPER_FLOWER', 'ORIGAMI', 'MANUFACTURING_SPEC'].includes(extracted.category) ? extracted.category : 'PAPER_FLOWER',
+        category: ['FLOWER', 'BOUQUET', 'FOLIAGE', 'DECOR', 'PACKAGING', 'MANUFACTURING_SPEC'].includes(extracted.category) ? extracted.category : 'FLOWER',
+        subcategory: ['ORIGAMI', 'CREPE_PAPER', 'DIE_CUT', 'SCULPTURAL', 'HAND_ASSEMBLY'].includes(extracted.subcategory) ? extracted.subcategory : null,
         sku: proposal.sku || undefined,
         contentMarkdown: content.slice(0, 100000),
         metadata: { estimatedTimeMinutes: extracted.estimatedTimeMinutes ?? null, sourceImportId: id, labourMinutesPerUnit: row.labourMinutesPerUnit },

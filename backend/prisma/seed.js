@@ -273,7 +273,8 @@ async function main() {
       {
         id: '00000000-0000-4000-8000-000000000001',
         title: 'Crepe Paper Rose — Petal Assembly',
-        category: 'PAPER_FLOWER',
+        category: 'FLOWER',
+        subcategory: 'CREPE_PAPER',
         sku: null,
         metadata: { difficulty: 'INTERMEDIATE', estimatedTimeMinutes: 45, materialGsm: 180, tools: ['Sharp scissors', 'Tacky glue (PVA)', '18ga floral wire', 'Floral tape 12mm', 'Bone folder'] },
         contentMarkdown: [
@@ -313,7 +314,8 @@ async function main() {
       {
         id: '00000000-0000-4000-8000-000000000002',
         title: 'Traditional Crane (Orizuru) — Folding Steps',
-        category: 'ORIGAMI',
+        category: 'DECOR',
+        subcategory: 'ORIGAMI',
         sku: null,
         metadata: { difficulty: 'BEGINNER', estimatedTimeMinutes: 15, foldingComplexity: 'simple', tools: ['15cm kami square', 'Bone folder (optional)'] },
         contentMarkdown: [
@@ -352,6 +354,7 @@ async function main() {
         id: '00000000-0000-4000-8000-000000000003',
         title: 'Die-Cut Petal Standards — 120gsm Paper & Packaging',
         category: 'MANUFACTURING_SPEC',
+        subcategory: 'DIE_CUT',
         sku: 'SPEC-DIECUT-120GSM',
         metadata: { materialGsm: 120, estimatedTimeMinutes: 5, tools: ['Die set DS-PEL-04', 'Thickness gauge', 'Carton sample'] },
         contentMarkdown: [
@@ -382,7 +385,8 @@ async function main() {
       {
         id: '00000000-0000-4000-8000-000000000004',
         title: 'Tulip Flower (Origami) — Folding & Assembly',
-        category: 'ORIGAMI',
+        category: 'FLOWER',
+        subcategory: 'ORIGAMI',
         sku: 'FLOWER-TUL-ORI',
         metadata: { difficulty: 'BEGINNER', estimatedTimeMinutes: 20, materialGsm: 80, foldingComplexity: 'simple', tools: ['Guillotine', 'Flower tape', 'Glue'], notes: 'Pre-made parts: Sepal (base), Leaves, Wire or Rolled Paper stem. Paper: 80gsm or 125gsm.' },
         contentMarkdown: [
@@ -427,8 +431,8 @@ async function main() {
     for (const p of PROCEDURES) {
       const doc = await prisma.procedureDocument.upsert({
         where: { id: p.id },
-        update: { title: p.title, category: p.category, sku: p.sku, contentMarkdown: p.contentMarkdown, metadata: p.metadata, status: 'published', version: 'v1.0' },
-        create: { id: p.id, title: p.title, category: p.category, sku: p.sku, contentMarkdown: p.contentMarkdown, metadata: p.metadata, status: 'published', authorId: procAuthor?.id ?? null },
+        update: { title: p.title, category: p.category, subcategory: p.subcategory ?? null, sku: p.sku, contentMarkdown: p.contentMarkdown, metadata: p.metadata, status: 'published', version: 'v1.0' },
+        create: { id: p.id, title: p.title, category: p.category, subcategory: p.subcategory ?? null, sku: p.sku, contentMarkdown: p.contentMarkdown, metadata: p.metadata, status: 'published', authorId: procAuthor?.id ?? null },
       });
       const hasRevision = await prisma.procedureRevision.findFirst({ where: { documentId: doc.id }, select: { id: true } });
       if (!hasRevision) {

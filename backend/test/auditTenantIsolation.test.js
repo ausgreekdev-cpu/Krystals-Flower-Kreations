@@ -103,7 +103,7 @@ test('[AUDIT-02] documented behaviour: an authenticated customer can read a draf
   const proc = await prisma.procedureDocument.create({
     data: {
       title: `Audit Draft ${Date.now()}`,
-      category: 'PAPER_FLOWER',
+      category: 'FLOWER',
       contentMarkdown: 'INTERNAL: do not share with customers — food-safe adhesive only.',
       metadata: { notes: 'INTERNAL: hazard — keep away from children; QC rejected batch #44' },
       status: 'draft',

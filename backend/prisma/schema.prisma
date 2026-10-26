@@ -81,6 +81,14 @@ enum ProcedureCategory {
   PAPER_FLOWER
   ORIGAMI
   MANUFACTURING_SPEC
+  // Two-axis taxonomy (category = what it is; subcategory = how it's made).
+  // Legacy values above stay in the enum — Postgres can't drop enum values via
+  // db push — but are retired; scripts/migrate-procedure-taxonomy.mjs remaps.
+  FLOWER
+  BOUQUET
+  FOLIAGE
+  DECOR
+  PACKAGING
 }
 
 enum ProcedureMediaType {
@@ -1163,6 +1171,7 @@ model ProcedureDocument {
   id              String          @id @default(uuid()) @db.Uuid
   title           String
   category        ProcedureCategory
+  subcategory     String? // ORIGAMI | CREPE_PAPER | DIE_CUT | SCULPTURAL | HAND_ASSEMBLY (zod-validated app-side)
   version         String          @default("v1.0")
   sku             String?         @unique // manufacturing specs; multiple NULLs allowed
   contentMarkdown String          @db.Text

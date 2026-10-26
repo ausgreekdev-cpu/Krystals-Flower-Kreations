@@ -145,7 +145,7 @@ test('analyze refuses non-procedure documents (422 not_a_procedure)', async () =
 
 test('LLM engine (stubbed) is preferred and validated', async () => {
   __setLlmAnalyze(async () => JSON.stringify({
-    isProcedure: true, confidence: 0.92, title: `LLM Proc ${UNIQUE}`, category: 'ORIGAMI',
+    isProcedure: true, confidence: 0.92, title: `LLM Proc ${UNIQUE}`, category: 'DECOR', subcategory: 'ORIGAMI',
     sku: null, description: 'from the model',
     materials: [{ name: 'Origami paper pack', unit: 'piece', qtyPerUnit: 2, wasteFactor: 0.05, estimatedCostPerUnit: 3.5 }],
     labourMinutesPerUnit: 30, cricutMinutesPerUnit: 0, estimatedTimeMinutes: 30,
@@ -159,7 +159,8 @@ test('LLM engine (stubbed) is preferred and validated', async () => {
     assert.equal(res.status, 201, JSON.stringify(res.body).slice(0, 300));
     assert.equal(res.body.engine, 'llm');
     assert.equal(res.body.import.extracted.title, `LLM Proc ${UNIQUE}`);
-    assert.equal(res.body.import.extracted.category, 'ORIGAMI');
+    assert.equal(res.body.import.extracted.category, 'DECOR');
+    assert.equal(res.body.import.extracted.subcategory, 'ORIGAMI');
     assert.equal(res.body.import.materialPlan[0].action, 'create');
   } finally {
     __setLlmAnalyze(null);
@@ -205,7 +206,8 @@ test('approve creates materials + recipe + draft product + procedure document', 
 
     const doc = await prisma.procedureDocument.findUnique({ where: { id: result.procedureDocumentId } });
     assert.equal(doc.status, 'draft');
-    assert.equal(doc.category, 'PAPER_FLOWER');
+    assert.equal(doc.category, 'BOUQUET', 'bouquet text → BOUQUET');
+  assert.equal(doc.subcategory, 'CREPE_PAPER', 'petal/curl text → CREPE_PAPER');
     assert.match(doc.contentMarkdown, /Cut petals/);
   } finally {
     // cleanup (hard deletes — test artefacts) — runs even when an assert throws,

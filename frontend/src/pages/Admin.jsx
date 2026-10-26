@@ -2344,16 +2344,29 @@ function PostModal({ post, onClose, onSaved, token }) {
 }
 
 const PROC_CATEGORIES = [
-  { v: 'PAPER_FLOWER', l: 'Paper flower' },
-  { v: 'ORIGAMI', l: 'Origami' },
+  { v: 'FLOWER', l: 'Flower' },
+  { v: 'BOUQUET', l: 'Bouquet' },
+  { v: 'FOLIAGE', l: 'Foliage' },
+  { v: 'DECOR', l: 'Decor' },
+  { v: 'PACKAGING', l: 'Packaging' },
   { v: 'MANUFACTURING_SPEC', l: 'Manufacturing spec' },
 ];
+const PROC_SUBCATEGORIES = [
+  { v: '', l: '—' },
+  { v: 'ORIGAMI', l: 'Origami' },
+  { v: 'CREPE_PAPER', l: 'Crepe paper' },
+  { v: 'DIE_CUT', l: 'Die-cut' },
+  { v: 'SCULPTURAL', l: 'Sculptural' },
+  { v: 'HAND_ASSEMBLY', l: 'Hand assembly' },
+];
+const procCatLabel = (v) => PROC_CATEGORIES.find((c) => c.v === v)?.l || v;
+const procSubLabel = (v) => PROC_SUBCATEGORIES.find((c) => c.v === v)?.l || v || '';
 const PROC_DIFFICULTIES = ['', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
 const PROC_FOLDING = ['', 'simple', 'moderate', 'complex'];
 
 function Procedures({ token, role }) {
   const toast = useToast();
-  const [params, setParams] = useState({ status: 'all', category: '', difficulty: '', q: '', page: 1 });
+  const [params, setParams] = useState({ status: 'all', category: '', subcategory: '', difficulty: '', q: '', page: 1 });
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState(null);
   const [total, setTotal] = useState(0);
@@ -2405,6 +2418,11 @@ function Procedures({ token, role }) {
             <option value="">All</option>
             {PROC_CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
           </select></div>
+        <div><label className={label}>Sub-category</label>
+          <select className={input} value={params.subcategory} onChange={(e) => setF({ subcategory: e.target.value })}>
+            <option value="">All</option>
+            {PROC_SUBCATEGORIES.filter((c) => c.v).map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+          </select></div>
         <div><label className={label}>Difficulty</label>
           <select className={input} value={params.difficulty} onChange={(e) => setF({ difficulty: e.target.value })}>
             {PROC_DIFFICULTIES.map((d) => <option key={d} value={d}>{d || 'All'}</option>)}
@@ -2419,7 +2437,7 @@ function Procedures({ token, role }) {
         <div key={p.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
           <div className="flex-1 min-w-0">
             <div className="font-bold text-sm text-ink truncate">{p.title}</div>
-            <div className="text-xs text-muted truncate">{p.version} • {PROC_CATEGORIES.find((c) => c.v === p.category)?.l || p.category}{p.sku ? ` • ${p.sku}` : ''} • {p._count?.media ?? 0} files • {new Date(p.updatedAt).toLocaleDateString('en-AU')}</div>
+            <div className="text-xs text-muted truncate">{p.version} • {procCatLabel(p.category)}{p.subcategory ? ` / ${procSubLabel(p.subcategory)}` : ''}{p.metadata?.difficulty ? ` • ${p.metadata.difficulty}` : ''}{p.metadata?.estimatedTimeMinutes ? ` • ~${p.metadata.estimatedTimeMinutes} min` : ''}{p.sku ? ` • ${p.sku}` : ''} • {p._count?.media ?? 0} files • {new Date(p.updatedAt).toLocaleDateString('en-AU')}</div>
           </div>
           <StatusBadge value={p.status} />
           <Btn small color="ghost" onClick={() => setDetailId(p.id)}>View</Btn>
@@ -2450,12 +2468,14 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
   const toast = useToast();
   const [form, setForm] = useState({
     title: doc?.title || '',
-    category: doc?.category || 'PAPER_FLOWER',
+    category: doc?.category || 'FLOWER',
+    subcategory: doc?.subcategory || '',
     sku: doc?.sku || '',
     status: doc?.status || 'draft',
     contentMarkdown: doc?.contentMarkdown || '',
     difficulty: doc?.metadata?.difficulty || '',
     estimatedTimeMinutes: doc?.metadata?.estimatedTimeMinutes || '',
+    materialType: doc?.metadata?.materialType || '',
     materialGsm: doc?.metadata?.materialGsm || '',
     foldingComplexity: doc?.metadata?.foldingComplexity || '',
     tools: (doc?.metadata?.tools || []).join(', '),
@@ -2475,6 +2495,7 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
       const metadata = {};
       if (form.difficulty) metadata.difficulty = form.difficulty;
       if (form.estimatedTimeMinutes) metadata.estimatedTimeMinutes = Number(form.estimatedTimeMinutes);
+      if (form.materialType.trim()) metadata.materialType = form.materialType.trim();
       if (form.materialGsm) metadata.materialGsm = Number(form.materialGsm);
       if (form.foldingComplexity) metadata.foldingComplexity = form.foldingComplexity;
       const tools = form.tools.split(',').map((t) => t.trim()).filter(Boolean);
@@ -2483,6 +2504,7 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
       const body = {
         title: form.title.trim(),
         category: form.category,
+        subcategory: form.subcategory || null,
         contentMarkdown: form.contentMarkdown,
         status: form.status,
         metadata,
@@ -2516,16 +2538,22 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
     finally { setImporting(false); }
   }
 
+  const section = 'text-[11px] font-bold uppercase tracking-wider text-muted pt-1';
   return <Modal title={doc ? `Edit — ${doc.title}` : 'New procedure'} onClose={onClose} wide>
     <div className="space-y-3">
+      <div className={section}>Identity</div>
       <div className="grid sm:grid-cols-2 gap-3">
         <div><label className={label}>Title</label><input className={input} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
         <div><label className={label}>SKU (optional, unique)</label><input className={input} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="e.g. SPEC-DIECUT-120GSM" /></div>
       </div>
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid sm:grid-cols-4 gap-3">
         <div><label className={label}>Category</label>
           <select className={input} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
             {PROC_CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+          </select></div>
+        <div><label className={label}>Sub-category</label>
+          <select className={input} value={form.subcategory} onChange={(e) => setForm({ ...form, subcategory: e.target.value })}>
+            {PROC_SUBCATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
           </select></div>
         <div><label className={label}>Status</label>
           <select className={input} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
@@ -2536,16 +2564,19 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
             {PROC_DIFFICULTIES.map((d) => <option key={d} value={d}>{d || '—'}</option>)}
           </select></div>
       </div>
+      <div className={section}>Craft specs</div>
       <div className="grid sm:grid-cols-4 gap-3">
         <div><label className={label}>Est. minutes</label><input type="number" min="1" className={input} value={form.estimatedTimeMinutes} onChange={(e) => setForm({ ...form, estimatedTimeMinutes: e.target.value })} /></div>
+        <div><label className={label}>Material type</label><input className={input} value={form.materialType} onChange={(e) => setForm({ ...form, materialType: e.target.value })} placeholder="Paper" /></div>
         <div><label className={label}>Material gsm</label><input type="number" min="1" className={input} value={form.materialGsm} onChange={(e) => setForm({ ...form, materialGsm: e.target.value })} /></div>
         <div><label className={label}>Folding complexity</label>
           <select className={input} value={form.foldingComplexity} onChange={(e) => setForm({ ...form, foldingComplexity: e.target.value })}>
             {PROC_FOLDING.map((f) => <option key={f} value={f}>{f || '—'}</option>)}
           </select></div>
-        <div><label className={label}>Tools (comma-separated)</label><input className={input} value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} /></div>
       </div>
-      <div><label className={label}>Notes (metadata)</label><input className={input} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+      <div><label className={label}>Tools (comma-separated)</label><input className={input} value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} /></div>
+      <div><label className={label}>Notes (metadata)</label><textarea rows={3} className={input} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Pre-made parts, alternatives, cautions…" /></div>
+      <div className={section}>Content</div>
       <div className="flex items-end gap-2">
         <div className="flex-1"><label className={label}>Import content from URL (.md / .txt)</label>
           <input className={input} value={importUrl} onChange={(e) => setImportUrl(e.target.value)}
@@ -2641,10 +2672,20 @@ function ProcedureDetail({ id, onClose, token, role }) {
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <StatusBadge value={doc.status} />
         <span>{doc.version}</span>
-        <span>•</span>
-        <span>{PROC_CATEGORIES.find((c) => c.v === doc.category)?.l || doc.category}</span>
-        {doc.sku && <><span>•</span><span className="font-mono">{doc.sku}</span></>}
         <span>•</span><span>by {doc.author?.name || 'unknown'}</span>
+      </div>
+
+      {/* Spec table — the craft facts at a glance (was invisible in detail) */}
+      <div className="border border-line rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-xs">
+        <div><div className="text-muted">Category</div><div className="font-semibold text-ink mt-0.5">{procCatLabel(doc.category)}</div></div>
+        <div><div className="text-muted">Sub-category</div><div className="font-semibold text-ink mt-0.5">{procSubLabel(doc.subcategory) || '—'}</div></div>
+        <div><div className="text-muted">Difficulty</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.difficulty || '—'}</div></div>
+        <div><div className="text-muted">Est. minutes</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.estimatedTimeMinutes ? `~${doc.metadata.estimatedTimeMinutes} min` : '—'}</div></div>
+        <div><div className="text-muted">Material</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.materialType || '—'}{doc.metadata?.materialGsm ? ` · ${doc.metadata.materialGsm}gsm` : ''}</div></div>
+        <div><div className="text-muted">Folding complexity</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.foldingComplexity || '—'}</div></div>
+        <div className="col-span-2"><div className="text-muted">SKU</div><div className="font-semibold text-ink mt-0.5 font-mono">{doc.sku || '—'}</div></div>
+        <div className="col-span-2 sm:col-span-4"><div className="text-muted">Tools</div><div className="font-semibold text-ink mt-0.5">{(doc.metadata?.tools || []).join(' · ') || '—'}</div></div>
+        {doc.metadata?.notes && <div className="col-span-2 sm:col-span-4"><div className="text-muted">Notes</div><div className="text-ink mt-0.5 whitespace-pre-wrap">{doc.metadata.notes}</div></div>}
       </div>
 
       <div className="border border-line rounded-xl p-4 max-h-[36vh] overflow-y-auto prose markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(shown ? shown.contentMarkdown : doc.contentMarkdown) }} />
@@ -2665,8 +2706,8 @@ function ProcedureDetail({ id, onClose, token, role }) {
           {media.map((m, i) => (
             <div key={m.id} className="border border-line rounded-lg p-2 space-y-1">
               {m.mediaType === 'IMAGE'
-                ? <img src={m.url} alt="" className="w-full h-20 object-cover rounded bg-surface3" />
-                : <a href={m.url} target="_blank" rel="noreferrer" className="flex h-20 items-center justify-center text-2xl rounded bg-surface3" title={m.url}>📄</a>}
+                ? <img src={m.url} alt="" className="w-full h-28 object-cover rounded bg-surface3" />
+                : <a href={m.url} target="_blank" rel="noreferrer" className="flex h-28 items-center justify-center text-2xl rounded bg-surface3" title={m.url}>📄</a>}
               <div className="text-[10px] text-muted truncate">{m.mediaType}</div>
               {canEdit && (
                 <div className="flex gap-1">
