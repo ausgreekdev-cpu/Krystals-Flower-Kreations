@@ -858,6 +858,7 @@ function extractFieldErrors(details) {
 }
 function MaterialModal({ material, locations, materials, suppliers = [], onClose, onSaved, token }) {
   const toast = useToast();
+  const [galleryFor, setGalleryFor] = useState(false);
   const [form, setForm] = useState(() => ({
     name: material?.name || '', sku: material?.sku || '', barcode: material?.barcode || '', unit: material?.unit || 'sheet',
     onHand: material ? Number(material.onHand) : 0, lowThreshold: material ? Number(material.lowThreshold) : 5,
@@ -941,7 +942,18 @@ function MaterialModal({ material, locations, materials, suppliers = [], onClose
         <div><label className={label}>Paper/board size</label><input className={input} value={form.size} placeholder="e.g. A4 / 12x12in" onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
       </div>
       {locations.length > 0 && <div><label className={label}>Location</label><select className={input} value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })}><option value="">None</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>}
+      {material?.id && (
+        <div className="border-t pt-3">
+          <div className="text-xs font-semibold text-muted mb-1">Gallery image (attach from Media library)</div>
+          <button type="button" onClick={()=> setGalleryFor(true)} className="text-xs border rounded-xl px-3 py-1.5">Choose from gallery</button>
+          <span className="text-[11px] text-muted ml-2">Saves to gallery and attaches to this material</span>
+        </div>
+      )}
     </div>
+    {galleryFor && <MediaPickerModal token={token} onClose={()=> setGalleryFor(false)} onPick={async (asset)=> {
+      try { await adminApi.media.attach(token, { assetId: asset.id, attachableType: 'RAW_MATERIAL', attachableId: material.id, role: 'gallery' }); toast('Gallery image attached to material'); setGalleryFor(false); }
+      catch(e){ toast(e.message,'error'); }
+    }} />}
     {error && <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>}
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={requestClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? 'Saving…' : material ? 'Save changes' : 'Create'}</Btn></div>
   </Modal>;
