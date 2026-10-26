@@ -142,6 +142,52 @@ router.post('/:id/image', authenticate, requireRole('admin','developer','maker',
   }
   const { width, height } = await masterDimensions(resized).catch(() => ({ width: null, height: null }));
   const updated = await prisma.paperStock.update({ where: { id }, data: { imageUrl, variants, width, height } });
+  // Also save to backend gallery (Media library) so it can be attached to products/materials/papers
+  try {
+    const sha256 = crypto.createHash('sha256').update(resized).digest('hex');
+    const existing = await prisma.mediaAsset.findFirst({ where: { sha256, visibility: 'LIBRARY', deletedAt: null } });
+    if (!existing) {
+      const assetId = crypto.randomUUID();
+      // Re-use the same bytes already uploaded to product-images? No — gallery uses `media` bucket, so store a copy there too
+      const galleryBase = `library/${assetId}-${Date.now().toString(36)}`;
+      const galleryKey = `${galleryBase}.jpg`;
+      const galleryUrl = await putObject(galleryKey, resized, 'image/jpeg', { bucket: 'media' });
+      let galleryVariants = null;
+      if (built.length) {
+        const vals = [];
+        for (const v of built) vals.push(await putObject(`${galleryBase}-${v.width}.${v.ext}`, v.buf, v.contentType, { bucket: 'media' }));
+        galleryVariants = {};
+        built.forEach((v, i) => { galleryVariants[v.ext] = { ...(galleryVariants[v.ext] || {}), [String(v.width)]: vals[i] }; });
+      }
+      const galleryAsset = await prisma.mediaAsset.create({
+        data: {
+          id: assetId,
+          title: updated.name || 'Paper image',
+          altText: updated.name,
+          mime: 'image/jpeg',
+          sizeBytes: resized.length,
+          storageRef: `media/${galleryKey}`,
+          publicUrl: galleryUrl,
+          sha256,
+          width, height,
+          variants: galleryVariants,
+          visibility: 'LIBRARY',
+          source: 'UPLOAD',
+          tags: ['paper', updated.colour || ''].filter(Boolean),
+          uploadedById: req.user.id,
+        },
+      });
+      await prisma.mediaAttachment.create({ data: { assetId: galleryAsset.id, attachableType: 'PAPER_STOCK', attachableId: id, role: 'gallery' } });
+    } else {
+      await prisma.mediaAttachment.upsert({
+        where: { assetId_attachableType_attachableId_role: { assetId: existing.id, attachableType: 'PAPER_STOCK', attachableId: id, role: 'gallery' } },
+        update: {},
+        create: { assetId: existing.id, attachableType: 'PAPER_STOCK', attachableId: id, role: 'gallery' },
+      });
+    }
+  } catch (e) {
+    console.warn(JSON.stringify({ level: 'warn', msg: 'paper gallery save failed', err: e?.message }));
+  }
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'paper_image_upload', entityType: 'paper_stock', entityId: id, details: { imageUrl } });
   res.json(updated);
 }));
