@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useConfiguratorStore, estimateLocalPrice, DEFAULT_SPEC, specToShareParam, specFromShareParam } from './useConfiguratorStore';
 import { cutSheetFor } from '../../lib/productionSheet';
+import { currentStaffRole } from '../../lib/session';
 import { ordersApi, paperStocksApi } from '../../lib/api/customClient';
 import { addToCart } from '../../lib/cartClient';
 import { usePublicSettings } from '../../lib/publicSettings';
@@ -311,7 +312,7 @@ export default function Configurator(){
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <div className="space-y-4">
           <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} tintHex={tintHex} onLoad={handleTint} />
-          {(() => {
+          {currentStaffRole() && (() => {
             const cut = cutSheetFor(spec.templateId);
             return cut ? (
               <div className="text-[11px] text-muted flex flex-wrap gap-x-3 gap-y-1 px-1">
