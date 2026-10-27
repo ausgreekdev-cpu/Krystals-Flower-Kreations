@@ -77,7 +77,8 @@ const metadataSchema = z.object({
   estimatedTimeMinutes: z.number().int().min(1).max(100000).optional(),
   tools: z.array(z.string().min(1).max(120)).max(50).optional(),
   materialType: z.string().max(60).optional(),
-  materialGsm: z.number().min(1).max(1000).optional(),
+  materialGsm: z.number().min(1).max(1000).optional(), // legacy single value
+  materialGsms: z.array(z.number().min(1).max(1000)).max(20).optional(), // multi-GSM
   foldingComplexity: z.enum(['simple', 'moderate', 'complex']).optional(),
   notes: z.string().max(2000).optional(),
 }).passthrough(); // JSONB stays flexible beyond the typed core keys

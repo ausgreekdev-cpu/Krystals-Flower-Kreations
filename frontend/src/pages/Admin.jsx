@@ -2476,8 +2476,7 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
     difficulty: doc?.metadata?.difficulty || '',
     estimatedTimeMinutes: doc?.metadata?.estimatedTimeMinutes || '',
     materialType: doc?.metadata?.materialType || '',
-    materialGsm: doc?.metadata?.materialGsm || '',
-    foldingComplexity: doc?.metadata?.foldingComplexity || '',
+    materialGsm: (doc?.metadata?.materialGsms || (doc?.metadata?.materialGsm ? [doc.metadata.materialGsm] : [])).join(', '),    foldingComplexity: doc?.metadata?.foldingComplexity || '',
     tools: (doc?.metadata?.tools || []).join(', '),
     notes: doc?.metadata?.notes || '',
     revisionNote: '',
@@ -2496,7 +2495,8 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
       if (form.difficulty) metadata.difficulty = form.difficulty;
       if (form.estimatedTimeMinutes) metadata.estimatedTimeMinutes = Number(form.estimatedTimeMinutes);
       if (form.materialType.trim()) metadata.materialType = form.materialType.trim();
-      if (form.materialGsm) metadata.materialGsm = Number(form.materialGsm);
+      const gsmList = String(form.materialGsm || '').split(/[,\s]+/).map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n >= 1 && n <= 1000);
+      if (gsmList.length) metadata.materialGsms = gsmList;
       if (form.foldingComplexity) metadata.foldingComplexity = form.foldingComplexity;
       const tools = form.tools.split(',').map((t) => t.trim()).filter(Boolean);
       if (tools.length) metadata.tools = tools;
@@ -2568,7 +2568,7 @@ function ProcedureModal({ doc, onClose, onSaved, token }) {
       <div className="grid sm:grid-cols-4 gap-3">
         <div><label className={label}>Est. minutes</label><input type="number" min="1" className={input} value={form.estimatedTimeMinutes} onChange={(e) => setForm({ ...form, estimatedTimeMinutes: e.target.value })} /></div>
         <div><label className={label}>Material type</label><input className={input} value={form.materialType} onChange={(e) => setForm({ ...form, materialType: e.target.value })} placeholder="Paper" /></div>
-        <div><label className={label}>Material gsm</label><input type="number" min="1" className={input} value={form.materialGsm} onChange={(e) => setForm({ ...form, materialGsm: e.target.value })} /></div>
+        <div><label className={label}>Material GSMs (comma-separated)</label><input type="text" className={input} value={form.materialGsm} onChange={(e) => setForm({ ...form, materialGsm: e.target.value })} placeholder="65, 80, 120" /></div>
         <div><label className={label}>Folding complexity</label>
           <select className={input} value={form.foldingComplexity} onChange={(e) => setForm({ ...form, foldingComplexity: e.target.value })}>
             {PROC_FOLDING.map((f) => <option key={f} value={f}>{f || '—'}</option>)}
@@ -2681,7 +2681,7 @@ function ProcedureDetail({ id, onClose, token, role }) {
         <div><div className="text-muted">Sub-category</div><div className="font-semibold text-ink mt-0.5">{procSubLabel(doc.subcategory) || '—'}</div></div>
         <div><div className="text-muted">Difficulty</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.difficulty || '—'}</div></div>
         <div><div className="text-muted">Est. minutes</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.estimatedTimeMinutes ? `~${doc.metadata.estimatedTimeMinutes} min` : '—'}</div></div>
-        <div><div className="text-muted">Material</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.materialType || '—'}{doc.metadata?.materialGsm ? ` · ${doc.metadata.materialGsm}gsm` : ''}</div></div>
+        <div><div className="text-muted">Material</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.materialType || '—'}{(() => { const gs = doc.metadata?.materialGsms || (doc.metadata?.materialGsm ? [doc.metadata.materialGsm] : []); return gs.length ? ` · ${gs.join('/')}gsm` : ''; })()}</div></div>
         <div><div className="text-muted">Folding complexity</div><div className="font-semibold text-ink mt-0.5">{doc.metadata?.foldingComplexity || '—'}</div></div>
         <div className="col-span-2"><div className="text-muted">SKU</div><div className="font-semibold text-ink mt-0.5 font-mono">{doc.sku || '—'}</div></div>
         <div className="col-span-2 sm:col-span-4"><div className="text-muted">Tools</div><div className="font-semibold text-ink mt-0.5">{(doc.metadata?.tools || []).join(' · ') || '—'}</div></div>
