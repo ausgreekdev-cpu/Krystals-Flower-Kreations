@@ -102,14 +102,23 @@ function extFor(mime, name) {
 
 // Raster photos/scans go through sharp (decode = the real content check);
 // everything else is stored raw after the sniff above.
+// Mirrors media.js prepareMaster: keep the original bytes (preserves photo
+// quality and transparency) and only re-encode when the image is oversized or
+// in a format that needs normalising. The previous behaviour re-encoded every
+// upload to a 1600px JPEG@82 — that's what made phone photos look blurry.
 async function prepareImage(mime, buffer) {
   try {
-    const img = sharp(buffer);
-    const meta = await img.metadata();
-    let p = img.rotate();
-    if (meta.width > 1600 || meta.height > 1600) p = p.resize({ width: 1600, height: 1600, fit: 'inside' });
-    const out = await p.jpeg({ quality: 82 }).toBuffer();
-    return { buf: out, mime: 'image/jpeg', ext: 'jpg' };
+    const meta = await sharp(buffer).metadata();
+    if (!meta.width || !meta.height) throw new Error('no geometry');
+    const oversized = meta.width > 2400 || meta.height > 2400;
+    if (!oversized && (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp' || mime === 'image/gif')) {
+      return { buf: buffer, mime, ext: extFor(mime), width: meta.width, height: meta.height };
+    }
+    const out = await sharp(buffer).rotate()
+      .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 88 }).toBuffer();
+    const m2 = await sharp(out).metadata();
+    return { buf: out, mime: 'image/jpeg', ext: 'jpg', width: m2.width || meta.width, height: m2.height || meta.height };
   } catch {
     throw Object.assign(new Error('Image could not be decoded'), { status: 415, code: 'unsupported_media_type', expose: true });
   }
@@ -287,8 +296,8 @@ router.post('/assemble', authenticate, requireRole(...EDITOR_ROLES), assembleLim
   for (const [i, f] of files.entries()) {
     try {
       const buf = await sharp(f.buffer, { failOn: 'none' }).rotate()
-        .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 82 }).toBuffer();
+        .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 88 }).toBuffer();
       pages.push({ buf });
     } catch {
       return res.status(415).json({ error: `Page ${i + 1} is not a readable image`, code: 'unsupported_media_type' });

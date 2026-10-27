@@ -834,3 +834,13 @@ test('ocrImage honours the caller timeout (hanging engine)', async () => {
     __setOcrRecognize(null);
   }
 });
+
+test('small image uploads keep their original bytes (no forced JPEG@82 re-encode)', async () => {
+  const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 200, g: 40, b: 90 } } }).png().toBuffer();
+  const res = await uploadFile(png, `preserve-${UNIQUE}.png`, 'image/png');
+  assert.equal(res.status, 201, JSON.stringify(res.body).slice(0, 200));
+  assert.equal(res.body.document.mime, 'image/png', 'master mime preserved — not forced to image/jpeg');
+  assert.equal(res.body.document.sizeBytes, png.length, 'master keeps original bytes');
+  const dl = await api(srv.base, `/api/documents/${res.body.document.id}/file`, { headers: auth() });
+  assert.equal(dl.status, 200, 'stored master serves cleanly');
+});
