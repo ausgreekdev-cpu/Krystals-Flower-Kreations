@@ -303,6 +303,12 @@ router.post('/:id/approve', authenticate, requireRole(...EDITOR_ROLES), validate
     procedureDocumentId = doc.id;
   }
 
+  // Link the manufactured product back to its procedure document so the two
+  // are navigable both ways (DB↔procedure pipeline).
+  if (productId && procedureDocumentId) {
+    await prisma.product.update({ where: { id: productId }, data: { procedureDocumentId } }).catch(() => {});
+  }
+
   const updated = await prisma.procedureImport.update({
     where: { id },
     data: {

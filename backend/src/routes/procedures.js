@@ -187,6 +187,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
         take: 50,
         select: { id: true, version: true, title: true, editorId: true, note: true, createdAt: true },
       },
+      products: { select: { id: true, title: true, slug: true, price: true, isActive: true } },
     },
   });
   if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
@@ -412,6 +413,30 @@ router.post('/import-content', authenticate, requireRole(...EDITOR_ROLES), rateL
     bytes: buffer.length,
     sourceUrl: finalUrl,
   });
+}));
+
+// ── Link/unlink a procedure to a product (DB↔procedure pipeline) ────────────
+router.put('/:id/product', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
+  const doc = await prisma.procedureDocument.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+  if (!doc) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+
+  const productId = req.body?.productId;
+  if (productId === null || productId === undefined || productId === '') {
+    // unlink all products currently pointing at this procedure
+    await prisma.product.updateMany({ where: { procedureDocumentId: id }, data: { procedureDocumentId: null } });
+    return res.json({ ok: true, linked: false });
+  }
+  if (typeof productId !== 'string' || !/^[a-z0-9]{20,30}$/.test(productId)) {
+    return res.status(400).json({ error: 'Invalid productId', code: 'validation_failed' });
+  }
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true, title: true } });
+  if (!product) return res.status(404).json({ error: 'Product not found', code: 'not_found' });
+  // unlink any existing product linked to this procedure, then link the new one
+  await prisma.product.updateMany({ where: { procedureDocumentId: id }, data: { procedureDocumentId: null } });
+  await prisma.product.update({ where: { id: productId }, data: { procedureDocumentId: id } });
+  res.json({ ok: true, linked: true, productId, productTitle: product.title });
 }));
 
 export default router;

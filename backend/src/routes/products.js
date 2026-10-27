@@ -78,7 +78,7 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
   const products = await prisma.product.findMany({
     where, take, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
-    include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, collections: { include: { collection: true } } },
+    include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, collections: { include: { collection: true } }, procedureDocument: { select: { id: true, title: true, status: true, category: true, version: true } } },
   });
   // Staff view keeps internal fields (svgUrl, cost); public responses strip them.
   if (staffView) noStore(res); else publicCache(res);
@@ -98,7 +98,7 @@ router.get('/:slug', optionalAuth, asyncHandler(async (req, res) => {
   const [product, loc] = await Promise.all([
     prisma.product.findUnique({
       where: { slug, deletedAt: null },
-      include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } } },
+      include: { images: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, variants: true, reviews: { where: { isApproved: true } }, collections: { include: { collection: true } }, procedureDocument: { select: { id: true, title: true, status: true, category: true, version: true } } },
     }),
     prisma.inventoryLocation.findFirst({ orderBy: { isDefault: 'desc' } }),
   ]);

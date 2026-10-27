@@ -237,6 +237,10 @@ model Product {
   metaSync           MetaCatalogItem?
   bomRecipes         BOMRecipe[]
   customArtOrders    CustomArtOrder[]
+  // Manufacturing spec backing this made-to-order product (nullable —
+  // products created outside the procedure-import pipeline have none).
+  procedureDocumentId String?            @db.Uuid
+  procedureDocument   ProcedureDocument? @relation(fields: [procedureDocumentId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1187,6 +1191,7 @@ model ProcedureDocument {
   author   User?                @relation(fields: [authorId], references: [id])
   media    DocumentMedia[]
   revisions ProcedureRevision[]
+  products Product[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

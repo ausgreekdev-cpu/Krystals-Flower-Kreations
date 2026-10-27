@@ -7,7 +7,7 @@
 // Staff routes (`?all=1`, admin CRUD responses) keep the raw row; every
 // public serialization (storefront products, cart items, blog post embeds)
 // runs through here.
-const INTERNAL_FIELDS = ['svgUrl', 'cost'];
+const INTERNAL_FIELDS = ['svgUrl', 'cost', 'procedureDocument'];
 
 export function publicProduct(product) {
   if (!product || typeof product !== 'object') return product;
