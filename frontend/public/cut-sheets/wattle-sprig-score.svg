@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="305mm" height="305mm" viewBox="0 0 305 305" version="1.1">
+  <title>Golden Wattle Sprig — fringed puff heads — score guides only</title>
+  <desc>Score-only companion for wattle-sprig.svg. Same 305 mm mat, same positions: upload both files, select everything and Attach, then set this layer's linetype to Score. Contains no cut shapes.</desc>
+  <metadata>{&quot;kind&quot;:&quot;score-only companion&quot;,&quot;pairsWith&quot;:&quot;wattle-sprig.svg&quot;,&quot;sheetMm&quot;:305,&quot;scoreLines&quot;:22}</metadata>
+  <g id="score" fill="none" stroke="#8A8F98" stroke-width="0.4" stroke-dasharray="3 1.6" stroke-linecap="round">
+    <path id="sprig-stem-1-score" d="M11.3,150.8L11.3,16.8"/>
+    <path id="sprig-stem-2-score" d="M21.3,150.8L21.3,16.8"/>
+    <path id="phyllode-long-1-score" d="M34.3,85.88L34.3,13.72"/>
+    <path id="phyllode-long-2-score" d="M50.3,85.88L50.3,13.72"/>
+    <path id="phyllode-long-3-score" d="M66.3,85.88L66.3,13.72"/>
+    <path id="phyllode-short-1-score" d="M81.3,67.08L81.3,12.52"/>
+    <path id="phyllode-short-2-score" d="M95.3,67.08L95.3,12.52"/>
+    <path id="phyllode-short-3-score" d="M109.3,67.08L109.3,12.52"/>
+    <path id="puff-head-1-score" d="M121.95,29.8L157.65,29.8"/>
+    <path id="puff-head-1-score-2" d="M139.8,11.95L139.8,47.65"/>
+    <path id="puff-head-2-score" d="M168.95,29.8L204.65,29.8"/>
+    <path id="puff-head-2-score-2" d="M186.8,11.95L186.8,47.65"/>
+    <path id="puff-head-3-score" d="M215.95,29.8L251.65,29.8"/>
+    <path id="puff-head-3-score-2" d="M233.8,11.95L233.8,47.65"/>
+    <path id="puff-head-4-score" d="M262.05,23.8L287.55,23.8"/>
+    <path id="puff-head-4-score-2" d="M274.8,11.05L274.8,36.55"/>
+    <path id="puff-head-5-score" d="M11.05,178.8L36.55,178.8"/>
+    <path id="puff-head-5-score-2" d="M23.8,166.05L23.8,191.55"/>
+    <path id="puff-head-6-score" d="M46.05,178.8L71.55,178.8"/>
+    <path id="puff-head-6-score-2" d="M58.8,166.05L58.8,191.55"/>
+    <path id="puff-head-7-score" d="M81.05,178.8L106.55,178.8"/>
+    <path id="puff-head-7-score-2" d="M93.8,166.05L93.8,191.55"/>
+  </g>
+</svg>

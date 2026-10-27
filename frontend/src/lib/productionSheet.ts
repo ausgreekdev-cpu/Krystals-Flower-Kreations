@@ -23,6 +23,7 @@ const CUT_SHEETS: Record<string, string> = {
   'paper-rose': 'paper-rose',
   'origami-lily': 'origami-lily',
   'banksia-petal': 'banksia-petal',
+  'wattle-sprig': 'wattle-sprig',
 };
 
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));

@@ -39,6 +39,8 @@ const CONTENT = SHEET - MARGIN * 2;
 const COL = {
   petal: '#F3DEE1',
   petalDeep: '#E7C2C9',
+  gold: '#F2D26B',
+  goldDeep: '#E8BC4A',
   leaf: '#BCCBAE',
   leafDark: '#A6B998',
   neutral: '#EADCC8',
@@ -400,6 +402,36 @@ function eucalyptus() {
   return pieces;
 }
 
+function wattle() {
+  const pieces = [];
+  // Fringed puff heads — scalloped discs; the fringe is cut at build time
+  // (see the guide) and the two cross scores let the head cup into a ball.
+  const puff = (r, i) => piece({
+    id: `puff-head-${i}`,
+    ...petalRing({ petals: 20, rOuter: r, rValley: r * 0.86, stepsPerPetal: 9, sharpness: 0.85 }),
+    fill: i % 2 ? COL.gold : COL.goldDeep,
+    scores: [
+      [{ x: r2(-r * 0.85), y: 0 }, { x: r2(r * 0.85), y: 0 }],
+      [{ x: 0, y: r2(-r * 0.85) }, { x: 0, y: r2(r * 0.85) }],
+    ],
+  });
+  for (let i = 1; i <= 3; i++) pieces.push(puff(21, i));
+  for (let i = 4; i <= 7; i++) pieces.push(puff(15, i));
+  // Slim phyllodes — the long narrow leaves real wattle carries
+  for (let i = 1; i <= 3; i++) pieces.push(leafPiece(11, 82, { id: `phyllode-long-${i}`, fill: COL.leaf }));
+  for (let i = 1; i <= 3; i++) pieces.push(leafPiece(9, 62, { id: `phyllode-short-${i}`, fill: COL.leafDark }));
+  // Sprig stems — tapered strips with a lengthwise fold score
+  for (let i = 1; i <= 2; i++) {
+    pieces.push(piece({
+      id: `sprig-stem-${i}`,
+      pts: blade(5, 150, { prof: SLIM_PROFILE, steps: 6 }),
+      fill: COL.stem,
+      scores: [[{ x: 0, y: -8 }, { x: 0, y: -142 }]],
+    }));
+  }
+  return pieces;
+}
+
 const CARE = [
   'Dust with a soft brush or a hairdryer on cool.',
   'Keep out of direct sun - dyed cardstock fades.',
@@ -667,6 +699,50 @@ const DESIGNS = [
       trouble: 'Stem strips tearing? Cut them from the long grain of the cardstock and handle them with tweezers, not fingertips.',
     },
   },
+  {
+    slug: 'wattle-sprig',
+    title: 'Golden Wattle Sprig — fringed puff heads',
+    finished: 'Sprig 300 mm · puff heads 40 mm and 30 mm',
+    build: 'Fringe each scalloped disc toward the centre with fine scissors, dome it over a fingertip and tack the rim. Gather three or four heads at each stem tip in loose clusters, then tape the slim phyllode leaves down the stem in pairs.',
+    pieces: wattle,
+    guide: {
+      summary: "Australia's golden wattle: seven scalloped puff heads fringed and domed into fuzzy gold balls, with slim phyllode leaves on two paper stems. The signature filler for native arrangements.",
+      makes: 'Two 300 mm sprigs — seven puff heads (3 x 40 mm, 4 x 30 mm) and six phyllode leaves.',
+      time: '45-60 min',
+      level: 'Intermediate',
+      materials: [
+        '65 lb (176 gsm) cardstock - gold, 1 sheet',
+        '65 lb cardstock - sage, 1 sheet',
+        '20 ga floral wire, two 300 mm stems',
+        'Floral tape, 12 mm - green',
+        'Tacky glue',
+      ],
+      tools: [
+        'Fine-point blade',
+        'StandardGrip 12 x 12 mat',
+        'Small sharp scissors (fringing)',
+        'Spatula and tweezers',
+        'Pencil or fingertip for doming',
+      ],
+      shaping: [
+        { name: 'Fringe', text: 'Cut fine slits from the scalloped edge toward the centre, stopping about 6 mm short - the denser the fringe, the fluffier the head.' },
+        { name: 'Dome', text: 'Press the centre over a fingertip and work the fringe upward so the disc becomes a ball, not a saucer.' },
+        { name: 'Gather', text: 'Cluster the heads in twos and threes at the stem tip rather than in a straight line - wattle grows in bursts.' },
+      ],
+      steps: [
+        'Cut the seven discs and fringe each one with fine scissors, cutting toward the centre and stopping 6 mm short.',
+        'Dome every disc over a fingertip and tack the rim so it holds its ball shape.',
+        'Wrap both stems with green floral tape from the tip down.',
+        'Glue three puff heads to the tip of the first stem and four to the second, in loose clusters.',
+        'Tape the six phyllode leaves down the stems in pairs, longest pair nearest the heads.',
+        'Fluff the fringes outward once the glue sets - the heads should read as fuzzy gold balls.',
+      ],
+      stack: ['Puff heads x7 (fringed + domed)', 'Phyllodes x6, stems x2'],
+      care: CARE,
+      trouble: 'Heads looking flat? The fringing stopped too far out - slits need to reach within 6 mm of the centre for the dome to hold.',
+    },
+  },
+
 ];
 
 /* ---------------------------------------------------------------- layout */
