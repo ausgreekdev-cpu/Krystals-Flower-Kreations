@@ -957,6 +957,8 @@ model RawMaterial {
   supplierId         String?
   supplierRef        Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   brand              String? // e.g. Canson
+  procurementStatus  String  @default("active") // 'draft' | 'active' — auto-created materials start as draft
+  suggestedSupplier  String? // suggested supplier name for draft materials
   weightValue        Float? // e.g. 65
   weightUnit         String? // lb | gsm — validated in route schemas
   colour             String? // e.g. Blush

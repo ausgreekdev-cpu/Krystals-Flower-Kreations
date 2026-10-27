@@ -41,6 +41,7 @@ import procedureRoutes from './routes/procedures.js';
 import documentRoutes from './routes/documents.js';
 import mediaRoutes from './routes/media.js';
 import procedureImportRoutes from './routes/procedureImports.js';
+import procurementRoutes from './routes/procurement.js';
 import downloadRoutes from './routes/downloads.js';
 import paperStockRoutes from './routes/paperStocks.js';
 
@@ -196,6 +197,7 @@ app.use('/api/database', documentRoutes); // alias — Documents renamed to Data
 app.use('/api/paper-stocks', paperStockRoutes); // configurator papers — sellable materials, not products
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
+app.use('/api/procurement', procurementRoutes); // procurement workflow — draft materials + supplier approval
 app.use('/api/dl', downloadRoutes); // token-gated digital template delivery
 
 // Stripe webhook (raw body needed — keep before json parser if you re-enable, currently json-parsed; stripe disabled)

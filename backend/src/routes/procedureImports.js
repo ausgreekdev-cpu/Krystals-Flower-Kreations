@@ -240,6 +240,8 @@ router.post('/:id/approve', authenticate, requireRole(...EDITOR_ROLES), validate
           costPerUnit: Number(m.costPerUnit || 0), colour: m.colour || null,
           weightValue: m.weightValue || null, weightUnit: m.weightUnit || null,
           size: m.size || null, brand: m.brand || null,
+          procurementStatus: 'draft',
+          suggestedSupplier: m.brand || null,
         },
       });
       rawId = created.id;
