@@ -311,6 +311,18 @@ export default function Configurator(){
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <div className="space-y-4">
           <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} tintHex={tintHex} onLoad={handleTint} />
+          {(() => {
+            const cut = cutSheetFor(spec.templateId);
+            return cut ? (
+              <div className="text-[11px] text-muted flex flex-wrap gap-x-3 gap-y-1 px-1">
+                <span>Workshop files:</span>
+                <a className="underline text-highlight" href={`/cut-sheets/${cut}.svg`} download>cut sheet (SVG)</a>
+                <a className="underline text-highlight" href={`/cut-sheets/${cut}-score.svg`} download>score lines</a>
+                <a className="underline text-highlight" href={`/cut-sheets/${cut}-assembly.pdf`} target="_blank" rel="noreferrer">assembly guide (PDF)</a>
+              </div>
+            ) : null;
+          })()}
+
           {s.show_cricut === '1' && (
             <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
               <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Template — free preview</h2>
@@ -359,17 +371,6 @@ export default function Configurator(){
                   </div>}
                 </div>
               )}
-              {(() => {
-                const cut = cutSheetFor(spec.templateId);
-                return cut ? (
-                  <div className="text-[11px] text-muted mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                    <span>Workshop files:</span>
-                    <a className="underline text-highlight" href={`/cut-sheets/${cut}.svg`} download>cut sheet (SVG)</a>
-                    <a className="underline text-highlight" href={`/cut-sheets/${cut}-score.svg`} download>score lines</a>
-                    <a className="underline text-highlight" href={`/cut-sheets/${cut}-assembly.pdf`} target="_blank" rel="noreferrer">assembly guide (PDF)</a>
-                  </div>
-                ) : null;
-              })()}
               {import.meta.env.DEV && <div className="text-[11px] text-muted mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>.</div>}
             </section>
           )}
