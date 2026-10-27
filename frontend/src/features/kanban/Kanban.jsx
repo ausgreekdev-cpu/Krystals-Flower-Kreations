@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core';
 import { usePublicSettings } from '../../lib/publicSettings';
+import { printProductionSheet } from '../../lib/productionSheet';
 
 const STATES = ['drafting_proofing','cricut_cutting','hand_folding_assembly','quality_check','dispatched_pickup_ready'];
 const LABEL = { drafting_proofing:'Drafting/Proofing', cricut_cutting:'Cutting', hand_folding_assembly:'Hand Folding', quality_check:'Quality Check', dispatched_pickup_ready:'Dispatched/Pickup Ready' };
@@ -23,6 +24,7 @@ function DraggableCard({ order, onCheckIn }){
       {order.ticket?.qrPayload && <div className="text-[10px] font-mono bg-surface3 rounded px-2 py-1 mt-1 break-all">{order.ticket.qrPayload}</div>}
       <div className="flex gap-1 mt-2 flex-wrap" onPointerDown={e=>e.stopPropagation()}>
         {order.ticket?.qrPayload && <button onClick={()=>onCheckIn(order.ticket.qrPayload)} className="text-xs border px-2 py-1 rounded hover:bg-surface3">QR Check-in</button>}
+        <button onClick={()=>printProductionSheet(order)} className="text-xs border px-2 py-1 rounded hover:bg-surface3" title="Printable materials + spec sheet for the workshop">Sheet</button>
       </div>
     </div>
   );

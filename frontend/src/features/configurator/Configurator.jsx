@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useConfiguratorStore, estimateLocalPrice, DEFAULT_SPEC } from './useConfiguratorStore';
+import { useConfiguratorStore, estimateLocalPrice, DEFAULT_SPEC, specToShareParam, specFromShareParam } from './useConfiguratorStore';
+import { cutSheetFor } from '../../lib/productionSheet';
 import { ordersApi, paperStocksApi } from '../../lib/api/customClient';
 import { addToCart } from '../../lib/cartClient';
 import { usePublicSettings } from '../../lib/publicSettings';
@@ -57,7 +58,33 @@ function hexToRgba(hex) {
 }
 
 export default function Configurator(){
-  const { spec, setSpec } = useConfiguratorStore();
+  const { spec, setSpec: setSpecRaw } = useConfiguratorStore();
+  // Shareable design URLs: /configurator?s=<base64url spec> restores a design
+  // (wins over the persisted copy). The param is kept until the first edit so
+  // the current URL stays shareable, then stripped — the original link works.
+  const [openStep, setOpenStep] = useState(1);
+  const [shareMsg, setShareMsg] = useState('');
+  const fromShareUrl = useRef(false);
+  useEffect(() => {
+    const restored = specFromShareParam(new URLSearchParams(window.location.search).get('s'));
+    if (restored) { setSpecRaw(restored); fromShareUrl.current = true; }
+  }, []);
+  const setSpec = (patch) => {
+    if (fromShareUrl.current) {
+      fromShareUrl.current = false;
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    setSpecRaw(patch);
+  };
+  async function shareDesign() {
+    const url = `${window.location.origin}/configurator?s=${specToShareParam(spec)}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: 'My paper bouquet design', url }); return; }
+      await navigator.clipboard.writeText(url);
+      setShareMsg('Design link copied');
+    } catch { setShareMsg('Copy the URL from the address bar to share'); }
+    setTimeout(() => setShareMsg(''), 3000);
+  }
   const s = usePublicSettings();
   const [papers, setPapers] = useState([]);
   const [paperQ, setPaperQ] = useState('');
@@ -324,7 +351,7 @@ export default function Configurator(){
                   {selectedPaper?.texture === 'linen' && <div className="absolute inset-0 opacity-[0.07] mix-blend-multiply" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent 0 3px, #000 3px 4px), repeating-linear-gradient(90deg, transparent 0 3px, #000 3px 4px)' }} aria-hidden />}
                   {selectedPaper?.texture === 'pearl' && <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(ellipse at 25% 20%, rgba(255,255,255,0.9), transparent 55%), linear-gradient(120deg, transparent 40%, rgba(255,255,255,0.45) 50%, transparent 60%)' }} aria-hidden />}
                   {selectedPaper?.texture === 'textured' && <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E")` }} aria-hidden />}
-                  <img src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="relative w-full h-48 object-contain p-4 drop-shadow-sm" style={{ filter: selectedPaper ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : undefined }} onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
+                  <img key={spec.templateId} src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="relative w-full h-48 object-contain p-4 drop-shadow-sm kfk-fade-in" style={{ filter: selectedPaper ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : undefined }} onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
                   <div style={{display:'none'}} className="relative bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label}</div>
                   {selectedPaper && <div className="absolute bottom-1 left-1 right-1 flex justify-between gap-2 text-[10px]">
                     <span className="bg-black/70 text-white px-2 py-1 rounded-full">{selectedPaper.name} • {selectedPaper.texture}{selectedPaper.imageUrl ? ' • tap to zoom' : ''}</span>
@@ -332,6 +359,17 @@ export default function Configurator(){
                   </div>}
                 </div>
               )}
+              {(() => {
+                const cut = cutSheetFor(spec.templateId);
+                return cut ? (
+                  <div className="text-[11px] text-muted mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                    <span>Workshop files:</span>
+                    <a className="underline text-highlight" href={`/cut-sheets/${cut}.svg`} download>cut sheet (SVG)</a>
+                    <a className="underline text-highlight" href={`/cut-sheets/${cut}-score.svg`} download>score lines</a>
+                    <a className="underline text-highlight" href={`/cut-sheets/${cut}-assembly.pdf`} target="_blank" rel="noreferrer">assembly guide (PDF)</a>
+                  </div>
+                ) : null;
+              })()}
               {import.meta.env.DEV && <div className="text-[11px] text-muted mt-2">Free pipeline: Inkscape Trace Bitmap → Plain SVG → store in <code>frontend/public/svg/</code> → served at <code>/svg/{spec.templateId}.svg</code>.</div>}
             </section>
           )}
@@ -352,7 +390,8 @@ export default function Configurator(){
 
           {/* Flower style — step 1 always visible */}
           <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-            <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Flower style</h2>
+<h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep===1?null:1)} aria-expanded={openStep===1} className="w-full flex items-center gap-2 text-left"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">1</span> Flower style<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep===1?'rotate-180':''}`}>▾</span></button></h2>
+          <div className={`mt-2 ${openStep===1?'':'hidden sm:block'}`}>
             <p className="text-xs text-muted mt-1">Choose the bloom that guides your bouquet.</p>
             <div className="grid grid-cols-2 gap-3 mt-3">
               {TEMPLATES.map(t=> (
@@ -365,7 +404,10 @@ export default function Configurator(){
                 </button>
               ))}
             </div>
-          </section>
+          
+<button type="button" onClick={() => { setOpenStep(2); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sm:hidden w-full mt-3 text-xs font-bold bg-bloom-500 text-white rounded-full py-2">Next: Paper →</button>
+          </div>
+        </section>
         </div>
       </div>
 
@@ -373,12 +415,17 @@ export default function Configurator(){
         {papers.length === 0 ? (
           <>
             <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-              <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Paper Colour</h2>
+<h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep===2?null:2)} aria-expanded={openStep===2} className="w-full flex items-center gap-2 text-left"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Paper Colour<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep===2?'rotate-180':''}`}>▾</span></button></h2>
+          <div className={`mt-2 ${openStep===2?'':'hidden sm:block'}`}>
               <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper palette">{PALETTES.map(p=> <button key={p.id} onClick={()=>setSpec({ palette:p.id, ...p.apply })} aria-pressed={spec.palette===p.id} className={`${CHIP} ${spec.palette===p.id?CHIP_ON:CHIP_OFF}`}>{p.label}</button>)}</div>
               <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper colour">{COLORS.map(c=> <button key={c} onClick={()=>setSpec({paperColor:c, palette:null})} aria-pressed={spec.paperColor===c && !spec.palette} className={`${CHIP} ${spec.paperColor===c && !spec.palette?CHIP_ON: spec.paperColor===c?'border-bloom-500 text-highlight':'bg-surface2'}`}>{c}</button>)}</div>
-            </section>
+            
+<button type="button" onClick={() => { setOpenStep(3); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sm:hidden w-full mt-3 text-xs font-bold bg-bloom-500 text-white rounded-full py-2">Next: Texture & Weight →</button>
+          </div>
+        </section>
             <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-              <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Texture &amp; Weight</h2>
+<h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep===3?null:3)} aria-expanded={openStep===3} className="w-full flex items-center gap-2 text-left"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Texture &amp; Weight<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep===3?'rotate-180':''}`}>▾</span></button></h2>
+          <div className={`mt-2 ${openStep===3?'':'hidden sm:block'}`}>
               <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper texture">{TEXTURES.map(t=> <button key={t} onClick={()=>setSpec({paperTexture:t})} aria-pressed={spec.paperTexture===t} className={`${CHIP} ${spec.paperTexture===t?CHIP_ON:CHIP_OFF}`}>{t}</button>)}</div>
               <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> {
                 const lbl = WEIGHT_LABELS[w];
@@ -390,11 +437,15 @@ export default function Configurator(){
                 const hSur = Math.floor(hExtra / 100) * Number(s.configurator_height_per_100mm || 0);
                 return hSur>0 ? <div className="text-xs text-muted mt-2">Height {spec.heightMm}mm: +${hSur.toFixed(2)} (above 400mm, ${Number(s.configurator_height_per_100mm||0).toFixed(2)}/100mm)</div> : null;
               })()}
-            </section>
+            
+<button type="button" onClick={() => { setOpenStep('details'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sm:hidden w-full mt-3 text-xs font-bold bg-bloom-500 text-white rounded-full py-2">Next: Your details →</button>
+          </div>
+        </section>
           </>
         ) : availablePapers.length > 0 ? (
           <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
-            <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Paper — pick colour &amp; type {paperPremium > 0 && <span className="text-xs font-normal text-muted">+${paperPremium.toFixed(2)}/stem</span>}</h2>
+<h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep===2?null:2)} aria-expanded={openStep===2} className="w-full flex items-center gap-2 text-left"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Paper — pick colour &amp; type {paperPremium > 0 && <span className="text-xs font-normal text-muted">+${paperPremium.toFixed(2)}/stem</span>}<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep===2?'rotate-180':''}`}>▾</span></button></h2>
+          <div className={`mt-2 ${openStep===2?'':'hidden sm:block'}`}>
             <div className="flex flex-wrap gap-2 mt-3 items-center">
               <input value={paperQ} onChange={(e)=> setPaperQ(e.target.value)} placeholder="Search papers…" className="flex-1 min-w-[160px] border border-line-strong rounded-xl px-3 py-2 text-sm" />
               <select value={paperTypeFilter} onChange={(e)=> setPaperTypeFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs">
@@ -477,7 +528,10 @@ export default function Configurator(){
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={()=> setSpec({ paperStockId: null })} className={`${CHIP} ${!spec.paperStockId ? CHIP_ON : CHIP_OFF}`}>No paper premium</button>
             </div>
-          </section>
+          
+<button type="button" onClick={() => { setOpenStep(3); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sm:hidden w-full mt-3 text-xs font-bold bg-bloom-500 text-white rounded-full py-2">Next: Stems & Height →</button>
+          </div>
+        </section>
         ) : (
           <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border text-center">
             <div className="font-bold text-ink">Papers out of stock</div>
@@ -485,7 +539,8 @@ export default function Configurator(){
           </section>
         )}
         <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border space-y-3">
-          <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Height</h2>
+<h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep===3?null:3)} aria-expanded={openStep===3} className="w-full flex items-center gap-2 text-left"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">3</span> Stems &amp; Height<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep===3?'rotate-180':''}`}>▾</span></button></h2>
+          <div className={`mt-2 ${openStep===3?'':'hidden sm:block'}`}>
           <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-stems" className="shrink-0">Stems</label> <input id="cfg-stems" type="range" min={1} max={25} value={spec.stemCount} onChange={e=>setSpec({stemCount: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.stemCount} stems`} /> <span aria-hidden="true" className="shrink-0 w-6 text-right">{spec.stemCount}</span></div>
           <div className="flex items-center gap-3 min-w-0"><label htmlFor="cfg-height" className="shrink-0">Height mm</label> <input id="cfg-height" type="range" min={150} max={600} step={50} value={spec.heightMm} onChange={e=>setSpec({heightMm: parseInt(e.target.value)})} className="flex-1 min-w-0" aria-valuetext={`${spec.heightMm} millimetres`} /> <span aria-hidden="true" className="shrink-0 w-8 text-right">{spec.heightMm}</span></div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Add-ons">
@@ -505,6 +560,9 @@ export default function Configurator(){
             return hSur>0 ? <div className="text-xs text-muted">Height {spec.heightMm}mm: +${hSur.toFixed(2)} (above 400mm, ${Number(s.configurator_height_per_100mm||0).toFixed(2)}/100mm)</div> : null;
           })()}
           <TextArea label="Anything else Krystal should know? Occasion, colours to match, message" labelVisible value={spec.notes || ''} onChange={e=> setSpec({ notes: e.target.value })} placeholder="Tell Krystal about the occasion, colours to match, or a message for the card…" rows={3} className="w-full" />
+        
+<button type="button" onClick={() => { setOpenStep('details'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sm:hidden w-full mt-3 text-xs font-bold bg-bloom-500 text-white rounded-full py-2">Next: Your details →</button>
+          </div>
         </section>
 
         {paperZoom && selectedPaper?.imageUrl && (
@@ -563,7 +621,8 @@ export default function Configurator(){
           </section>
         )}
         <div id="cfg-order" className="bg-surface2 border rounded-2xl p-3 sm:p-4 space-y-3 scroll-mt-24">
-          <h2 className="font-bold">Your details — for custom order</h2>
+<h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep==='details'?null:'details')} aria-expanded={openStep==='details'} className="w-full flex items-center gap-2 text-left">Your details — for custom order<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep==='details'?'rotate-180':''}`}>▾</span></button></h2>
+          <div className={`mt-2 ${openStep==='details'?'':'hidden sm:block'}`}>
           <Input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com" type="email" label="Email" labelVisible size="sm" className="w-full" />
           {fieldErrs.email && <div className="text-xs text-danger-600 -mt-2">{fieldErrs.email}</div>}
           <Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name" label="Full name" labelVisible size="sm" className="w-full" />
@@ -582,23 +641,28 @@ export default function Configurator(){
           <div className="text-[11px] text-muted">Earliest available date is {minNeededBy} (about {leadDays} days from today).</div>
           {err && <Alert tone="danger" className="text-xs">{err}</Alert>}
           {msg && <Alert tone="ok" className="text-xs">{msg}</Alert>}
+          </div>
         </div>
         <div className="bg-bloom-700 text-white rounded-2xl p-5">
-          <div className="flex justify-between"><span>Total ({spec.stemCount} stems)</span><span className="font-bold">${displayTotal.toFixed(2)} AUD</span></div>
+          <div className="flex justify-between"><span>Total ({spec.stemCount} stems)</span><span key={displayTotal} className="font-bold kfk-fade-in">${displayTotal.toFixed(2)} AUD</span></div>
           <div className="text-[11px] opacity-70">GST incl.</div>
           <div className="flex justify-between mt-1 text-sm opacity-80"><span>Ready in about {leadDays} days</span><span className="text-xs opacity-70">{isLiveQuote ? 'Live quote' : 'Estimate'}</span></div>
           <div className="text-xs opacity-60 mt-2">Estimate — final price confirmed at proofing. Earn 1 Bloom pt per $1. All prices GST inclusive.</div>
-          <Btn onClick={submit} disabled={submitting} className="w-full mt-4" variant="primary" size="lg">{submitting ? 'Sending…' : 'Send my design to Krystal'}</Btn>
+          <div className="flex gap-2 mt-4">
+            <Btn onClick={submit} disabled={submitting} className="flex-1" variant="primary" size="lg">{submitting ? 'Sending…' : 'Send my design to Krystal'}</Btn>
+            <Btn onClick={shareDesign} variant="onDark" size="lg" className="shrink-0">Share design</Btn>
+          </div>
+          {shareMsg && <div className="text-[11px] opacity-90 mt-2" role="status">{shareMsg}</div>}
         </div>
       </div>
       <div role="region" aria-label="Price summary" className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-bloom-700 text-white px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_16px_rgba(0,0,0,0.25)] border-t border-white/10">
         <div className="text-sm min-w-0">
           <span className="opacity-70">Total</span>{' '}
-          <span className="font-bold">${displayTotal.toFixed(2)}</span>
+          <span key={displayTotal} className="font-bold kfk-fade-in">${displayTotal.toFixed(2)}</span>
           <span className="text-[10px] opacity-70"> GST incl.</span>
           <span className="block text-[10px] opacity-70 truncate">{spec.stemCount} stems · {spec.paperColor} · Ready in about {leadDays} days</span>
         </div>
-        <a href="#cfg-order" className="shrink-0 text-xs font-bold bg-white text-bloom-700 rounded-full px-4 py-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Review &amp; order</a>
+        <a href="#cfg-order" onClick={()=>setOpenStep('details')} className="shrink-0 text-xs font-bold bg-white text-bloom-700 rounded-full px-4 py-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Review &amp; order</a>
       </div>
     </Page>
   );

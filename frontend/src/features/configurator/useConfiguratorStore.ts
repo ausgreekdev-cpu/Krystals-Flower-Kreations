@@ -39,3 +39,44 @@ export function estimateLocalPrice(spec: ConfiguratorSpecState, s: Record<string
   const estimatedMinutes = Math.round(22 + spec.stemCount * 6 + (spec.heightMm / 60) + (spec.domeIncluded ? 10 : 0) + (spec.ledIncluded ? 3 : 0));
   return { unitPrice, totalPrice: unitPrice, estimatedMinutes };
 }
+
+// ── Shareable design URLs ───────────────────────────────────────────────────
+// /configurator?s=<base64url JSON> restores a design (wins over localStorage).
+// v1 payload = the spec fields only; everything is clamped back into range so
+// a hand-edited or truncated link can never crash the configurator.
+const SHARE_VERSION = 1;
+const clamp = (v: number, min: number, max: number, dflt: number) =>
+  Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : dflt;
+
+export function specToShareParam(spec: ConfiguratorSpecState): string {
+  const payload = { v: SHARE_VERSION, ...spec };
+  const json = JSON.stringify(payload);
+  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function specFromShareParam(param: string | null): Partial<ConfiguratorSpecState> | null {
+  if (!param) return null;
+  try {
+    const b64 = param.replace(/-/g, '+').replace(/_/g, '/');
+    const json = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const raw = JSON.parse(json);
+    if (raw?.v !== SHARE_VERSION) return null;
+    const out: Partial<ConfiguratorSpecState> = {};
+    if (typeof raw.paperColor === 'string' && raw.paperColor.length <= 40) out.paperColor = raw.paperColor;
+    if (typeof raw.paperTexture === 'string') out.paperTexture = raw.paperTexture;
+    if (typeof raw.weight === 'string') out.weight = raw.weight;
+    if (raw.stemCount !== undefined) out.stemCount = clamp(Number(raw.stemCount), 1, 99, 7);
+    if (raw.heightMm !== undefined) out.heightMm = clamp(Number(raw.heightMm), 150, 600, 350);
+    if (typeof raw.templateId === 'string' && raw.templateId.length <= 40) out.templateId = raw.templateId;
+    for (const flag of ['addGreenery', 'vaseIncluded', 'domeIncluded', 'ledIncluded'] as const) {
+      if (typeof raw[flag] === 'boolean') out[flag] = raw[flag];
+    }
+    if (typeof raw.palette === 'string' && raw.palette.length <= 40) out.palette = raw.palette;
+    if (typeof raw.paperStockId === 'string' && raw.paperStockId.length <= 100) out.paperStockId = raw.paperStockId;
+    if (typeof raw.notes === 'string') out.notes = raw.notes.slice(0, 2000);
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}

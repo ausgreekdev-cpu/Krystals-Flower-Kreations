@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="305mm" height="305mm" viewBox="0 0 305 305" version="1.1">
+  <title>Six-Petal Lily — shaped petals — score guides only</title>
+  <desc>Score-only companion for lily-six-petal.svg. Same 305 mm mat, same positions: upload both files, select everything and Attach, then set this layer's linetype to Score. Contains no cut shapes.</desc>
+  <metadata>{&quot;kind&quot;:&quot;score-only companion&quot;,&quot;pairsWith&quot;:&quot;lily-six-petal.svg&quot;,&quot;sheetMm&quot;:305,&quot;scoreLines&quot;:17}</metadata>
+  <g id="score" fill="none" stroke="#8A8F98" stroke-width="0.4" stroke-dasharray="3 1.6" stroke-linecap="round">
+    <path id="petal-1-score" d="M18.27,80.96L31.07,80.96"/>
+    <path id="petal-2-score" d="M55.02,80.96L67.82,80.96"/>
+    <path id="petal-3-score" d="M91.77,80.96L104.57,80.96"/>
+    <path id="petal-4-score" d="M128.52,80.96L141.32,80.96"/>
+    <path id="petal-5-score" d="M165.27,80.96L178.07,80.96"/>
+    <path id="petal-6-score" d="M202.02,80.96L214.82,80.96"/>
+    <path id="leaf-1-score" d="M237.29,78.36L237.29,13.24"/>
+    <path id="leaf-2-score" d="M258.29,78.36L258.29,13.24"/>
+    <path id="stamen-1-score" d="M273.54,52.04L273.54,11.56"/>
+    <path id="stamen-2-score" d="M283.04,52.04L283.04,11.56"/>
+    <path id="stamen-3-score" d="M292.54,52.04L292.54,11.56"/>
+    <path id="stamen-4-score" d="M11.05,145.04L11.05,104.56"/>
+    <path id="stamen-5-score" d="M20.55,145.04L20.55,104.56"/>
+    <path id="stamen-6-score" d="M30.05,145.04L30.05,104.56"/>
+    <path id="stamen-7-score" d="M39.55,145.04L39.55,104.56"/>
+    <path id="stamen-8-score" d="M49.05,145.04L49.05,104.56"/>
+    <path id="stamen-9-score" d="M58.55,145.04L58.55,104.56"/>
+  </g>
+</svg>

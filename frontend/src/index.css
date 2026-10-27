@@ -163,3 +163,7 @@ input[type="checkbox"] { accent-color: rgb(var(--bloom-500)); }
     scroll-behavior: auto !important;
   }
 }
+
+/* Configurator feedback: price/preview cross-fade on change */
+@keyframes kfkFadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.kfk-fade-in { animation: kfkFadeIn 0.25s ease; }

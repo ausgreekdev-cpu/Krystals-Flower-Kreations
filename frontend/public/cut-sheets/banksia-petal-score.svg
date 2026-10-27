@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="305mm" height="305mm" viewBox="0 0 305 305" version="1.1">
+  <title>Banksia — cone + serrated leaves — score guides only</title>
+  <desc>Score-only companion for banksia-native.svg. Same 305 mm mat, same positions: upload both files, select everything and Attach, then set this layer's linetype to Score. Contains no cut shapes.</desc>
+  <metadata>{&quot;kind&quot;:&quot;score-only companion&quot;,&quot;pairsWith&quot;:&quot;banksia-native.svg&quot;,&quot;sheetMm&quot;:305,&quot;scoreLines&quot;:15}</metadata>
+  <g id="score" fill="none" stroke="#8A8F98" stroke-width="0.4" stroke-dasharray="3 1.6" stroke-linecap="round">
+    <path id="cone-strip-score" d="M21.32,118.8L58.28,118.8"/>
+    <path id="cone-strip-score-2" d="M15.29,108.8L64.31,108.8"/>
+    <path id="cone-strip-score-3" d="M11.88,98.8L67.72,98.8"/>
+    <path id="cone-strip-score-4" d="M11.28,88.8L68.32,88.8"/>
+    <path id="cone-strip-score-5" d="M11.28,78.8L68.32,78.8"/>
+    <path id="cone-strip-score-6" d="M11.28,68.8L68.32,68.8"/>
+    <path id="cone-strip-score-7" d="M11.28,58.8L68.32,58.8"/>
+    <path id="cone-strip-score-8" d="M11.46,48.8L68.14,48.8"/>
+    <path id="cone-strip-score-9" d="M12.24,38.8L67.36,38.8"/>
+    <path id="cone-strip-score-10" d="M13.74,28.8L65.86,28.8"/>
+    <path id="cone-strip-score-11" d="M16.39,18.8L63.21,18.8"/>
+    <path id="leaf-serrated-large-1-score" d="M94.24,93.4L94.24,14.2"/>
+    <path id="leaf-serrated-large-2-score" d="M136.13,93.4L136.13,14.2"/>
+    <path id="leaf-serrated-small-1-score" d="M173.64,72.72L173.64,12.88"/>
+    <path id="leaf-serrated-small-2-score" d="M206.79,72.72L206.79,12.88"/>
+  </g>
+</svg>

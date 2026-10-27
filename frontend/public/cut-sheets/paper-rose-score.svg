@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="305mm" height="305mm" viewBox="0 0 305 305" version="1.1">
+  <title>Classic Rose — layered cut sheet — score guides only</title>
+  <desc>Score-only companion for rose-classic.svg. Same 305 mm mat, same positions: upload both files, select everything and Attach, then set this layer's linetype to Score. Contains no cut shapes.</desc>
+  <metadata>{&quot;kind&quot;:&quot;score-only companion&quot;,&quot;pairsWith&quot;:&quot;rose-classic.svg&quot;,&quot;sheetMm&quot;:305,&quot;scoreLines&quot;:19}</metadata>
+  <g id="score" fill="none" stroke="#8A8F98" stroke-width="0.4" stroke-dasharray="3 1.6" stroke-linecap="round">
+    <path id="leaf-large-1-score" d="M23.8,72.72L23.8,12.88"/>
+    <path id="leaf-large-2-score" d="M58.8,72.72L58.8,12.88"/>
+    <path id="outer-petal-1-score" d="M95.25,62.92L116.85,62.92"/>
+    <path id="outer-petal-2-score" d="M154.74,62.92L176.34,62.92"/>
+    <path id="outer-petal-3-score" d="M214.24,62.92L235.84,62.92"/>
+    <path id="outer-petal-4-score" d="M25.25,135.92L46.85,135.92"/>
+    <path id="outer-petal-5-score" d="M84.75,135.92L106.35,135.92"/>
+    <path id="mid-petal-1-score" d="M200.62,126.08L218.22,126.08"/>
+    <path id="mid-petal-2-score" d="M249.62,126.08L267.22,126.08"/>
+    <path id="mid-petal-3-score" d="M22,197.08L39.6,197.08"/>
+    <path id="mid-petal-4-score" d="M71,197.08L88.6,197.08"/>
+    <path id="mid-petal-5-score" d="M120,197.08L137.6,197.08"/>
+    <path id="leaf-small-1-score" d="M166.8,199.8L166.8,155.8"/>
+    <path id="leaf-small-2-score" d="M193.8,199.8L193.8,155.8"/>
+    <path id="inner-petal-1-score" d="M265.9,185.6L279.1,185.6"/>
+    <path id="inner-petal-2-score" d="M18.7,244.6L31.9,244.6"/>
+    <path id="inner-petal-3-score" d="M56.7,244.6L69.9,244.6"/>
+    <path id="inner-petal-4-score" d="M94.7,244.6L107.9,244.6"/>
+    <path id="inner-petal-5-score" d="M132.7,244.6L145.9,244.6"/>
+  </g>
+</svg>
