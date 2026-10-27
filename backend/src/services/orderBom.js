@@ -44,6 +44,64 @@ export function buildBOMSnapshot(lines) {
 }
 
 // Compute + persist the snapshot for an order (lines must be included).
+// ── Stock consumption for made-to-order products ─────────────────────────────
+// When an order is finalized, decrement raw-material stock for each line's
+// BOM recipe and write StockMovement + audit entries. Best-effort: never blocks
+// the order. Runs alongside generateOrderBOM.
+export async function consumeOrderMaterials(order) {
+  if (!order?.id || !Array.isArray(order.lines) || !order.lines.length) return null;
+  const userId = order.userId || null;
+  const movements = [];
+  for (const line of order.lines) {
+    if (line.isDigital) continue;
+    const recipe = await findRecipeFor(prisma, { productId: line.productId, variantId: line.variantId });
+    if (!recipe || !Array.isArray(recipe.lines)) continue;
+    const units = Number(line.quantity) || 1;
+    const scale = units; // per-unit quantities already in recipe lines
+    for (const l of recipe.lines) {
+      const raw = l.rawMaterial;
+      if (!raw?.id) continue;
+      const consumed = (Number(l.qtyPerUnit) || 0) * (1 + (Number(l.wasteFactor) || 0)) * scale;
+      if (consumed <= 0) continue;
+      try {
+        await prisma.rawMaterial.update({
+          where: { id: raw.id },
+          data: { onHand: { decrement: consumed } },
+        });
+        const mv = await prisma.stockMovement.create({
+          data: {
+            rawMaterialId: raw.id,
+            productId: line.productId || null,
+            variantId: line.variantId || null,
+            type: 'bom_deduct',
+            quantity: -Math.round(consumed),
+            reason: `Order ${order.orderNumber} — BOM consumption`,
+            reference: order.id,
+            userId,
+          },
+        });
+        movements.push(mv);
+      } catch (e) {
+        console.error(JSON.stringify({ level: 'error', msg: 'stock_consume_failed', orderId: order.id, rawMaterialId: raw.id, err: e?.message }));
+      }
+    }
+  }
+  if (movements.length) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'order_stock_consumed',
+          entityType: 'order',
+          entityId: order.id,
+          details: { orderNumber: order.orderNumber, movements: movements.length },
+        },
+      });
+    } catch {}
+  }
+  return movements.length ? movements : null;
+}
+
 export async function generateOrderBOM(order) {
   if (!order?.id || !Array.isArray(order.lines) || !order.lines.length) return null;
   const lineBoms = [];

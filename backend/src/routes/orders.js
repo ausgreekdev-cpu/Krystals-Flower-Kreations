@@ -8,7 +8,7 @@ import { asyncHandler } from '../middleware/async-handler.js';
 import { calculateShipping, calculateGstInclusive } from '../services/shipping.js';
 import { createPayPalOrder, capturePayPalOrder, refundPayPalCapture, assertPayPalReady } from '../services/paypal.js';
 import { sendOrderConfirmation, sendAdminOrderAlert, sendStatusUpdate } from '../services/email.js';
-import { generateOrderBOM } from '../services/orderBom.js';
+import { generateOrderBOM, consumeOrderMaterials } from '../services/orderBom.js';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
 import { audit } from '../lib/audit.js';
@@ -267,6 +267,7 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     await sendAdminOrderAlert(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: order.orderNumber, err: e?.message })));
     // Production BOM snapshot (materials + labour + lead days) — best-effort
     await generateOrderBOM(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: order.orderNumber, err: e?.message })));
+    await consumeOrderMaterials(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'consumeOrderMaterials', orderNumber: order.orderNumber, err: e?.message })));
   }
 
   return { order, shipping, gst, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) };
@@ -362,6 +363,7 @@ router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptur
     await sendOrderConfirmation(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendOrderConfirmation', orderNumber: fresh.orderNumber, err: e?.message })));
     await sendAdminOrderAlert(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: fresh.orderNumber, err: e?.message })));
     await generateOrderBOM(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: fresh.orderNumber, err: e?.message })));
+    await consumeOrderMaterials(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'consumeOrderMaterials', orderNumber: fresh.orderNumber, err: e?.message })));
   }
   res.json({ order: fresh, captured: true, idempotent: !isNew });
 }));
