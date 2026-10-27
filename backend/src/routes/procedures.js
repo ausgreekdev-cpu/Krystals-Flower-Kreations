@@ -265,6 +265,8 @@ router.put('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(updateSc
     },
   });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'procedure_update', entityType: 'procedure', entityId: doc.id, details: { from: current.version, to: nextVersion } });
+  // procedure↔recipe pipeline: push metadata into linked product's recipe
+  await syncProcedureToRecipe(doc.id, doc.metadata).catch(() => {});
   res.json(doc);
 }));
 
@@ -416,6 +418,36 @@ router.post('/import-content', authenticate, requireRole(...EDITOR_ROLES), rateL
 }));
 
 // ── Link/unlink a procedure to a product (DB↔procedure pipeline) ────────────
+// ── Procedure → recipe sync (procedure↔recipe pipeline) ─────────────────────
+// When a procedure document is updated, push its metadata (labour time,
+// folding complexity) into the linked product's BOMRecipe so the two never
+// drift. Best-effort: a missing recipe or missing metadata is a no-op.
+async function syncProcedureToRecipe(procedureDocumentId, metadata) {
+  if (!procedureDocumentId) return;
+  const products = await prisma.product.findMany({
+    where: { procedureDocumentId },
+    select: { id: true },
+  });
+  if (!products.length) return;
+  const m = metadata && typeof metadata === 'object' ? metadata : {};
+  const labour = m.estimatedTimeMinutes != null ? Number(m.estimatedTimeMinutes) : null;
+  const complexity = m.foldingComplexity;
+  const wasteByComplexity = { simple: 0.03, moderate: 0.05, complex: 0.08 };
+  for (const { id: productId } of products) {
+    const recipe = await prisma.bOMRecipe.findFirst({ where: { productId, variantId: null } });
+    if (!recipe) continue;
+    const data = {};
+    if (labour != null && !Number.isNaN(labour)) data.labourMinutesPerUnit = labour;
+    if (Object.keys(data).length) await prisma.bOMRecipe.update({ where: { id: recipe.id }, data });
+    if (complexity && wasteByComplexity[complexity] != null) {
+      await prisma.bOMLine.updateMany({
+        where: { recipeId: recipe.id },
+        data: { wasteFactor: wasteByComplexity[complexity] },
+      });
+    }
+  }
+}
+
 router.put('/:id/product', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
   const id = String(req.params.id);
   if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
@@ -436,6 +468,9 @@ router.put('/:id/product', authenticate, requireRole(...EDITOR_ROLES), asyncHand
   // unlink any existing product linked to this procedure, then link the new one
   await prisma.product.updateMany({ where: { procedureDocumentId: id }, data: { procedureDocumentId: null } });
   await prisma.product.update({ where: { id: productId }, data: { procedureDocumentId: id } });
+  // sync procedure metadata into the newly linked product's recipe
+  const linkedDoc = await prisma.procedureDocument.findUnique({ where: { id }, select: { metadata: true } });
+  await syncProcedureToRecipe(id, linkedDoc?.metadata).catch(() => {});
   res.json({ ok: true, linked: true, productId, productTitle: product.title });
 }));
 
