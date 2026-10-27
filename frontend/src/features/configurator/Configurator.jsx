@@ -310,7 +310,7 @@ export default function Configurator(){
         lede="Colour • texture • weight • stems • height • template — live AUD price (GST incl.). Ready in about 7 days." />
       {/* ARViewer at top — first on mobile, beside controls on large screens */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
           <ARViewer productSlug={spec.templateId} title={`${spec.paperColor} ${TEMPLATES.find(t=>t.id===spec.templateId)?.label} — ${spec.stemCount} stems`} tintHex={tintHex} onLoad={handleTint} />
           {currentStaffRole() && (() => {
             const cut = cutSheetFor(spec.templateId);
@@ -324,7 +324,7 @@ export default function Configurator(){
             ) : null;
           })()}
 
-          {s.show_cricut === '1' && (
+          {currentStaffRole() && s.show_cricut === '1' && (
             <section className="bg-surface2 p-3 sm:p-4 rounded-2xl border">
               <h2 className="font-bold flex items-center gap-2"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">4</span> Template — free preview</h2>
               <p className="text-xs text-muted mt-1">Free preview of the Cricut SVG — final cut file delivered with your proof.</p>
@@ -364,7 +364,9 @@ export default function Configurator(){
                   {selectedPaper?.texture === 'linen' && <div className="absolute inset-0 opacity-[0.07] mix-blend-multiply" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent 0 3px, #000 3px 4px), repeating-linear-gradient(90deg, transparent 0 3px, #000 3px 4px)' }} aria-hidden />}
                   {selectedPaper?.texture === 'pearl' && <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(ellipse at 25% 20%, rgba(255,255,255,0.9), transparent 55%), linear-gradient(120deg, transparent 40%, rgba(255,255,255,0.45) 50%, transparent 60%)' }} aria-hidden />}
                   {selectedPaper?.texture === 'textured' && <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E")` }} aria-hidden />}
-                  <img key={spec.templateId} src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="relative w-full h-48 object-contain p-4 drop-shadow-sm kfk-fade-in" style={{ filter: selectedPaper ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : undefined }} onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
+                  {currentStaffRole()
+                    ? <img key={spec.templateId} src={`/svg/${spec.templateId}.svg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="relative w-full h-48 object-contain p-4 drop-shadow-sm kfk-fade-in" style={{ filter: selectedPaper ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : undefined }} onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />
+                    : <img key={spec.templateId} src={`/flowers/${spec.templateId}.jpg`} alt={TEMPLATES.find(t=>t.id===spec.templateId)?.label} className="relative w-full h-48 object-contain p-4 drop-shadow-sm kfk-fade-in" style={{ filter: selectedPaper ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : undefined }} onError={(e)=>{e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block';}} />}
                   <div style={{display:'none'}} className="relative bg-surface rounded-xl p-4 text-center border border-dashed m-4">✂ Preview: {spec.paperColor} • {spec.paperTexture} • {spec.weight} — {TEMPLATES.find(t=>t.id===spec.templateId)?.label}</div>
                   {selectedPaper && <div className="absolute bottom-1 left-1 right-1 flex justify-between gap-2 text-[10px]">
                     <span className="bg-black/70 text-white px-2 py-1 rounded-full">{selectedPaper.name} • {selectedPaper.texture}{selectedPaper.imageUrl ? ' • tap to zoom' : ''}</span>
@@ -645,7 +647,7 @@ export default function Configurator(){
           {msg && <Alert tone="ok" className="text-xs">{msg}</Alert>}
           </div>
         </div>
-        <div className="bg-bloom-700 text-white rounded-2xl p-5">
+        <div className="bg-bloom-700 text-white rounded-2xl p-5 lg:sticky lg:bottom-4">
           <div className="flex justify-between"><span>Total ({spec.stemCount} stems)</span><span key={displayTotal} className="font-bold kfk-fade-in">${displayTotal.toFixed(2)} AUD</span></div>
           <div className="text-[11px] opacity-70">GST incl.</div>
           <div className="flex justify-between mt-1 text-sm opacity-80"><span>Ready in about {leadDays} days</span><span className="text-xs opacity-70">{isLiveQuote ? 'Live quote' : 'Estimate'}</span></div>
