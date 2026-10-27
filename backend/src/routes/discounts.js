@@ -47,7 +47,7 @@ admin.post('/', validate(discountSchema), asyncHandler(async (req, res) => {
   res.status(201).json(disc);
 }));
 
-admin.patch('/:id', validate(discountSchema.partial().strict()), asyncHandler(async (req, res) => {
+admin.patch('/:id', validate(discountSchema.partial().strict(), { partial: true }), asyncHandler(async (req, res) => {
   const data = req.validated;
   const disc = await prisma.discount.update({
     where: { id: req.params.id },

@@ -197,7 +197,7 @@ router.post('/', authenticate, requireRole('admin','developer','maker','staff'),
   res.status(201).json(paper);
 }));
 
-router.patch('/:id', authenticate, requireRole('admin','developer','maker','staff'), validate(paperSchema.partial().strict()), asyncHandler(async (req, res) => {
+router.patch('/:id', authenticate, requireRole('admin','developer','maker','staff'), validate(paperSchema.partial().strict(), { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   const data = req.validated;
   if (!Object.keys(data).length) return res.status(400).json({ error: 'No fields', code: 'validation_failed' });

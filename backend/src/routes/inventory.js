@@ -200,7 +200,7 @@ router.post('/locations', validate(locationSchema), asyncHandler(async (req, res
   res.status(201).json(loc);
 }));
 
-router.patch('/locations/:id', validate(locationSchema.partial()), asyncHandler(async (req, res) => {
+router.patch('/locations/:id', validate(locationSchema.partial(), { partial: true }), asyncHandler(async (req, res) => {
   const loc = await prisma.inventoryLocation.update({ where: { id: String(req.params.id).slice(0,100) }, data: req.validated });
   res.json(loc);
 }));

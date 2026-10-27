@@ -33,7 +33,7 @@ router.post('/zones', validate(zoneSchema), asyncHandler(async (req, res) => {
   res.status(201).json(zone);
 }));
 
-router.patch('/zones/:id', validate(zoneSchema.partial()), asyncHandler(async (req, res) => {
+router.patch('/zones/:id', validate(zoneSchema.partial(), { partial: true }), asyncHandler(async (req, res) => {
   const zone = await prisma.shippingZone.update({ where: { id: String(req.params.id).slice(0,100) }, data: req.validated });
   res.json(zone);
 }));
@@ -51,7 +51,7 @@ router.post('/zones/:zoneId/rates', validate(rateSchema), asyncHandler(async (re
   res.status(201).json(rate);
 }));
 
-router.patch('/rates/:id', validate(rateSchema.partial()), asyncHandler(async (req, res) => {
+router.patch('/rates/:id', validate(rateSchema.partial(), { partial: true }), asyncHandler(async (req, res) => {
   const rate = await prisma.shippingRate.update({ where: { id: String(req.params.id).slice(0,100) }, data: req.validated });
   res.json(rate);
 }));

@@ -51,7 +51,7 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
   res.status(201).json(col);
 }));
 
-router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(collectionSchema.partial()), asyncHandler(async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(collectionSchema.partial(), { partial: true }), asyncHandler(async (req, res) => {
   const col = await prisma.collection.update({ where: { id: String(req.params.id).slice(0,100) }, data: req.validated });
   res.json(col);
 }));

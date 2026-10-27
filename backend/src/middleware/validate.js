@@ -74,18 +74,32 @@ export const schemas = {
 };
 
 // Body validator — strict, finite, max lengths
-export function validate(schema) {
-  // Allow passing Zod object directly or schema name string
+export function validate(schema, options = {}) {
+  // Allow passing Zod object directly or schema name string.
+  // `partial: true` is set on PATCH/update routes whose base schema carries
+  // .default() values. zod 4 applies those defaults during safeParse even for
+  // absent fields; we drop anything the client did not actually send so a
+  // partial update can never silently reset a field to its default.
   const zodSchema = typeof schema === 'string' ? schemas[schema] : schema;
   if (!zodSchema) {
     throw new Error(`Unknown validation schema: ${schema}`);
   }
+  const partial = Boolean(options && options.partial);
   return (req, res, next) => {
     const parsed = zodSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Validation failed', code: 'validation_failed', details: parsed.error.flatten() });
     }
-    req.validated = parsed.data;
+    let data = parsed.data;
+    if (partial && data && typeof data === 'object' && req.body && typeof req.body === 'object') {
+      for (const key of Object.keys(data)) {
+        if (!(key in req.body)) delete data[key];
+      }
+    }
+    if (partial && (!data || !Object.keys(data).length)) {
+      return res.status(400).json({ error: 'Validation failed', code: 'validation_failed', details: { formErrors: ['At least one field is required'] } });
+    }
+    req.validated = data;
     next();
   };
 }

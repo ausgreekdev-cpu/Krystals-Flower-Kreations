@@ -80,7 +80,7 @@ router.post('/', requireAuth, requireRole('admin','developer','maker'), validate
   res.status(201).json(post);
 }));
 
-router.patch('/:id', requireAuth, requireRole('admin','developer','maker'), validate(patchSchema), asyncHandler(async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker'), validate(patchSchema, { partial: true }), asyncHandler(async (req, res) => {
   const { productIds, ...rest } = req.validated;
   const post = await prisma.post.update({
     where: { id: req.params.id },

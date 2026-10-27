@@ -35,7 +35,7 @@ router.get('/products/:productId/variants', requireAuth, requireRole('admin','de
   res.json(variants);
 }));
 
-router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(variantSchema.partial()), asyncHandler(async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(variantSchema.partial(), { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   const variant = await prisma.productVariant.update({ where: { id }, data: req.validated });
   res.json(variant);

@@ -65,7 +65,7 @@ router.post('/materials', requireAuth, requireRole('admin','developer','maker','
   res.status(201).json(mat);
 }));
 
-router.patch('/materials/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict()), asyncHandler(async (req, res) => {
+router.patch('/materials/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict(), { partial: true }), asyncHandler(async (req, res) => {
   const mat = await prisma.rawMaterial.update({ where: { id: req.params.id }, data: req.validated });
   res.json(mat);
 }));
@@ -132,7 +132,7 @@ router.get('/recipes/:id', requireAuth, requireRole('admin','developer','maker',
 }));
 
 // Partial update — labour/cricut minutes and/or full line replacement
-router.patch('/recipes/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(recipePatchSchema), asyncHandler(async (req, res) => {
+router.patch('/recipes/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(recipePatchSchema, { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   const existing = await prisma.bOMRecipe.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Recipe not found', code: 'not_found' });

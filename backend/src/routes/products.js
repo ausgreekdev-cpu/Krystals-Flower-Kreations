@@ -132,7 +132,7 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
   }
 }));
 
-router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(productPatchSchema), asyncHandler(async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(productPatchSchema, { partial: true }), asyncHandler(async (req, res) => {
   const data = req.validated;
   if (Object.keys(data).length===0) return res.status(400).json({ error: 'No fields to update', code: 'validation_failed' });
   if (data.customFields !== undefined) data.customFields = await validateCustomFields(data.customFields, 'product');

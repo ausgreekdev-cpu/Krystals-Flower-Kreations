@@ -27,7 +27,7 @@
     "tesseract.js": "^7.0.0",
     "unpdf": "^1.7.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.10.0",

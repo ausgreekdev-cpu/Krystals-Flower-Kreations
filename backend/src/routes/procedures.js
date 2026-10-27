@@ -240,13 +240,16 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), validate(createSche
 }));
 
 // ── Update (Editor+): auto minor version bump + revision snapshot ────────────
-router.put('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(updateSchema), asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, requireRole(...EDITOR_ROLES), validate(updateSchema, { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id);
   if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
   const current = await prisma.procedureDocument.findFirst({ where: { id, deletedAt: null } });
   if (!current) return res.status(404).json({ error: 'Not found', code: 'not_found' });
 
   const { revisionNote, ...fields } = req.validated;
+  if (!Object.keys(fields).length) {
+    return res.status(400).json({ error: 'Validation failed', code: 'validation_failed', details: { formErrors: ['At least one field is required'] } });
+  }
   const nextVersion = bumpVersion(current.version);
   const doc = await prisma.procedureDocument.update({
     where: { id },

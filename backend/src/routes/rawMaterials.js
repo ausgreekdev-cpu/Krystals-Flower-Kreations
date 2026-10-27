@@ -67,7 +67,7 @@ router.post('/', requireAuth, requireRole('admin','developer','maker','staff'), 
   }
 }));
 
-router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict()), asyncHandler(async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(materialSchema.partial().strict(), { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'Invalid id', code: 'validation_failed' });
   const data = req.validated;

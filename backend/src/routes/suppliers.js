@@ -90,7 +90,7 @@ router.post('/', validate(supplierSchema), asyncHandler(async (req, res) => {
   }
 }));
 
-router.patch('/:id', validate(supplierSchema.partial().strict()), asyncHandler(async (req, res) => {
+router.patch('/:id', validate(supplierSchema.partial().strict(), { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0, 100);
   const existing = await prisma.supplier.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found', code: 'not_found' });
