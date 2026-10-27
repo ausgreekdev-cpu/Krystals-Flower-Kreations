@@ -1136,6 +1136,121 @@ ${cards.join('\n')}
 `;
 }
 
+/* ------------------------------------------------------- preview artwork */
+
+// Flat illustrations for the storefront's template previews (public/svg/) —
+// composed from the SAME geometry the cut sheets use, so the preview always
+// matches what gets cut. Transparent background; the UI provides the frame.
+function shape(pts, fill, stroke, transform = '', extra = '') {
+  return `<path d="${linePath(pts)}Z" fill="${fill}" stroke="${stroke}" stroke-width="2.2" stroke-linejoin="round"${transform ? ` transform="${transform}"` : ''}${extra ? ` ${extra}` : ''}/>`;
+}
+
+const petalAt = (w, h, cx, cy, angle, fill, stroke, opts = {}) =>
+  shape(blade(w, h, opts), fill, stroke, `translate(${cx} ${cy}) rotate(${angle})`);
+
+function leafAt(w, h, cx, cy, angle, fill, stroke) {
+  const pts = blade(w, h, { prof: LEAF_PROFILE, steps: 40 });
+  const vein = veinScore(h).map((poly) => ({ pts: poly }));
+  const body = shape(pts, fill, stroke, `translate(${cx} ${cy}) rotate(${angle})`);
+  const v = vein.map((g) => `<path d="${linePath(g.pts)}" fill="none" stroke="${stroke}" stroke-width="1.4" stroke-dasharray="4 3" transform="translate(${cx} ${cy}) rotate(${angle})"/>`).join('');
+  return body + v;
+}
+
+function rosePreview() {
+  const cx = 200, cy = 212;
+  const els = [];
+  els.push(`<path d="M200 214 C 197 285, 203 335, 200 400" fill="none" stroke="#7C5A46" stroke-width="9" stroke-linecap="round"/>`);
+  els.push(leafAt(38, 92, 200, 300, -52, COL.leaf, '#6E8259'));
+  els.push(leafAt(32, 78, 200, 335, 128, COL.leafDark, '#5C7049'));
+  for (let i = 0; i < 5; i++) els.push(petalAt(66, 92, cx, cy, i * 72, '#E7A9B7', '#B76B7B'));
+  for (let i = 0; i < 5; i++) els.push(petalAt(54, 74, cx, cy, 36 + i * 72, '#F2C6D0', '#C4828F'));
+  for (let i = 0; i < 5; i++) els.push(petalAt(40, 56, cx, cy, 10 + i * 72, '#F8DEE4', '#CC8D9A'));
+  els.push(shape(spiralRibbon({ turns: 2.25, rStart: 9, rEnd: 26, band: 7 }), '#C77E8E', '#B76B7B', `translate(${cx} ${cy})`));
+  return els;
+}
+
+function lilyPreview() {
+  const cx = 200, cy = 196;
+  const els = [];
+  els.push(`<path d="M200 200 C 198 280, 202 335, 200 400" fill="none" stroke="#7C5A46" stroke-width="8" stroke-linecap="round"/>`);
+  els.push(leafAt(16, 120, 200, 300, -18, COL.leaf, '#6E8259'));
+  els.push(leafAt(16, 108, 200, 325, 196, COL.leafDark, '#5C7049'));
+  for (let i = 0; i < 6; i++) {
+    els.push(petalAt(56, 128, cx, cy, i * 60, '#FBF3E4', '#C08BA6', { notch: 9 }));
+  }
+  for (let i = 0; i < 9; i++) {
+    const a = (i * 40 * Math.PI) / 180;
+    els.push(`<path d="M${cx} ${cy} q ${Math.round(Math.cos(a) * 34)} ${Math.round(Math.sin(a) * 34 - 42)} ${Math.round(Math.cos(a) * 52)} ${Math.round(Math.sin(a) * 52 - 62)}" fill="none" stroke="#B7879F" stroke-width="3" stroke-linecap="round"/>`);
+    els.push(`<circle cx="${cx + Math.cos(a) * 54}" cy="${cy + Math.sin(a) * 54 - 64}" r="5" fill="#D9A93C" stroke="#B98B22" stroke-width="1.5"/>`);
+  }
+  els.push(`<ellipse cx="${cx}" cy="${cy}" rx="15" ry="11" fill="#E8C2D2" stroke="#C08BA6" stroke-width="2"/>`);
+  return els;
+}
+
+function banksiaPreview() {
+  const els = [];
+  els.push(`<path d="M200 272 L200 400" fill="none" stroke="#7C5A46" stroke-width="10" stroke-linecap="round"/>`);
+  els.push(leafAt(42, 118, 196, 332, -58, COL.leafDark, '#5C7049'));
+  els.push(shape(serratedLeaf(40, 112, 9), COL.leaf, '#6E8259', 'translate(206 342) rotate(62)'));
+  // Tall tapered cone (banksia spike), scales fitted INSIDE its silhouette
+  const cone = 'M158 266 C 152 190, 156 118, 200 88 C 244 118, 248 190, 242 266 C 220 280, 180 280, 158 266 Z';
+  els.push(`<path d="${cone}" fill="#B98A4E" stroke="#8A5A2B" stroke-width="2.4" stroke-linejoin="round"/>`);
+  const rows = [
+    { y: 252, count: 5, spread: 22 },
+    { y: 218, count: 5, spread: 20 },
+    { y: 184, count: 4, spread: 21 },
+    { y: 150, count: 4, spread: 18 },
+    { y: 118, count: 3, spread: 16 },
+  ];
+  for (const { y, count, spread } of rows) {
+    for (let i = 0; i < count; i++) {
+      const x = 200 + (i - (count - 1) / 2) * spread;
+      els.push(`<path d="M${x - 10} ${y} q 10 13 20 0" fill="#D9A85E" stroke="#8A5A2B" stroke-width="2" stroke-linecap="round"/>`);
+    }
+  }
+  els.push(`<path d="M186 92 l -2 -20 M200 86 l 0 -24 M214 92 l 2 -20" stroke="#8A5A2B" stroke-width="3" stroke-linecap="round"/>`);
+  return els;
+}
+
+function wattlePreview() {
+  const els = [];
+  els.push(`<path d="M200 400 C 198 320, 202 260, 200 190" fill="none" stroke="#7C5A46" stroke-width="8" stroke-linecap="round"/>`);
+  els.push(`<path d="M200 300 C 160 285, 138 262, 122 232" fill="none" stroke="#7C5A46" stroke-width="6" stroke-linecap="round"/>`);
+  els.push(`<path d="M200 258 C 240 244, 262 222, 278 192" fill="none" stroke="#7C5A46" stroke-width="6" stroke-linecap="round"/>`);
+  els.push(leafAt(13, 96, 196, 322, -28, COL.leaf, '#6E8259'));
+  els.push(leafAt(13, 88, 205, 350, 158, COL.leafDark, '#5C7049'));
+  els.push(leafAt(12, 82, 186, 288, -70, COL.leaf, '#6E8259'));
+  els.push(leafAt(12, 82, 216, 268, 72, COL.leafDark, '#5C7049'));
+  const cluster = (cx, cy, scale) => {
+    const florets = [[0, 0, 17], [-19, -9, 13], [17, -12, 14], [-11, 15, 12], [15, 12, 12], [-22, 5, 10], [3, -21, 11], [24, 2, 9]];
+    return florets.map(([dx, dy, r], i) =>
+      `<circle cx="${cx + dx * scale}" cy="${cy + dy * scale}" r="${r * scale}" fill="${i % 2 ? COL.gold : COL.goldDeep}" stroke="#C0922E" stroke-width="2"/>`).join('');
+  };
+  els.push(cluster(200, 168, 1.15));
+  els.push(cluster(118, 218, 0.95));
+  els.push(cluster(282, 178, 1));
+  els.push(cluster(150, 130, 0.7));
+  els.push(cluster(252, 122, 0.72));
+  return els;
+}
+
+const PREVIEW_BUILDERS = {
+  'rose-classic': rosePreview,
+  'lily-six-petal': lilyPreview,
+  'banksia-native': banksiaPreview,
+  'wattle-sprig': wattlePreview,
+};
+
+function renderPreviewSvg(design) {
+  const body = (PREVIEW_BUILDERS[design.slug] || rosePreview)().join('\n    ');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 420" width="400" height="420">
+  <title>${escapeXml(design.title)} — template preview</title>
+  ${body}
+</svg>
+`;
+}
+
 /* ------------------------------------------------------------------- main */
 
 async function main() {
@@ -1156,6 +1271,7 @@ async function main() {
       { name: `${design.slug}.svg`, data: cutSvg },
       { name: `${design.slug}-score.svg`, data: scoreSvg },
       { name: `${design.slug}-assembly.pdf`, data: guidePdf },
+      { name: `${design.slug}-preview.svg`, data: renderPreviewSvg(design) },
     ];
 
     const problems = [];
