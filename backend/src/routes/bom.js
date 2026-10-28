@@ -154,6 +154,19 @@ router.get('/recipes/:id', requireAuth, requireRole('admin','developer','maker',
   res.json(recipe);
 }));
 
+// Recipe → procedure sync (bidirectional pipeline): when a recipe is updated,
+// push labour/cricut minutes back to the linked procedure's metadata.
+async function syncRecipeToProcedure(recipe) {
+  if (!recipe?.productId) return;
+  const product = await prisma.product.findUnique({ where: { id: recipe.productId }, select: { procedureDocumentId: true } });
+  if (!product?.procedureDocumentId) return;
+  const doc = await prisma.procedureDocument.findUnique({ where: { id: product.procedureDocumentId }, select: { metadata: true } });
+  if (!doc) return;
+  const meta = (doc.metadata && typeof doc.metadata === 'object') ? { ...doc.metadata } : {};
+  meta.estimatedTimeMinutes = recipe.labourMinutesPerUnit;
+  await prisma.procedureDocument.update({ where: { id: product.procedureDocumentId }, data: { metadata: meta } }).catch(() => {});
+}
+
 // Partial update — labour/cricut minutes and/or full line replacement
 router.patch('/recipes/:id', requireAuth, requireRole('admin','developer','maker','staff'), validate(recipePatchSchema, { partial: true }), asyncHandler(async (req, res) => {
   const id = String(req.params.id).slice(0,100);
@@ -183,6 +196,7 @@ router.patch('/recipes/:id', requireAuth, requireRole('admin','developer','maker
     },
   }).catch(() => {});
   const full = await prisma.bOMRecipe.findUnique({ where: { id }, include: { product: { select: { title: true } }, variant: true, lines: { include: { rawMaterial: true } }, revisions: { orderBy: { createdAt: 'desc' }, take: 5 } } });
+  await syncRecipeToProcedure(full);
   res.json(full);
 }));
 
