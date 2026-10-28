@@ -24,6 +24,7 @@ const Login = lazy(() => import('./pages/Login.jsx'));
 const Account = lazy(() => import('./pages/Account.jsx'));
 const PasswordReset = lazy(() => import('./pages/PasswordReset.jsx'));
 const Configurator = lazy(() => import('./features/configurator/Configurator.jsx'));
+const BrutalistConfigurator = lazy(() => import('./features/configurator/BrutalistBouquetConfigurator.jsx'));
 const Kanban = lazy(() => import('./features/kanban/Kanban.jsx'));
 const Loyalty = lazy(() => import('./pages/Loyalty.jsx'));
 const POS = lazy(() => import('./pages/POS.jsx'));
@@ -58,6 +59,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/blog/:slug" element={<Post />} />
             <Route path="/workshops" element={<Workshops />} />
             <Route path="/configurator" element={<Configurator />} />
+            <Route path="/configurator/brutalist" element={<BrutalistConfigurator />} />
             <Route path="/loyalty" element={<Loyalty />} />
             <Route path="/notebook" element={<Notebook />} />
             <Route path="/about" element={<About />} />
