@@ -1,0 +1,256 @@
+/* Brutalist Cyber-Craft — Global Theme */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --void: #090909;
+  --carbon: #1A1A1A;
+  --steel: #2A2A2A;
+  --ash: #404040;
+  --smoke: #666666;
+  --bone: #E0E0E0;
+  --magenta: #FF007F;
+  --acid: #BFFF00;
+  --alert: #FF3333;
+  --ok: #00FF88;
+  --bg: var(--void);
+  --surface: var(--carbon);
+  --surface-2: var(--steel);
+  --ink: var(--bone);
+  --ink-muted: var(--smoke);
+  --line: var(--ash);
+  --line-strong: var(--smoke);
+  --accent: var(--magenta);
+  --accent-2: var(--acid);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: var(--void);
+  color: var(--bone);
+  font-family: 'Fira Code', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { border-radius: 0 !important; }
+
+.cut-path { border: 2px dashed var(--magenta); }
+.cut-path-acid { border: 2px dashed var(--acid); }
+
+.btn-brutal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Fira Code', monospace;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 2px solid var(--bone);
+  background: transparent;
+  color: var(--bone);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  position: relative;
+}
+
+.btn-brutal:hover {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  color: var(--void);
+  box-shadow: 4px 4px 0px 0px var(--acid);
+}
+
+.btn-brutal:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px var(--acid);
+}
+
+.btn-brutal--acid {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.btn-brutal--acid:hover {
+  background: var(--acid);
+  border-color: var(--acid);
+  color: var(--void);
+  box-shadow: 4px 4px 0px 0px var(--magenta);
+}
+
+.btn-brutal--magenta {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+
+.btn-brutal--magenta:hover {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  color: var(--void);
+  box-shadow: 4px 4px 0px 0px var(--acid);
+}
+
+.input-brutal {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+  background: var(--carbon);
+  border: 2px solid var(--ash);
+  color: var(--bone);
+  outline: none;
+  transition: border-color 0.1s ease;
+}
+
+.input-brutal:focus {
+  border-color: var(--acid);
+  box-shadow: 0 0 8px rgba(191, 255, 0, 0.2);
+}
+
+.input-brutal::placeholder {
+  color: var(--smoke);
+}
+
+.table-brutal {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8rem;
+}
+
+.table-brutal th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--magenta);
+  color: var(--magenta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.table-brutal td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px dashed var(--ash);
+  color: var(--bone);
+}
+
+.table-brutal tr:hover td {
+  background: var(--steel);
+}
+
+.scan-overlay {
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--acid), transparent);
+  animation: scan 3s linear infinite;
+  pointer-events: none;
+}
+
+.glow-magenta {
+  text-shadow: 0 0 8px rgba(255, 0, 127, 0.6), 0 0 16px rgba(255, 0, 127, 0.3);
+}
+
+.glow-acid {
+  text-shadow: 0 0 8px rgba(191, 255, 0, 0.6), 0 0 16px rgba(191, 255, 0, 0.3);
+}
+
+.card-brutal {
+  background: var(--carbon);
+  border: 2px solid var(--ash);
+  padding: 1.5rem;
+  position: relative;
+}
+
+.card-brutal::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 2px;
+  background: var(--magenta);
+}
+
+.terminal-chrome {
+  background: var(--carbon);
+  border: 2px solid var(--ash);
+}
+
+.terminal-chrome__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 2px solid var(--ash);
+  background: var(--steel);
+}
+
+.terminal-chrome__dot {
+  width: 10px;
+  height: 10px;
+}
+
+.terminal-chrome__dot--red { background: var(--alert); }
+.terminal-chrome__dot--yellow { background: #FFB800; }
+.terminal-chrome__dot--green { background: var(--ok); }
+
+.readout {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: var(--acid);
+  letter-spacing: 0.05em;
+}
+
+.wireframe {
+  stroke: var(--magenta);
+  stroke-width: 1;
+  fill: none;
+  opacity: 0.6;
+}
+
+.wireframe--acid {
+  stroke: var(--acid);
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--carbon); }
+::-webkit-scrollbar-thumb { background: var(--ash); border: 1px solid var(--steel); }
+::-webkit-scrollbar-thumb:hover { background: var(--magenta); }
+
+::selection { background: var(--magenta); color: var(--void); }
+
+*:focus-visible { outline: 2px solid var(--acid); outline-offset: 2px; }
+
+@keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+@keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+@keyframes flicker { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+
+.text-magenta { color: var(--magenta); }
+.text-acid { color: var(--acid); }
+.text-void { color: var(--void); }
+.bg-void { background-color: var(--void); }
+.bg-carbon { background-color: var(--carbon); }
+.bg-steel { background-color: var(--steel); }
+.border-magenta { border-color: var(--magenta); }
+.border-acid { border-color: var(--acid); }
+.border-ash { border-color: var(--ash); }
+.cursor-blink::after { content: '█'; animation: blink 1s step-end infinite; color: var(--acid); }
