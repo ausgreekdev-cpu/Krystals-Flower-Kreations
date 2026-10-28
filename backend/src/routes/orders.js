@@ -7,7 +7,8 @@ import { rateLimit } from '../middleware/rate-limit.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { calculateShipping, calculateGstInclusive } from '../services/shipping.js';
 import { createPayPalOrder, capturePayPalOrder, refundPayPalCapture, assertPayPalReady } from '../services/paypal.js';
-import { sendOrderConfirmation, sendAdminOrderAlert, sendStatusUpdate } from '../services/email.js';
+import { sendOrderConfirmation } from '../services/email.js';
+import { notify } from '../services/notifications.js';
 import { generateOrderBOM, consumeOrderMaterials } from '../services/orderBom.js';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
@@ -264,7 +265,7 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     // Email receipt (non-blocking, logs when no email provider is configured)
     await sendOrderConfirmation(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendOrderConfirmation', orderNumber: order.orderNumber, err: e?.message })));
     // Studio alert (settings: admin_order_alert_enabled / _recipient)
-    await sendAdminOrderAlert(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: order.orderNumber, err: e?.message })));
+    await notify('order.created', { order }).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'notify', orderNumber: order.orderNumber, err: e?.message })));
     // Production BOM snapshot (materials + labour + lead days) — best-effort
     await generateOrderBOM(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: order.orderNumber, err: e?.message })));
     // Stock is consumed on payment (not checkout) — see PATCH /:id/status -->
@@ -361,7 +362,7 @@ router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptur
     await mintDigitalDownloadUrls(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'mintDigitalDownloadUrls', orderNumber: fresh.orderNumber, err: e?.message })));
     await earnForOrder(prisma, { email: fresh.email, total: fresh.total, orderId: fresh.id, reason: 'purchase' }).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'earnForOrder', orderNumber: fresh.orderNumber, err: e?.message })));
     await sendOrderConfirmation(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendOrderConfirmation', orderNumber: fresh.orderNumber, err: e?.message })));
-    await sendAdminOrderAlert(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: fresh.orderNumber, err: e?.message })));
+    await notify('order.created', { order: fresh }).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'notify', orderNumber: fresh.orderNumber, err: e?.message })));
     await generateOrderBOM(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: fresh.orderNumber, err: e?.message })));
     // Stock consumed on payment transition (see PATCH /:id/status) -->
   }
@@ -422,7 +423,7 @@ router.post('/:id/refund', authenticate, asyncHandler(async (req, res) => {
   await prisma.payment.updateMany({ where: { orderId: order.id, method: 'paypal', status: 'paid' }, data: { status: 'refunded' } });
   await restockOrder(updated, order.lines);
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'order_refund', entityType: 'order', entityId: order.id, details: { orderNumber: order.orderNumber, via: 'paypal', refundId: refund.id } });
-  await sendStatusUpdate(updated, order.status, 'refunded').catch(()=>{});
+  await notify('order.status_changed', { order: updated, fromStatus: order.status, toStatus: 'refunded' }).catch(()=>{});
   res.json(updated);
 }));
 
@@ -460,7 +461,7 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   }
 
   // Customer status email (settings: customer_status_emails_enabled)
-  await sendStatusUpdate(order, current.status, status).catch(()=>{});
+  await notify('order.status_changed', { order, fromStatus: current.status, toStatus: status }).catch(()=>{});
   res.json(order);
 }));
 
