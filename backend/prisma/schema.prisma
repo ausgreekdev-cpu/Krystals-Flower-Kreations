@@ -562,6 +562,9 @@ model Order {
   trackingNumber        String?
   trackingUrl           String?
   bomSnapshot           Json? // production BOM generated at checkout finalize (materials + labour + lead days)
+  qcStatus              String? // null | 'pending' | 'passed' | 'failed'
+  qcNotes               String?  @db.Text
+  qcPhotoUrl            String?
   productionRunId       String?
   productionRun         ProductionRun? @relation(fields: [productionRunId], references: [id])
 
@@ -1073,6 +1076,9 @@ model CustomArtOrder {
   neededBy         DateTime?
   fulfilment       String? // pickup | post
   paymentStatus    String                  @default("unpaid") // unpaid | deposit_paid | paid
+  qcStatus         String? // null | 'pending' | 'passed' | 'failed'
+  qcNotes          String?                 @db.Text
+  qcPhotoUrl       String?
   proofApprovedAt  DateTime?
   statusToken      String?                 @unique // 32 random bytes hex (64 chars), for public status link
   history          CustomArtOrderHistory[]

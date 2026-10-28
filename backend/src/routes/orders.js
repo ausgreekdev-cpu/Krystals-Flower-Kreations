@@ -438,6 +438,10 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   if (status !== current.status && !(STATUS_TRANSITIONS[current.status] || []).includes(status)) {
     return res.status(409).json({ error: `Cannot move order from '${current.status}' to '${status}'`, code: 'invalid_transition' });
   }
+  // QC gate: block shipment if QC failed
+  if (status === 'shipped' && current.qcStatus === 'failed') {
+    return res.status(409).json({ error: 'Cannot ship an order that failed QC', code: 'qc_failed' });
+  }
 
   const order = await prisma.order.update({ where: { id: req.params.id }, data: { status, paymentStatus: status==='paid' ? 'paid' : undefined } });
   await prisma.orderStatusHistory.create({ data: { orderId: order.id, fromStatus: current.status, toStatus: status, note: note ? String(note).slice(0,500) : null } });
@@ -491,5 +495,31 @@ async function restockOrder(order, lines) {
     }
   }
 }
+
+// ── QC checkpoint (item 11): quality check before shipment ──────────────────
+router.patch('/:id/qc', authenticate, asyncHandler(async (req, res) => {
+  if (!['admin','developer','maker','staff'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  const id = String(req.params.id).slice(0, 100);
+  const order = await prisma.order.findUnique({ where: { id } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const { qcStatus, qcNotes, qcPhotoUrl } = req.body || {};
+  if (!['pending','passed','failed'].includes(qcStatus) && qcStatus !== null) {
+    return res.status(400).json({ error: 'qcStatus must be pending|passed|failed|null', code: 'validation_failed' });
+  }
+  // Block shipment if QC failed
+  if (order.status === 'shipped' && qcStatus === 'failed') {
+    return res.status(409).json({ error: 'Cannot ship an order that failed QC', code: 'qc_failed' });
+  }
+  const updated = await prisma.order.update({
+    where: { id },
+    data: {
+      qcStatus: qcStatus || null,
+      qcNotes: qcNotes ? String(qcNotes).slice(0, 2000) : null,
+      qcPhotoUrl: qcPhotoUrl ? String(qcPhotoUrl).slice(0, 500) : null,
+    },
+  });
+  audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'order_qc', entityType: 'order', entityId: id, details: { qcStatus, orderNumber: order.orderNumber } });
+  res.json(updated);
+}));
 
 export default router;
