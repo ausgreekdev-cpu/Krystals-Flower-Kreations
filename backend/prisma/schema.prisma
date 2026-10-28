@@ -237,6 +237,7 @@ model Product {
   metaSync           MetaCatalogItem?
   bomRecipes         BOMRecipe[]
   customArtOrders    CustomArtOrder[]
+  productionRuns     ProductionRun[]
   // Manufacturing spec backing this made-to-order product (nullable —
   // products created outside the procedure-import pipeline have none).
   procedureDocumentId String?            @db.Uuid
@@ -561,6 +562,8 @@ model Order {
   trackingNumber        String?
   trackingUrl           String?
   bomSnapshot           Json? // production BOM generated at checkout finalize (materials + labour + lead days)
+  productionRunId       String?
+  productionRun         ProductionRun? @relation(fields: [productionRunId], references: [id])
 
   user     User?                @relation(fields: [userId], references: [id])
   lines    OrderLine[]
@@ -576,6 +579,22 @@ model Order {
   @@index([email])
   @@index([paymentStatus])
   @@map("orders")
+}
+
+model ProductionRun {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  status          String   @default("planned") // planned | in_progress | completed | cancelled
+  notes           String?  @db.Text
+  consolidatedBOM Json?    // aggregated materials + labour across all orders
+  orders          Order[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([productId])
+  @@index([status])
+  @@map("production_runs")
 }
 
 model OrderLine {

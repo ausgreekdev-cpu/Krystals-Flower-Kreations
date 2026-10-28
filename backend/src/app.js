@@ -44,6 +44,7 @@ import procedureImportRoutes from './routes/procedureImports.js';
 import procurementRoutes from './routes/procurement.js';
 import downloadRoutes from './routes/downloads.js';
 import paperStockRoutes from './routes/paperStocks.js';
+import productionRunRoutes from './routes/productionRuns.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -195,6 +196,7 @@ app.use('/api/procedures', procedureRoutes);
 app.use('/api/documents', documentRoutes); // private business document centre
 app.use('/api/database', documentRoutes); // alias — Documents renamed to Database in the admin menu
 app.use('/api/paper-stocks', paperStockRoutes); // configurator papers — sellable materials, not products
+app.use('/api/production-runs', productionRunRoutes); // batch production runs
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
 app.use('/api/procurement', procurementRoutes); // procurement workflow — draft materials + supplier approval
