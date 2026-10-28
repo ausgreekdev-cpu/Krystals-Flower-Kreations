@@ -8,6 +8,7 @@
 // download minting, a failure here must never block an order.
 import prisma from '../lib/prisma.js';
 import { findRecipeFor, costForRecipe } from './bomPricing.js';
+import { replenishLowStock } from './replenishment.js';
 
 // bomEngine.js parity: labour hours drive the lead time (min 3 days).
 export function leadDaysFor(labourMinutes) {
@@ -99,6 +100,8 @@ export async function consumeOrderMaterials(order) {
       });
     } catch {}
   }
+  // Trigger replenishment for any materials now below threshold
+  replenishLowStock(userId).catch(() => {});
   return movements.length ? movements : null;
 }
 

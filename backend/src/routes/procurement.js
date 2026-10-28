@@ -8,6 +8,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { audit } from '../lib/audit.js';
+import { replenishLowStock } from '../services/replenishment.js';
 
 const router = Router();
 const EDITOR_ROLES = ['admin', 'developer', 'maker', 'staff'];
@@ -94,6 +95,12 @@ router.post('/:id/reject', asyncHandler(async (req, res) => {
   await prisma.rawMaterial.delete({ where: { id } });
   await audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'procurement.reject', entityType: 'raw_material', entityId: id, details: { name: mat.name } }).catch(() => {});
   res.json({ ok: true, deleted: true });
+}));
+
+// Manually trigger replenishment (creates draft POs for all low-stock materials)
+router.post('/replenish', asyncHandler(async (req, res) => {
+  const pos = await replenishLowStock(req.user.id);
+  res.json({ created: pos.length, purchaseOrders: pos });
 }));
 
 export default router;

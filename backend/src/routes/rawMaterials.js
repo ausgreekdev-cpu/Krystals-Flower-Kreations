@@ -5,6 +5,7 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { checkAndReplenish } from '../services/replenishment.js';
 import { registerFieldRoutes, validateCustomFields, customFieldsSchema } from '../lib/fieldDefs.js';
 
 const router = Router();
@@ -93,6 +94,7 @@ router.post('/:id/adjust', requireAuth, requireRole('admin','developer','maker',
   const id = String(req.params.id).slice(0,100);
   const mat = await prisma.rawMaterial.update({ where: { id }, data: { onHand: { increment: qty } } });
   await prisma.stockMovement.create({ data: { rawMaterialId: mat.id, type: qty >= 0 ? 'in' : 'out', quantity: qty, reason: String(reason || 'manual adjustment').slice(0,500), userId: req.user.id } });
+  if (qty < 0) checkAndReplenish(id, req.user.id).catch(() => {});
   res.json(mat);
 }));
 
@@ -108,6 +110,7 @@ router.post('/:id/set', requireAuth, requireRole('admin','developer','maker','st
   if (delta !== 0) {
     await prisma.stockMovement.create({ data: { rawMaterialId: id, type: delta > 0 ? 'in' : 'out', quantity: delta, reason: `Set to ${onHand}${reason ? ` — ${reason}` : ''}`, userId: req.user.id } });
   }
+  checkAndReplenish(id, req.user.id).catch(() => {});
   res.json(updated);
 }));
 
