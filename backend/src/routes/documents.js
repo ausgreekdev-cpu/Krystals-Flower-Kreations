@@ -532,6 +532,21 @@ router.post('/', authenticate, requireRole(...EDITOR_ROLES), uploadLimit, upload
         row.ocrAt = new Date();
         row.ocrWords = ocrWords;
       }
+      // Auto-enrich (item 9): fire enrichment after OCR completes, best-effort
+      if (row.extractedText) {
+        enrichDocument({ id: row.id, title: row.title, originalName: row.originalName, extractedText: row.extractedText, category: row.category, kind: row.kind })
+          .then((suggestion) => {
+            if (!suggestion) return;
+            const data = {};
+            if (suggestion.category) data.category = suggestion.category;
+            if (suggestion.tags) data.tags = suggestion.tags;
+            if (suggestion.title && row.title === String(row.originalName || '').replace(/\.[^.]+$/, '').slice(0, 200)) data.title = suggestion.title;
+            if (Object.keys(data).length) {
+              prisma.businessDocument.update({ where: { id: row.id }, data }).catch(() => {});
+            }
+          })
+          .catch((e) => console.warn(JSON.stringify({ level: 'warn', msg: 'auto-enrich failed on upload', err: e?.message })));
+      }
     } catch (e) {
       console.warn(JSON.stringify({ level: 'warn', msg: 'auto-ocr failed on upload', err: e?.message }));
     }
