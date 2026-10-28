@@ -38,16 +38,26 @@ async function supplierStats() {
     const key = po.supplierId || String(po.supplier || '').trim().toLowerCase();
     if (!key) continue;
     let s = bucketFor.get(key);
-    if (!s) { s = { totalSpend: 0, lastPoAt: null, poCount: 0, openPos: 0 }; bucketFor.set(key, s); }
+    if (!s) { s = { totalSpend: 0, lastPoAt: null, poCount: 0, openPos: 0, receivedCount: 0, totalLeadDays: 0, onTimeCount: 0 }; bucketFor.set(key, s); }
     s.totalSpend += spend;
     s.poCount += 1;
     if (open) s.openPos += 1;
     if (!s.lastPoAt || new Date(po.createdAt) > new Date(s.lastPoAt)) s.lastPoAt = po.createdAt;
+    // Lead time + on-time tracking for received POs
+    if (po.status === 'received' && po.receivedAt) {
+      const leadDays = Math.ceil((new Date(po.receivedAt) - new Date(po.createdAt)) / (1000 * 60 * 60 * 24));
+      s.receivedCount += 1;
+      s.totalLeadDays += leadDays;
+      // On-time if received within 14 days (configurable threshold)
+      if (leadDays <= 14) s.onTimeCount += 1;
+    }
   }
   return (s) => {
     const hit = byId.get(s.id) || byName.get(String(s.name || '').trim().toLowerCase())
-      || { totalSpend: 0, lastPoAt: null, poCount: 0, openPos: 0 };
-    return { ...hit, totalSpend: Math.round(hit.totalSpend * 100) / 100 };
+      || { totalSpend: 0, lastPoAt: null, poCount: 0, openPos: 0, receivedCount: 0, totalLeadDays: 0, onTimeCount: 0 };
+    const avgLeadDays = hit.receivedCount > 0 ? Math.round(hit.totalLeadDays / hit.receivedCount) : null;
+    const onTimeRate = hit.receivedCount > 0 ? Math.round((hit.onTimeCount / hit.receivedCount) * 100) : null;
+    return { ...hit, totalSpend: Math.round(hit.totalSpend * 100) / 100, avgLeadDays, onTimeRate };
   };
 }
 
