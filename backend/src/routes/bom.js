@@ -5,7 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { rateLimit } from '../middleware/rate-limit.js';
-import { costForRecipe } from '../services/bomPricing.js';
+import { costForRecipe, suggestSubstitutes } from '../services/bomPricing.js';
 
 const router = Router();
 const requireAuth = authenticate;
@@ -219,6 +219,15 @@ router.get('/recipes/:id/estimate', requireAuth, requireRole('admin','developer'
   });
   const labourMinutes = (recipe.labourMinutesPerUnit + recipe.cricutMinutesPerUnit) * qty;
   res.json({ qty, materialsCost, labourMinutes, breakdown });
+}));
+
+// Suggest substitute materials for a given raw material (when out of stock)
+router.get('/materials/:id/substitutes', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const mat = await prisma.rawMaterial.findUnique({ where: { id } });
+  if (!mat) return res.status(404).json({ error: 'Material not found', code: 'not_found' });
+  const subs = await suggestSubstitutes(prisma, mat, 5);
+  res.json(subs);
 }));
 
 export default router;

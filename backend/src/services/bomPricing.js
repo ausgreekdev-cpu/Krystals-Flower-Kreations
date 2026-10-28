@@ -48,6 +48,33 @@ export function estimateWithAddOns(baseRetail, spec, addOns = {}) {
   return Math.max(floor + (spec?.stemCount || 7) * perStem, total);
 }
 
+// Suggest substitute raw materials when a material is out of stock.
+// Matches by unit, weightValue, colour, and size (fuzzy on name).
+export async function suggestSubstitutes(prisma, material, limit = 5) {
+  if (!material) return [];
+  const candidates = await prisma.rawMaterial.findMany({
+    where: {
+      id: { not: material.id },
+      onHand: { gt: 0 },
+      unit: material.unit,
+    },
+    take: 50,
+  });
+  const scored = candidates.map((c) => {
+    let score = 0;
+    if (material.weightValue && c.weightValue === material.weightValue) score += 3;
+    if (material.colour && c.colour && c.colour.toLowerCase() === material.colour.toLowerCase()) score += 2;
+    if (material.size && c.size && c.size.toLowerCase() === material.size.toLowerCase()) score += 2;
+    if (material.brand && c.brand && c.brand.toLowerCase() === material.brand.toLowerCase()) score += 1;
+    // name similarity (simple: shared words)
+    const mWords = new Set(String(material.name || '').toLowerCase().split(/\s+/));
+    const cWords = String(c.name || '').toLowerCase().split(/\s+/);
+    score += cWords.filter((w) => mWords.has(w) && w.length > 2).length;
+    return { ...c, score };
+  });
+  return scored.filter((c) => c.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
 export async function findRecipeFor(prisma, { productId, variantId, templateId }) {
   let recipe = null;
   if (templateId) recipe = await prisma.bOMRecipe.findUnique({ where: { templateId }, include: { lines: { include: { rawMaterial: true } } } });
