@@ -267,7 +267,7 @@ async function prepareCheckout({ data, publicSettings, idempotencyKey, deferFina
     await sendAdminOrderAlert(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: order.orderNumber, err: e?.message })));
     // Production BOM snapshot (materials + labour + lead days) — best-effort
     await generateOrderBOM(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: order.orderNumber, err: e?.message })));
-    await consumeOrderMaterials(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'consumeOrderMaterials', orderNumber: order.orderNumber, err: e?.message })));
+    // Stock is consumed on payment (not checkout) — see PATCH /:id/status -->
   }
 
   return { order, shipping, gst, paymentInstructions: paymentInstructionsFor(data.paymentMethod, publicSettings) };
@@ -363,7 +363,7 @@ router.post('/paypal/capture', rateLimit('paypal', 10, 1), validate(paypalCaptur
     await sendOrderConfirmation(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendOrderConfirmation', orderNumber: fresh.orderNumber, err: e?.message })));
     await sendAdminOrderAlert(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'sendAdminOrderAlert', orderNumber: fresh.orderNumber, err: e?.message })));
     await generateOrderBOM(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: fresh.orderNumber, err: e?.message })));
-    await consumeOrderMaterials(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'consumeOrderMaterials', orderNumber: fresh.orderNumber, err: e?.message })));
+    // Stock consumed on payment transition (see PATCH /:id/status) -->
   }
   res.json({ order: fresh, captured: true, idempotent: !isNew });
 }));
@@ -452,6 +452,11 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
   // Earn loyalty when marked paid (for bank_transfer/pickup later paid at POS)
   if (status === 'paid' && current.status !== 'paid') {
     await earnForOrder(prisma, { email: order.email, total: order.total, orderId: order.id, reason: 'purchase' });
+    // Consume raw-material stock + BOM snapshot now that payment is confirmed
+    await consumeOrderMaterials(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'consumeOrderMaterials', orderNumber: order.orderNumber, err: e?.message })));
+    if (!order.bomSnapshot) {
+      await generateOrderBOM(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: order.orderNumber, err: e?.message })));
+    }
   }
 
   // Customer status email (settings: customer_status_emails_enabled)
