@@ -1415,6 +1415,22 @@ model MediaFolder {
   @@map("media_folders")
 }
 
+model Model3D {
+  id           String   @id @default(uuid()) @db.Uuid
+  templateId   String   @unique // wattle-sprig | paper-rose | banksia-petal | origami-lily
+  title        String   @db.VarChar(200)
+  mime         String   @default("model/gltf-binary")
+  sizeBytes    Int
+  storageRef   String // "3d-models/<key>"
+  sha256       String   @unique
+  uploadedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([templateId])
+  @@map("model3d")
+}
+
 model MediaAsset {
   id           String          @id @default(uuid()) @db.Uuid
   title        String          @db.VarChar(200)

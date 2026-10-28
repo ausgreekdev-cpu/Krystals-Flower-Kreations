@@ -207,6 +207,11 @@ export const adminApi = {
     reject: (id: string, token: string) => req<any>(`/api/procurement/${id}/reject`, { method: 'POST', token }),
     replenish: (token: string) => req<any>('/api/procurement/replenish', { method: 'POST', token }),
   },
+  models3d: {
+    list: (token: string) => req<any[]>('/api/models-3d', { token }),
+    upload: (formData: FormData, token: string) => req<any>('/api/models-3d', { method: 'POST', body: formData, token }),
+    remove: (id: string, token: string) => req<any>(`/api/models-3d/${id}`, { method: 'DELETE', token }),
+  },
   purchaseOrders: {
     list: (token: string) => req<any[]>('/api/purchase-orders', { token }),
     get: (id: string, token: string) => req<any>(`/api/purchase-orders/${id}`, { token }),

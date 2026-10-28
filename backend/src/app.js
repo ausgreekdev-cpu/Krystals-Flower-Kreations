@@ -40,6 +40,7 @@ import suppliersRoutes from './routes/suppliers.js';
 import procedureRoutes from './routes/procedures.js';
 import documentRoutes from './routes/documents.js';
 import mediaRoutes from './routes/media.js';
+import model3dRoutes from './routes/model3d.js';
 import procedureImportRoutes from './routes/procedureImports.js';
 import procurementRoutes from './routes/procurement.js';
 import downloadRoutes from './routes/downloads.js';
@@ -109,6 +110,12 @@ const uploadDir = (() => {
 })();
 // Serverless filesystems (Netlify/Lambda) are read-only — never crash boot over this.
 try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'uploads dir not writable', dir: uploadDir, code: e.code })); }
+// 3D models for AR configurator — served at /3d/<templateId>.glb
+// Local dev: written to backend/uploads/3d/ and served statically
+// Prod (Supabase): stored in 3d-models bucket, served via /api/models-3d/:templateId/file
+const path3d = path.join(uploadDir, '..', 'uploads', '3d');
+try { fs.mkdirSync(path3d, { recursive: true }); } catch {}
+app.use('/3d', express.static(path3d, { maxAge: '30d', immutable: false }));
 app.use('/uploads', express.static(uploadDir, {
   maxAge: '30d', etag: true,
   // Express's bundled mime-db predates avif (serves application/octet-stream);
@@ -199,6 +206,7 @@ app.use('/api/paper-stocks', paperStockRoutes); // configurator papers — sella
 app.use('/api/production-runs', productionRunRoutes); // batch production runs
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
+app.use('/api/models-3d', model3dRoutes); // 3D flower models for AR configurator
 app.use('/api/procurement', procurementRoutes); // procurement workflow — draft materials + supplier approval
 app.use('/api/dl', downloadRoutes); // token-gated digital template delivery
 

@@ -69,6 +69,13 @@ function bucketSpec(bucket) {
       allowed_mime_types: ['image/svg+xml'],
     };
   }
+  if (bucket === '3d-models') {
+    // Public 3D flower models for AR configurator (GLB files).
+    return {
+      id: bucket, name: bucket, public: true, file_size_limit: 10 * 1024 * 1024,
+      allowed_mime_types: ['model/gltf-binary'],
+    };
+  }
   if (bucket === 'business-documents') {
     return {
       id: bucket, name: bucket, public: false, file_size_limit: 25 * 1024 * 1024,

@@ -40,6 +40,7 @@ const TABS = [
   { id: 'procedures', label: 'Procedures', icon: '📐' },
   { id: 'database', label: 'Database', icon: '🗄️' },
   { id: 'media', label: 'Media', icon: '🖼️' },
+  { id: 'models3d', label: '3D Models', icon: '🧊' },
   { id: 'discounts', label: 'Discounts', icon: '🏷️' },
   { id: 'meta', label: 'Meta Sync', icon: '🔗' },
   { id: 'pos', label: 'POS', icon: '💳' },
@@ -59,7 +60,7 @@ const ORDER_FLOW = ['pending_payment', 'paid', 'making', 'ready', 'shipped', 'de
 const NAV_GROUPS = [
   { label: null, tabs: ['overview'] },
   { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
-  { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory'] },
+  { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory', 'models3d'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
   { label: 'System', tabs: ['users', 'settings'] },
@@ -323,6 +324,7 @@ function AdminInner({ user }) {
                   {tab === 'papers' && <PaperStocksManager token={token} />}
                   {tab === 'database' && <DocumentCentre token={token} role={user?.role} onOpenImports={() => setTab('recipes')} />}
                   {tab === 'media' && <MediaLibrary token={token} role={user?.role} />}
+                  {tab === 'models3d' && <Models3D token={token} role={user?.role} />}
                   {tab === 'pos' && <POS data={data} reload={() => load('pos')} token={token} />}
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
@@ -3345,6 +3347,108 @@ function Reports({ data }) {
       </div>))}
     {board.length === 0 && <div className="text-xs text-muted py-8 text-center">No points yet</div>}
     </div></div>;
+}
+
+const MODEL_TEMPLATES = [
+  { id: 'wattle-sprig', label: 'Wattle Sprig' },
+  { id: 'paper-rose', label: 'Paper Rose' },
+  { id: 'banksia-petal', label: 'Banksia Petal' },
+  { id: 'origami-lily', label: 'Origami Lily' },
+];
+
+function Models3D({ token, role }) {
+  const toast = useToast();
+  const [models, setModels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const canEdit = ['admin', 'developer'].includes(role);
+
+  const load = async () => {
+    setLoading(true);
+    try { setModels(await adminApi.models3d.list(token)); }
+    catch (e) { toast(e.message, 'error'); setModels([]); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [token]);
+
+  const onUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const templateId = e.target.dataset.template;
+    if (!/\.glb$/i.test(file.name)) return toast('Only .glb files are accepted', 'error');
+    if (file.size > 10 * 1024 * 1024) return toast('File too large (10MB max)', 'error');
+    setUploading(templateId);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('templateId', templateId);
+      fd.append('title', file.name.replace(/\.glb$/i, ''));
+      await adminApi.models3d.upload(fd, token);
+      toast('3D model uploaded');
+      await load();
+    } catch (err) { toast(err.message || 'Upload failed', 'error'); }
+    finally { setUploading(null); e.target.value = ''; }
+  };
+
+  const doDelete = async (id) => {
+    try {
+      await adminApi.models3d.remove(id, token);
+      toast('3D model deleted');
+      setConfirmDel(null);
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-ink">3D Flower Models</h2>
+      <p className="text-xs text-muted">Upload GLB files for the AR configurator. Models are stored in Supabase Storage (prod) or local disk (dev). AR viewer activates automatically once a valid GLB exists.</p>
+
+      {loading ? <div className="text-xs text-muted py-6 text-center">Loading…</div> : (
+        <div className="space-y-3">
+          {MODEL_TEMPLATES.map((t) => {
+            const model = models.find((m) => m.templateId === t.id);
+            return (
+              <div key={t.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm text-ink truncate">{t.label}</div>
+                  <div className="text-xs text-muted truncate">
+                    {model ? `${model.title} • ${(model.sizeBytes / 1024).toFixed(0)}KB • uploaded ${new Date(model.createdAt).toLocaleDateString('en-AU')}` : 'No model — AR viewer will show wireframe fallback'}
+                  </div>
+                </div>
+                {canEdit && (
+                  <div className="flex gap-2 shrink-0">
+                    <label className={`text-xs border rounded-xl px-3 py-1.5 cursor-pointer transition ${uploading === t.id ? 'opacity-50 pointer-events-none' : 'hover:bg-surface2'}`}>
+                      {uploading === t.id ? 'Uploading…' : model ? 'Replace' : 'Upload'}
+                      <input type="file" accept=".glb" data-template={t.id} onChange={onUpload} className="hidden" />
+                    </label>
+                    {model && (
+                      <button onClick={() => setConfirmDel(model.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 hover:bg-red-50">Delete</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <div className="font-bold text-ink">Delete 3D model?</div>
+            <div className="text-xs text-muted">This removes the GLB file. The AR viewer will fall back to a wireframe preview.</div>
+            <div className="flex gap-2 justify-end">
+              <Btn color="ghost" onClick={() => setConfirmDel(null)}>Cancel</Btn>
+              <Btn onClick={() => doDelete(confirmDel)}>Delete</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const COLOR_PRESETS = [
