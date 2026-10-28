@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import './index.css';
+import './cybercraft.css';
 import { applyTheme } from './lib/theme';
 import { initColorMode, applyDefaultColorMode } from './lib/colorMode';
 import App from './App.jsx';
