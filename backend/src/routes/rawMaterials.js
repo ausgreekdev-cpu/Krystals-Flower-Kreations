@@ -6,6 +6,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { checkAndReplenish } from '../services/replenishment.js';
+import { recalculateRecipeCosts } from '../services/costRecalc.js';
 import { registerFieldRoutes, validateCustomFields, customFieldsSchema } from '../lib/fieldDefs.js';
 
 const router = Router();
@@ -79,7 +80,11 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
     data.supplierId = data.supplier ? await linkSupplierByName(data.supplier) : null;
   }
   try {
+    const before = await prisma.rawMaterial.findUnique({ where: { id }, select: { costPerUnit: true } });
     const mat = await prisma.rawMaterial.update({ where: { id }, data });
+    if (data.costPerUnit !== undefined && String(before?.costPerUnit) !== String(data.costPerUnit)) {
+      recalculateRecipeCosts(id, req.user.id).catch(() => {});
+    }
     res.json(mat);
   } catch (e) {
     if (e.code === 'P2002') return res.status(409).json({ error: 'Barcode already in use', code: 'barcode_taken' });
