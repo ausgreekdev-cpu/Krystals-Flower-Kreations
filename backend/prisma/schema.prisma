@@ -978,20 +978,38 @@ model RawMaterial {
 }
 
 model BOMRecipe {
-  id                   String          @id @default(cuid())
+  id                   String             @id @default(cuid())
   productId            String?
   variantId            String?
-  templateId           String?         @unique // configurator template (wattle-sprig, paper-rose, banksia-petal, origami-lily)
-  product              Product?        @relation(fields: [productId], references: [id])
-  variant              ProductVariant? @relation(fields: [variantId], references: [id])
-  labourMinutesPerUnit Float           @default(25)
-  cricutMinutesPerUnit Float           @default(8)
+  templateId           String?            @unique // configurator template (wattle-sprig, paper-rose, banksia-petal, origami-lily)
+  product              Product?           @relation(fields: [productId], references: [id])
+  variant              ProductVariant?    @relation(fields: [variantId], references: [id])
+  version              String             @default("v1.0")
+  labourMinutesPerUnit Float              @default(25)
+  cricutMinutesPerUnit Float              @default(8)
   lines                BOMLine[]
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  revisions            BOMRecipeRevision[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@unique([productId, variantId])
   @@map("bom_recipes")
+}
+
+model BOMRecipeRevision {
+  id              String   @id @default(cuid())
+  recipeId        String
+  recipe          BOMRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  version         String
+  labourMinutesPerUnit Float
+  cricutMinutesPerUnit Float
+  lines           Json // snapshot of BOM lines
+  editorId        String?
+  note            String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([recipeId])
+  @@map("bom_recipe_revisions")
 }
 
 model BOMLine {

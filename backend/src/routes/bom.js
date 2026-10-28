@@ -117,8 +117,31 @@ router.post('/recipes', requireAuth, requireRole('admin','developer','maker','st
   for (const l of lines) {
     await prisma.bOMLine.create({ data: { recipeId: recipe.id, rawMaterialId: l.rawMaterialId, qtyPerUnit: l.qtyPerUnit, wasteFactor: l.wasteFactor } });
   }
+  // Initial revision
+  await prisma.bOMRecipeRevision.create({
+    data: {
+      recipeId: recipe.id,
+      version: recipe.version,
+      labourMinutesPerUnit: recipe.labourMinutesPerUnit,
+      cricutMinutesPerUnit: recipe.cricutMinutesPerUnit,
+      lines: lines,
+      editorId: req.user.id,
+      note: 'Initial version',
+    },
+  }).catch(() => {});
   const full = await prisma.bOMRecipe.findUnique({ where: { id: recipe.id }, include: { lines: { include: { rawMaterial: true } } } });
   res.status(201).json(full);
+}));
+
+// List revisions for a recipe
+router.get('/recipes/:id/revisions', requireAuth, requireRole('admin','developer','maker','staff'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const revisions = await prisma.bOMRecipeRevision.findMany({
+    where: { recipeId: id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+  res.json(revisions);
 }));
 
 // Single recipe with full lines (for the editor)
@@ -137,14 +160,29 @@ router.patch('/recipes/:id', requireAuth, requireRole('admin','developer','maker
   const existing = await prisma.bOMRecipe.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Recipe not found', code: 'not_found' });
   const { lines, ...rest } = req.validated;
-  await prisma.bOMRecipe.update({ where: { id }, data: rest });
+  // Snapshot the current state before mutating (version bump)
+  const currentLines = await prisma.bOMLine.findMany({ where: { recipeId: id }, select: { rawMaterialId: true, qtyPerUnit: true, wasteFactor: true } });
+  const nextVersion = 'v' + (parseFloat(existing.version?.replace('v', '') || '1') + 0.1).toFixed(1);
+  await prisma.bOMRecipe.update({ where: { id }, data: { ...rest, version: nextVersion } });
   if (lines) {
     await prisma.bOMLine.deleteMany({ where: { recipeId: id } });
     for (const l of lines) {
       await prisma.bOMLine.create({ data: { recipeId: id, rawMaterialId: l.rawMaterialId, qtyPerUnit: l.qtyPerUnit, wasteFactor: l.wasteFactor } });
     }
   }
-  const full = await prisma.bOMRecipe.findUnique({ where: { id }, include: { product: { select: { title: true } }, variant: true, lines: { include: { rawMaterial: true } } } });
+  // Create revision snapshot
+  const snapshotLines = lines || currentLines;
+  await prisma.bOMRecipeRevision.create({
+    data: {
+      recipeId: id,
+      version: nextVersion,
+      labourMinutesPerUnit: rest.labourMinutesPerUnit ?? existing.labourMinutesPerUnit,
+      cricutMinutesPerUnit: rest.cricutMinutesPerUnit ?? existing.cricutMinutesPerUnit,
+      lines: snapshotLines,
+      editorId: req.user.id,
+    },
+  }).catch(() => {});
+  const full = await prisma.bOMRecipe.findUnique({ where: { id }, include: { product: { select: { title: true } }, variant: true, lines: { include: { rawMaterial: true } }, revisions: { orderBy: { createdAt: 'desc' }, take: 5 } } });
   res.json(full);
 }));
 
