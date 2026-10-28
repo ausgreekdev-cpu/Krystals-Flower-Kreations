@@ -127,6 +127,47 @@ router.get('/low-stock', asyncHandler(async (req, res) => {
   res.json(low);
 }));
 
+// Auto-rebalance suggestions (item 12): for each low-stock location, suggest
+// transfers from locations with surplus of the same product/variant.
+router.get('/rebalance', asyncHandler(async (req, res) => {
+  const defaultThreshold = Number((await prisma.setting.findUnique({ where: { key: 'low_stock_default' } }))?.value || 5);
+  const levels = await prisma.inventoryLevel.findMany({ include: { product: { select: { title: true } }, location: { select: { name: true } } } });
+  const suggestions = [];
+  const byProduct = new Map();
+  for (const l of levels) {
+    const key = (l.productId || '') + '|' + (l.variantId || '');
+    if (!byProduct.has(key)) byProduct.set(key, []);
+    byProduct.get(key).push(l);
+  }
+  for (const [key, group] of byProduct) {
+    if (group.length < 2) continue;
+    const lowLocs = group.filter((l) => Number(l.onHand) <= (l.lowStockThreshold ?? defaultThreshold));
+    const surplusLocs = group.filter((l) => Number(l.onHand) > (l.lowStockThreshold ?? defaultThreshold) * 2);
+    for (const low of lowLocs) {
+      for (const src of surplusLocs) {
+        const surplus = Number(src.onHand) - Number(src.lowStockThreshold ?? defaultThreshold) * 2;
+        if (surplus <= 0) continue;
+        const needed = Number(low.lowStockThreshold ?? defaultThreshold) - Number(low.onHand);
+        const qty = Math.min(surplus, needed);
+        if (qty <= 0) continue;
+        suggestions.push({
+          productId: low.productId,
+          variantId: low.variantId,
+          productName: low.product?.title,
+          fromLocationId: src.locationId,
+          fromLocation: src.location?.name,
+          toLocationId: low.locationId,
+          toLocation: low.location?.name,
+          qty: Math.round(qty),
+          fromOnHand: Number(src.onHand),
+          toOnHand: Number(low.onHand),
+        });
+      }
+    }
+  }
+  res.json(suggestions);
+}));
+
 // Set a product-level low-stock threshold (null clears to default)
 router.post('/threshold', validate(z.object({ levelId: z.string().min(8).max(100), lowStockThreshold: z.number().int().finite().min(0).max(100000).nullable().optional() }).strict()), asyncHandler(async (req, res) => {
   const { levelId, lowStockThreshold } = req.validated;
