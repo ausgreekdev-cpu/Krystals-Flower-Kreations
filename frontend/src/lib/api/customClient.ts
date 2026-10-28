@@ -194,6 +194,18 @@ export const adminApi = {
     lots: (token: string) => req<any[]>('/api/inventory/lots', { token }),
     createLot: (body: any, token: string) => req<any>('/api/inventory/lots', { method: 'POST', body: JSON.stringify(body), token }),
     expiring: (token: string) => req<any[]>('/api/inventory/expiring', { token }),
+    rebalance: (token: string) => req<any[]>('/api/inventory/rebalance', { token }),
+  },
+  productionRuns: {
+    list: (token: string, status?: string) => req<any[]>(`/api/production-runs${status ? `?status=${status}` : ''}`, { token }),
+    create: (productId: string, token: string) => req<any>('/api/production-runs', { method: 'POST', body: JSON.stringify({ productId }), token }),
+    updateStatus: (id: string, status: string, token: string) => req<any>(`/api/production-runs/${id}`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
+  },
+  procurement: {
+    drafts: (token: string) => req<any[]>('/api/procurement/drafts', { token }),
+    approve: (id: string, body: any, token: string) => req<any>(`/api/procurement/${id}/approve`, { method: 'POST', body: JSON.stringify(body), token }),
+    reject: (id: string, token: string) => req<any>(`/api/procurement/${id}/reject`, { method: 'POST', token }),
+    replenish: (token: string) => req<any>('/api/procurement/replenish', { method: 'POST', token }),
   },
   purchaseOrders: {
     list: (token: string) => req<any[]>('/api/purchase-orders', { token }),

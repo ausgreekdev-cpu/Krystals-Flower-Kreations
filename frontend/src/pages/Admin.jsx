@@ -46,6 +46,7 @@ const TABS = [
   { id: 'customers', label: 'Customers', icon: '🧑' },
   { id: 'shipping', label: 'Shipping', icon: '🚚' },
   { id: 'suppliers', label: 'Suppliers', icon: '🏭' },
+  { id: 'operations', label: 'Operations', icon: '⚙️' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -60,7 +61,7 @@ const NAV_GROUPS = [
   { label: 'Sales', tabs: ['orders', 'pos', 'discounts', 'customers', 'reports'] },
   { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
-  { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers'] },
+  { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
   { label: 'System', tabs: ['users', 'settings'] },
 ];
 
@@ -326,6 +327,7 @@ function AdminInner({ user }) {
                   {tab === 'customers' && <Customers data={data} reload={() => load('customers')} token={token} />}
                   {tab === 'shipping' && <Shipping data={data} reload={() => load('shipping')} token={token} />}
                   {tab === 'suppliers' && <Suppliers data={data} reload={() => load('suppliers')} token={token} />}
+                  {tab === 'operations' && <Operations token={token} />}
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
@@ -3002,6 +3004,91 @@ function RateModal({ zone, rate, onClose, onSaved, token }) {
     </div>
     <div className="mt-5 flex justify-end gap-2"><Btn color="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || form.price === ''}>{busy ? 'Saving…' : 'Save'}</Btn></div>
   </Modal>;
+}
+
+function Operations({ token }) {
+  const toast = useToast();
+  const [runs, setRuns] = useState([]);
+  const [drafts, setDrafts] = useState([]);
+  const [rebalance, setRebalance] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [r, d, rb] = await Promise.all([
+        adminApi.productionRuns.list(token),
+        adminApi.procurement.drafts(token),
+        adminApi.inventory.rebalance(token),
+      ]);
+      setRuns(r || []);
+      setDrafts(d || []);
+      setRebalance(rb || []);
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [token]);
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-ink">Operations dashboard</h2>
+        <Btn onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</Btn>
+      </div>
+
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Production runs ({runs.length})</h3>
+        {runs.length === 0 ? <div className="text-xs text-muted py-4 text-center">No production runs yet.</div> : (
+          <div className="space-y-2">
+            {runs.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm text-ink truncate">{r.product?.title || r.productId}</div>
+                  <div className="text-xs text-muted">{r.status} • {r._count?.orders ?? 0} orders • {new Date(r.createdAt).toLocaleDateString('en-AU')}</div>
+                </div>
+                <div className="flex gap-1">
+                  {r.status === 'planned' && <Btn size="sm" onClick={async () => { try { await adminApi.productionRuns.updateStatus(r.id, 'in_progress', token); toast('Started'); load(); } catch (e) { toast(e.message, 'error'); } }}>Start</Btn>}
+                  {r.status === 'in_progress' && <Btn size="sm" onClick={async () => { try { await adminApi.productionRuns.updateStatus(r.id, 'completed', token); toast('Completed'); load(); } catch (e) { toast(e.message, 'error'); } }}>Complete</Btn>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Pending procurement ({drafts.length})</h3>
+        {drafts.length === 0 ? <div className="text-xs text-muted py-4 text-center">No draft materials pending.</div> : (
+          <div className="space-y-2">
+            {drafts.map((d) => (
+              <div key={d.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm text-ink truncate">{d.name}</div>
+                  <div className="text-xs text-muted">{d.sku} • {d.unit} • suggested supplier: {d.suggestedSupplier || '—'}{d.suggestedSupplierMatch ? ` (matched: ${d.suggestedSupplierMatch.name})` : ''}</div>
+                </div>
+                <div className="flex gap-1">
+                  <Btn size="sm" onClick={async () => { try { await adminApi.procurement.approve(d.id, { createSupplier: true }, token); toast('Approved'); load(); } catch (e) { toast(e.message, 'error'); } }}>Approve</Btn>
+                  <Btn size="sm" color="ghost" onClick={async () => { try { await adminApi.procurement.reject(d.id, token); toast('Rejected'); load(); } catch (e) { toast(e.message, 'error'); } }}>Reject</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Rebalance suggestions ({rebalance.length})</h3>
+        {rebalance.length === 0 ? <div className="text-xs text-muted py-4 text-center">No transfers suggested.</div> : (
+          <div className="space-y-2">
+            {rebalance.map((r, i) => (
+              <div key={i} className="border border-line rounded-xl px-4 py-3">
+                <div className="font-bold text-sm text-ink">{r.productName}</div>
+                <div className="text-xs text-muted">Transfer {r.qty} from {r.fromLocation} ({r.fromOnHand}) → {r.toLocation} ({r.toOnHand})</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function Suppliers({ data, reload, token }) {
