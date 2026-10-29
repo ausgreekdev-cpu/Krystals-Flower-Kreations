@@ -3754,6 +3754,8 @@ function AgentsConsole({ token }) {
   const [runInput, setRunInput] = useState('');
   const [runResult, setRunResult] = useState(null);
   const [runningAgent, setRunningAgent] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -3776,14 +3778,46 @@ function AgentsConsole({ token }) {
     try {
       const result = await adminApi.agents.run(agent.id, runInput.trim(), token);
       setRunResult(result);
-      toast(`Agent completed in ${result.duration || 0}ms`);
+      toast('Agent completed in ' + (result.duration || 0) + 'ms');
     } catch (e) { toast(e.message, 'error'); setRunResult({ status: 'failed', error: e.message }); }
     finally { setRunningAgent(null); }
   };
 
+  const saveAgent = async (form) => {
+    try {
+      if (form.id) {
+        await adminApi.agents.update(form.id, {
+          name: form.name, description: form.description, systemPrompt: form.systemPrompt,
+          mode: form.mode, tools: form.tools, model: form.model || null, isActive: form.isActive,
+        }, token);
+        toast('Agent updated');
+      } else {
+        await adminApi.agents.create({
+          name: form.name, description: form.description, systemPrompt: form.systemPrompt,
+          mode: form.mode, tools: form.tools, model: form.model || null, isActive: form.isActive,
+        }, token);
+        toast('Agent created');
+      }
+      setEditing(null);
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const doDelete = async (id) => {
+    try {
+      await adminApi.agents.remove(id, token);
+      toast('Agent deleted');
+      setConfirmDel(null);
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-ink">Agent Console</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-ink">Agent Console</h2>
+        <button onClick={() => setEditing({})} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">+ New agent</button>
+      </div>
       <p className="text-xs text-muted">Registered agents with live run capability. Each agent uses the configured LLM provider. Runs are logged to the database.</p>
 
       {loading ? <div className="text-xs text-muted py-6 text-center">Loading…</div> : (
@@ -3798,13 +3832,16 @@ function AgentsConsole({ token }) {
                     <span className="badge-botanical mr-2">{a.mode}</span>
                     {a.model && <span className="mr-2">{a.model}</span>}
                     <span>{a._count?.runs ?? 0} runs</span>
+                    {!a.isActive && <span className="ml-2 text-red-600">DISABLED</span>}
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => openDetail(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">View</button>
+                  <button onClick={() => setEditing(a)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">Edit</button>
                   <button onClick={() => { setRunning(running === a.id ? null : a.id); setRunResult(null); }} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">
                     {running === a.id ? 'Close' : 'Run'}
                   </button>
+                  <button onClick={() => setConfirmDel(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 hover:bg-red-50">Delete</button>
                 </div>
               </div>
 
@@ -3838,7 +3875,7 @@ function AgentsConsole({ token }) {
               )}
             </div>
           ))}
-          {agents.length === 0 && <div className="text-xs text-muted py-8 text-center">No agents found. Create agents via POST /api/v2/agents or seed from .opencode/agents/</div>}
+          {agents.length === 0 && <div className="text-xs text-muted py-8 text-center">No agents found. Create one with + New agent above.</div>}
         </div>
       )}
 
@@ -3865,7 +3902,7 @@ function AgentsConsole({ token }) {
                       <span className={`font-bold ${r.status === 'success' ? 'text-green-600' : r.status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>
                         {r.status === 'success' ? '✓' : r.status === 'failed' ? '✗' : '…'} {r.status}
                       </span>
-                      <span className="text-muted">{r.duration ? `${r.duration}ms` : ''}</span>
+                      <span className="text-muted">{r.duration ? r.duration + 'ms' : ''}</span>
                       <span className="text-muted ml-auto">{new Date(r.createdAt).toLocaleString('en-AU')}</span>
                     </div>
                     <div className="text-muted mt-1 truncate">Input: {r.input?.slice(0, 80)}</div>
@@ -3878,6 +3915,87 @@ function AgentsConsole({ token }) {
           </div>
         </div>
       )}
+
+      {editing && (
+        <AgentEditor agent={editing.id ? editing : null} onSave={saveAgent} onClose={() => setEditing(null)} />
+      )}
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <div className="font-bold text-ink">Delete agent?</div>
+            <div className="text-xs text-muted">This will permanently delete the agent and all its run history.</div>
+            <div className="flex gap-2 justify-end">
+              <Btn color="ghost" onClick={() => setConfirmDel(null)}>Cancel</Btn>
+              <Btn onClick={() => doDelete(confirmDel)}>Delete</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentEditor({ agent, onSave, onClose }) {
+  const [form, setForm] = useState({
+    id: agent?.id || null,
+    name: agent?.name || '',
+    description: agent?.description || '',
+    systemPrompt: agent?.systemPrompt || '',
+    mode: agent?.mode || 'primary',
+    tools: agent?.tools?.join(', ') || '',
+    model: agent?.model || '',
+    isActive: agent?.isActive ?? true,
+  });
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface-2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
+
+  const save = async () => {
+    if (!form.name.trim() || !form.systemPrompt.trim()) return;
+    setBusy(true);
+    try {
+      await onSave({
+        ...form,
+        tools: form.tools.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-ink">{agent ? 'Edit agent' : 'New agent'}</h3>
+          <button onClick={onClose} className="text-xs text-muted hover:text-ink">X</button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!agent} /></div>
+          <div><label className={label}>Mode</label>
+            <select className={input} value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
+              <option value="primary">primary</option>
+              <option value="subagent">subagent</option>
+            </select>
+          </div>
+          <div className="col-span-2"><label className={label}>Description</label><input className={input} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+          <div><label className={label}>Model (optional)</label><input className={input} value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="provider/model" /></div>
+          <div><label className={label}>Tools (comma-separated, empty = all)</label><input className={input} value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} /></div>
+          <div className="col-span-2"><label className={label}>Active</label>
+            <select className={input} value={form.isActive ? '1' : '0'} onChange={(e) => setForm({ ...form, isActive: e.target.value === '1' })}>
+              <option value="1">Active</option>
+              <option value="0">Disabled</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className={label}>System Prompt *</label>
+          <textarea className={input} value={form.systemPrompt} onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })} rows={12} />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <Btn color="ghost" onClick={onClose} disabled={busy}>Cancel</Btn>
+          <Btn onClick={save} disabled={busy || !form.name.trim() || !form.systemPrompt.trim()}>{busy ? 'Saving...' : (agent ? 'Save changes' : 'Create agent')}</Btn>
+        </div>
+      </div>
     </div>
   );
 }
