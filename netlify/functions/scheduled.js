@@ -101,6 +101,17 @@ export async function handler(event, context){
       }
     } catch(e){ console.log('[scheduled] low-stock skipped', e.message); }
 
+    // Auto-replenishment: create draft POs for low-stock materials (Tier 1 automaton)
+    let replenished = 0;
+    try {
+      let replenishLowStock;
+      try { replenishLowStock = (await import("../../backend/src/services/replenishment.js")).replenishLowStock; }
+      catch { replenishLowStock = (await import("../../../backend/src/services/replenishment.js")).replenishLowStock; }
+      const pos = await replenishLowStock(null);
+      replenished = pos.length;
+      if (replenished) console.log(`[scheduled] created ${replenished} draft replenishment PO(s)`);
+    } catch(e){ console.log('[scheduled] replenishment skipped', e.message); }
+
     // Drain any queued emails whose immediate send was frozen/lost (order + workshop confirmations).
     let emailDrained = 0;
     try {
@@ -111,8 +122,8 @@ export async function handler(event, context){
       emailDrained = r.sent || 0;
     } catch (e) { console.log('[scheduled] email drain skipped', e.message); }
 
-    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, cartReminders ${cartReminders}, reminders ${reminders}, lowStock ${lowCount}, rateLimitRowsPurged ${purgedRl}, emailsSent ${emailDrained}`);
-    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, cartReminders, reminders, lowStock: lowCount, rateLimitRowsPurged: purgedRl, emailsSent: emailDrained }) };
+    console.log(`[scheduled] cleaned ${deleted.count||0} stale carts, cartReminders ${cartReminders}, reminders ${reminders}, lowStock ${lowCount}, replenished ${replenished}, rateLimitRowsPurged ${purgedRl}, emailsSent ${emailDrained}`);
+    return { statusCode: 200, body: JSON.stringify({ ok:true, cleaned: deleted.count||0, cartReminders, reminders, lowStock: lowCount, replenished, rateLimitRowsPurged: purgedRl, emailsSent: emailDrained }) };
   }catch(err){
     console.error("[scheduled] failed", err);
     return { statusCode: 500, body: JSON.stringify({ error: String(err.message) }) };

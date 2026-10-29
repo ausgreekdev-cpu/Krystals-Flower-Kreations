@@ -71,5 +71,22 @@ export async function updateProductionRunStatus(runId, status, userId = null) {
   if (!valid.includes(status)) throw new Error('Invalid status');
   const run = await prisma.productionRun.update({ where: { id: runId }, data: { status } });
   await audit({ actorId: userId, action: 'production_run.status', entityType: 'production_run', entityId: runId, details: { status } }).catch(() => {});
+
+  // Auto-progress: when a run completes, move linked orders to 'ready'
+  if (status === 'completed') {
+    const orders = await prisma.order.findMany({ where: { productionRunId: runId, status: 'making' } });
+    for (const order of orders) {
+      await prisma.order.update({ where: { id: order.id }, data: { status: 'ready' } }).catch(() => {});
+      await prisma.orderStatusHistory.create({ data: { orderId: order.id, fromStatus: 'making', toStatus: 'ready', note: 'Auto-progressed: production run completed' } }).catch(() => {});
+    }
+  }
+  // When a run starts, move linked orders to 'making'
+  if (status === 'in_progress') {
+    const orders = await prisma.order.findMany({ where: { productionRunId: runId, status: 'paid' } });
+    for (const order of orders) {
+      await prisma.order.update({ where: { id: order.id }, data: { status: 'making' } }).catch(() => {});
+      await prisma.orderStatusHistory.create({ data: { orderId: order.id, fromStatus: 'paid', toStatus: 'making', note: 'Auto-progressed: production run started' } }).catch(() => {});
+    }
+  }
   return run;
 }
