@@ -47,6 +47,7 @@ import downloadRoutes from './routes/downloads.js';
 import paperStockRoutes from './routes/paperStocks.js';
 import productionRunRoutes from './routes/productionRuns.js';
 import adminKpisRoutes from './routes/adminKpis.js';
+import failedOpsRoutes from './routes/failedOps.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -206,6 +207,7 @@ app.use('/api/database', documentRoutes); // alias — Documents renamed to Data
 app.use('/api/paper-stocks', paperStockRoutes); // configurator papers — sellable materials, not products
 app.use('/api/production-runs', productionRunRoutes); // batch production runs
 app.use('/api/admin', adminKpisRoutes); // admin dashboard KPIs
+app.use('/api/admin/failed-ops', failedOpsRoutes); // dead-letter queue for failed side effects
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
 app.use('/api/models-3d', model3dRoutes); // 3D flower models for AR configurator

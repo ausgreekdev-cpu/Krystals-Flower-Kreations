@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { checkAndReplenish } from '../services/replenishment.js';
 import { recalculateRecipeCosts } from '../services/costRecalc.js';
+import { runSideEffect } from '../services/sideEffects.js';
 import { registerFieldRoutes, validateCustomFields, customFieldsSchema } from '../lib/fieldDefs.js';
 
 const router = Router();
@@ -83,7 +84,7 @@ router.patch('/:id', requireAuth, requireRole('admin','developer','maker','staff
     const before = await prisma.rawMaterial.findUnique({ where: { id }, select: { costPerUnit: true } });
     const mat = await prisma.rawMaterial.update({ where: { id }, data });
     if (data.costPerUnit !== undefined && String(before?.costPerUnit) !== String(data.costPerUnit)) {
-      recalculateRecipeCosts(id, req.user.id).catch(() => {});
+      runSideEffect('recalculateRecipeCosts', () => recalculateRecipeCosts(id, req.user.id), { context: { entityType: 'raw_material', entityId: id, userId: req.user.id } }).catch(() => {});
     }
     res.json(mat);
   } catch (e) {
