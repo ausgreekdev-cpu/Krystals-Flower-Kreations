@@ -213,6 +213,8 @@ export const adminApi = {
   agents: {
     list: (token: string) => req<any[]>('/api/agents', { token }),
     get: (id: string, token: string) => req<any>(`/api/agents/${id}`, { token }),
+    run: (id: string, input: string, token: string) => req<any>(`/api/v2/agents/${id}/run`, { method: 'POST', body: JSON.stringify({ input }), token }),
+    runs: (id: string, token: string) => req<any[]>(`/api/v2/agents/${id}/runs`, { token }),
   },
   models3d: {
     list: (token: string) => req<any[]>('/api/models-3d', { token }),

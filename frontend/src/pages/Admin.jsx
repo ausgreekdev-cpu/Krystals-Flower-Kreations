@@ -3750,6 +3750,10 @@ function AgentsConsole({ token }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
+  const [running, setRunning] = useState(null);
+  const [runInput, setRunInput] = useState('');
+  const [runResult, setRunResult] = useState(null);
+  const [runningAgent, setRunningAgent] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -3765,30 +3769,76 @@ function AgentsConsole({ token }) {
     catch (e) { toast(e.message, 'error'); }
   };
 
+  const runAgent = async (agent) => {
+    if (!runInput.trim()) return toast('Enter a prompt first', 'error');
+    setRunningAgent(agent.id);
+    setRunResult(null);
+    try {
+      const result = await adminApi.agents.run(agent.id, runInput.trim(), token);
+      setRunResult(result);
+      toast(`Agent completed in ${result.duration || 0}ms`);
+    } catch (e) { toast(e.message, 'error'); setRunResult({ status: 'failed', error: e.message }); }
+    finally { setRunningAgent(null); }
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-ink">Agent Console</h2>
-      <p className="text-xs text-muted">Registered agents in <code className="text-terracotta">.opencode/agents/</code>. Switch agents in the OpenCode TUI with Tab. This panel lists available agents and their definitions.</p>
+      <p className="text-xs text-muted">Registered agents with live run capability. Each agent uses the configured LLM provider. Runs are logged to the database.</p>
 
       {loading ? <div className="text-xs text-muted py-6 text-center">Loading…</div> : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {agents.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-ink">{a.id}</div>
-                <div className="text-xs text-muted truncate">{a.description}</div>
-                <div className="text-[10px] text-muted mt-1">
-                  <span className="badge-botanical mr-2">{a.mode}</span>
-                  {a.model && <span className="mr-2">{a.model}</span>}
-                  <span>{a.bodyLength} chars</span>
+            <div key={a.id} className="border border-line rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-sm text-ink">{a.id}</div>
+                  <div className="text-xs text-muted truncate">{a.description}</div>
+                  <div className="text-[10px] text-muted mt-1">
+                    <span className="badge-botanical mr-2">{a.mode}</span>
+                    {a.model && <span className="mr-2">{a.model}</span>}
+                    <span>{a._count?.runs ?? 0} runs</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => openDetail(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">View</button>
+                  <button onClick={() => { setRunning(running === a.id ? null : a.id); setRunResult(null); }} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">
+                    {running === a.id ? 'Close' : 'Run'}
+                  </button>
                 </div>
               </div>
-              <button onClick={() => openDetail(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">
-                View
-              </button>
+
+              {running === a.id && (
+                <div className="space-y-2 border-t border-line pt-3">
+                  <textarea
+                    value={runInput}
+                    onChange={(e) => setRunInput(e.target.value)}
+                    placeholder="Enter a prompt for this agent…"
+                    className="w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface-2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500 min-h-[80px]"
+                  />
+                  <div className="flex gap-2">
+                    <Btn onClick={() => runAgent(a)} disabled={runningAgent === a.id || !runInput.trim()}>
+                      {runningAgent === a.id ? 'Running…' : 'Execute'}
+                    </Btn>
+                    <button onClick={() => { setRunInput(''); setRunResult(null); }} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">Clear</button>
+                  </div>
+                  {runResult && (
+                    <div className="bg-surface-2 border border-line rounded-xl p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold ${runResult.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                          {runResult.status === 'success' ? '✓ SUCCESS' : '✗ FAILED'}
+                        </span>
+                        {runResult.duration && <span className="text-[10px] text-muted">{runResult.duration}ms</span>}
+                      </div>
+                      {runResult.output && <pre className="text-xs text-ink whitespace-pre-wrap max-h-64 overflow-auto">{runResult.output}</pre>}
+                      {runResult.error && <div className="text-xs text-red-600">{runResult.error}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
-          {agents.length === 0 && <div className="text-xs text-muted py-8 text-center">No agents found. Create .md files in .opencode/agents/</div>}
+          {agents.length === 0 && <div className="text-xs text-muted py-8 text-center">No agents found. Create agents via POST /api/v2/agents or seed from .opencode/agents/</div>}
         </div>
       )}
 
@@ -3799,7 +3849,32 @@ function AgentsConsole({ token }) {
               <h3 className="font-bold text-ink">{detail.id}</h3>
               <button onClick={() => setDetail(null)} className="text-xs text-muted hover:text-ink">✕ Close</button>
             </div>
-            <pre className="text-xs text-muted bg-surface-2 p-4 rounded-xl overflow-auto max-h-[60vh] whitespace-pre-wrap">{detail.content}</pre>
+            <div className="text-xs text-muted space-y-1">
+              <div><span className="font-bold">Mode:</span> {detail.mode}</div>
+              <div><span className="font-bold">Model:</span> {detail.model || 'default'}</div>
+              <div><span className="font-bold">Tools:</span> {detail.tools?.length ? detail.tools.join(', ') : 'all'}</div>
+              <div><span className="font-bold">Runs:</span> {detail.runs?.length || 0}</div>
+            </div>
+            <pre className="text-xs text-muted bg-surface-2 p-4 rounded-xl overflow-auto max-h-[60vh] whitespace-pre-wrap">{detail.systemPrompt}</pre>
+            {detail.runs?.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-ink">Recent runs</h4>
+                {detail.runs.map((r) => (
+                  <div key={r.id} className="border border-line rounded-xl p-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold ${r.status === 'success' ? 'text-green-600' : r.status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>
+                        {r.status === 'success' ? '✓' : r.status === 'failed' ? '✗' : '…'} {r.status}
+                      </span>
+                      <span className="text-muted">{r.duration ? `${r.duration}ms` : ''}</span>
+                      <span className="text-muted ml-auto">{new Date(r.createdAt).toLocaleString('en-AU')}</span>
+                    </div>
+                    <div className="text-muted mt-1 truncate">Input: {r.input?.slice(0, 80)}</div>
+                    {r.output && <div className="text-ink mt-1 truncate">Output: {r.output?.slice(0, 120)}</div>}
+                    {r.error && <div className="text-red-600 mt-1">{r.error}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
