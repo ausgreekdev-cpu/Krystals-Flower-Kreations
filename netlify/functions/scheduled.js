@@ -112,6 +112,24 @@ export async function handler(event, context){
       if (replenished) console.log(`[scheduled] created ${replenished} draft replenishment PO(s)`);
     } catch(e){ console.log('[scheduled] replenishment skipped', e.message); }
 
+    // Auto-alerts (Tier 4): stale orders, failed side effects
+    try {
+      const staleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const staleCount = await prisma.order.count({ where: { status: { in: ['pending_payment', 'paid', 'making'] }, updatedAt: { lt: staleCutoff } } }).catch(() => 0);
+      const failedCount = await prisma.auditLog.count({ where: { action: 'side_effect_failed' } }).catch(() => 0);
+      if (staleCount > 0 || failedCount > 0) {
+        let sendEmail;
+        try { sendEmail = (await import("../../backend/src/services/email.js")).sendEmail; }
+        catch { sendEmail = (await import("../../../backend/src/services/email.js")).sendEmail; }
+        const recipient = S.low_stock_recipient || process.env.COMPANY_EMAIL || 'krystal@krystalsflowerkreations.com.au';
+        const parts = [];
+        if (staleCount > 0) parts.push(`${staleCount} order(s) stuck for >7 days`);
+        if (failedCount > 0) parts.push(`${failedCount} failed side effect(s) need attention`);
+        await sendEmail({ to: recipient, subject: `Studio alert: ${parts.join(', ')}`, text: `Studio health alert:\n${parts.join('\n')}\n\nCheck /admin?tab=overview` }).catch(() => {});
+        console.log(`[scheduled] auto-alert sent: ${parts.join(', ')}`);
+      }
+    } catch(e){ console.log('[scheduled] auto-alerts skipped', e.message); }
+
     // Drain any queued emails whose immediate send was frozen/lost (order + workshop confirmations).
     let emailDrained = 0;
     try {
