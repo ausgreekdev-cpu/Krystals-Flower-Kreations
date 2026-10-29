@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { audit } from '../lib/audit.js';
 import { getFailedSideEffects, retrySideEffect } from '../services/sideEffects.js';
+import { recentEvents, registeredEvents } from '../services/eventBus.js';
 
 const router = Router();
 router.use(authenticate, requireRole('admin', 'developer'));
@@ -21,6 +22,11 @@ router.post('/:id/retry', asyncHandler(async (req, res) => {
   if (!result) return res.status(404).json({ error: 'Not found', code: 'not_found' });
   audit({ actorId: req.user.id, actorEmail: req.user.email, action: 'side_effect_retry', entityType: 'audit_log', entityId: id, details: result });
   res.json({ ok: true, ...result });
+}));
+
+// Event bus monitoring
+router.get('/events', asyncHandler(async (req, res) => {
+  res.json({ recent: recentEvents(20), registered: registeredEvents() });
 }));
 
 export default router;

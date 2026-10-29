@@ -10,6 +10,7 @@ import { createPayPalOrder, capturePayPalOrder, refundPayPalCapture, assertPayPa
 import { sendOrderConfirmation } from '../services/email.js';
 import { notify } from '../services/notifications.js';
 import { runSideEffect } from '../services/sideEffects.js';
+import { emit } from '../services/eventBus.js';
 import { generateOrderBOM, consumeOrderMaterials } from '../services/orderBom.js';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
@@ -460,6 +461,7 @@ router.patch('/:id/status', authenticate, asyncHandler(async (req, res) => {
     await earnForOrder(prisma, { email: order.email, total: order.total, orderId: order.id, reason: 'purchase' });
     // Consume raw-material stock + BOM snapshot now that payment is confirmed
     await runSideEffect('consumeOrderMaterials', () => consumeOrderMaterials(order), { critical: true, context: { entityType: 'order', entityId: order.id, userId: req.user.id } });
+    emit('order.paid', { order, userId: req.user.id });
     if (!order.bomSnapshot) {
       await generateOrderBOM(order).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'order_side_effect_failed', side: 'generateOrderBOM', orderNumber: order.orderNumber, err: e?.message })));
     }
