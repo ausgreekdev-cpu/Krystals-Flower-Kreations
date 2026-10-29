@@ -6,7 +6,7 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { audit } from '../lib/audit.js';
-import { llmAvailable, __setLlmCall } from '../services/llm.js';
+import { llmAvailable } from '../services/llm.js';
 
 const router = Router();
 const EDITOR_ROLES = ['admin', 'developer', 'maker', 'staff'];
@@ -119,13 +119,8 @@ router.post('/:id/run', authenticate, requireRole(...EDITOR_ROLES), validate(run
   let status = 'success';
   try {
     if (llmAvailable()) {
-      const { llmCall } = await import('../services/llm.js').catch(() => ({}));
-      // Fallback: use the raw fetch approach from llm.js
-      const prompt = `${agent.systemPrompt}\n\nUser: ${req.validated.input}`;
-      // Use the shared LLM transport
-      const { __setLlmCall } = await import('../services/llm.js');
-      // For now, return a placeholder — real LLM integration in Phase 2
-      output = `[Agent "${agent.name}" received prompt. LLM integration pending — Phase 2 will wire this to the provider.]`;
+      const { llmText } = await import('../services/llm.js');
+      output = await llmText({ system: agent.systemPrompt, user: req.validated.input, maxTokens: 2000 });
     } else {
       output = `[Agent "${agent.name}" is dormant — no LLM provider configured. Set LLM_API_KEY to enable.]`;
     }

@@ -67,8 +67,9 @@ async function post(url, opts) {
  * @param {string} [opts.userAgent]
  * @returns {Promise<object>}
  */
-export async function llmJson({ system, user, maxTokens = 2000, session, userAgent = 'krystal-llm/1.0' }) {
-  if (callImpl) return parseJsonReply(await callImpl(user, { system, maxTokens }));
+// Internal: get raw text reply from the LLM (used by both llmJson and llmText).
+async function rawLlm({ system, user, maxTokens = 2000, session, userAgent = 'krystal-llm/1.0' }) {
+  if (callImpl) return await callImpl(user, { system, maxTokens });
 
   const provider = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase();
   const key = process.env.LLM_API_KEY || '';
@@ -134,5 +135,13 @@ export async function llmJson({ system, user, maxTokens = 2000, session, userAge
     if (!res.ok) throw new Error(`LLM ${res.status}`);
     reply = (await res.json())?.content?.[0]?.text;
   }
-  return parseJsonReply(reply);
+  return reply;
+}
+
+export async function llmJson(opts) {
+  return parseJsonReply(await rawLlm(opts));
+}
+
+export async function llmText(opts) {
+  return await rawLlm(opts);
 }
