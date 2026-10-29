@@ -49,6 +49,7 @@ import productionRunRoutes from './routes/productionRuns.js';
 import adminKpisRoutes from './routes/adminKpis.js';
 import failedOpsRoutes from './routes/failedOps.js';
 import exportRoutes from './routes/export.js';
+import agentConsoleRoutes from './routes/agentConsole.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -209,6 +210,7 @@ app.use('/api/paper-stocks', paperStockRoutes); // configurator papers — sella
 app.use('/api/production-runs', productionRunRoutes); // batch production runs
 app.use('/api/admin', adminKpisRoutes); // admin dashboard KPIs
 app.use('/api/admin/failed-ops', failedOpsRoutes); // dead-letter queue for failed side effects
+app.use('/api/agents', agentConsoleRoutes); // agent console
 app.use('/api/export', exportRoutes); // CSV data export
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline

@@ -210,6 +210,10 @@ export const adminApi = {
   admin: {
     kpis: (token: string) => req<any>('/api/admin/kpis', { token }),
   },
+  agents: {
+    list: (token: string) => req<any[]>('/api/agents', { token }),
+    get: (id: string, token: string) => req<any>(`/api/agents/${id}`, { token }),
+  },
   models3d: {
     list: (token: string) => req<any[]>('/api/models-3d', { token }),
     upload: (formData: FormData, token: string) => req<any>('/api/models-3d', { method: 'POST', body: formData, token }),

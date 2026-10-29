@@ -49,6 +49,7 @@ const TABS = [
   { id: 'suppliers', label: 'Suppliers', icon: '🏭' },
   { id: 'operations', label: 'Operations', icon: '⚙️' },
   { id: 'users', label: 'Users', icon: '👥' },
+  { id: 'agents', label: 'Agents', icon: '🤖' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
   { id: 'notebook', label: 'Notebook', icon: '📓' },
@@ -63,7 +64,7 @@ const NAV_GROUPS = [
   { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory', 'models3d'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
-  { label: 'System', tabs: ['users', 'settings'] },
+  { label: 'System', tabs: ['users', 'settings', 'agents'] },
 ];
 
 // Case-insensitive alphanumeric ordering (A2 before A10) for material lists.
@@ -331,6 +332,7 @@ function AdminInner({ user }) {
                   {tab === 'suppliers' && <Suppliers data={data} reload={() => load('suppliers')} token={token} />}
                   {tab === 'operations' && <Operations token={token} />}
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
+                  {tab === 'agents' && <AgentsConsole token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
                   {tab === 'notebook' && <NotebookAdmin data={data} onSave={(url) => setData((s) => ({ ...s, notebookUrl: url }))} token={token} />}
@@ -3739,6 +3741,68 @@ function Settings({ reload, token }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AgentsConsole({ token }) {
+  const toast = useToast();
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try { setAgents(await adminApi.agents.list(token)); }
+    catch (e) { toast(e.message, 'error'); setAgents([]); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [token]);
+
+  const openDetail = async (id) => {
+    try { setDetail(await adminApi.agents.get(id, token)); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-ink">Agent Console</h2>
+      <p className="text-xs text-muted">Registered agents in <code className="text-terracotta">.opencode/agents/</code>. Switch agents in the OpenCode TUI with Tab. This panel lists available agents and their definitions.</p>
+
+      {loading ? <div className="text-xs text-muted py-6 text-center">Loading…</div> : (
+        <div className="space-y-2">
+          {agents.map((a) => (
+            <div key={a.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-ink">{a.id}</div>
+                <div className="text-xs text-muted truncate">{a.description}</div>
+                <div className="text-[10px] text-muted mt-1">
+                  <span className="badge-botanical mr-2">{a.mode}</span>
+                  {a.model && <span className="mr-2">{a.model}</span>}
+                  <span>{a.bodyLength} chars</span>
+                </div>
+              </div>
+              <button onClick={() => openDetail(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">
+                View
+              </button>
+            </div>
+          ))}
+          {agents.length === 0 && <div className="text-xs text-muted py-8 text-center">No agents found. Create .md files in .opencode/agents/</div>}
+        </div>
+      )}
+
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-auto space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-ink">{detail.id}</h3>
+              <button onClick={() => setDetail(null)} className="text-xs text-muted hover:text-ink">✕ Close</button>
+            </div>
+            <pre className="text-xs text-muted bg-surface-2 p-4 rounded-xl overflow-auto max-h-[60vh] whitespace-pre-wrap">{detail.content}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
