@@ -52,6 +52,8 @@ import procurementAutoRoutes from './routes/procurementAuto.js';
 import failedOpsRoutes from './routes/failedOps.js';
 import exportRoutes from './routes/export.js';
 import agentConsoleRoutes from './routes/agentConsole.js';
+import studioHealthRoutes from './routes/studioHealth.js';
+import agentsRoutes from './routes/agents.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -214,7 +216,9 @@ app.use('/api/orders', orderFulfillmentRoutes); // unified order fulfillment wor
 app.use('/api/procurement', procurementAutoRoutes); // procurement auto-workflow (mounted after procurement.js)
 app.use('/api/admin', adminKpisRoutes); // admin dashboard KPIs
 app.use('/api/admin/failed-ops', failedOpsRoutes); // dead-letter queue for failed side effects
-app.use('/api/agents', agentConsoleRoutes); // agent console
+app.use('/api/agents', agentConsoleRoutes); // agent console (file-based)
+app.use('/api/v2/agents', agentsRoutes); // in-app agent system (Phase 1)
+app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
 app.use('/api/export', exportRoutes); // CSV data export
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline

@@ -1282,6 +1282,40 @@ model ProcedureRevision {
   @@map("procedure_revisions")
 }
 
+// ── In-app agent system ─────────────────────────────────────────────────────
+model Agent {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  description  String?   @db.Text
+  systemPrompt String    @db.Text
+  mode         String    @default("primary") // primary | subagent
+  tools        String[]  @default([]) // allowed tool names (empty = all)
+  model        String? // optional model override
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  runs         AgentRun[]
+
+  @@index([isActive])
+  @@map("agents")
+}
+
+model AgentRun {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  input     String   @db.Text
+  output    String?  @db.Text
+  status    String   @default("running") // running | success | failed
+  duration  Int? // milliseconds
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+  @@index([status])
+  @@map("agent_runs")
+}
+
 // ── Procedure → recipe import pipeline (Phase 1/2) ──────────────────────────
 // Staging for analysed documents: nothing touches RawMaterial/BOMRecipe/
 // Product/ProcedureDocument until a reviewer approves. `extracted` is the raw
