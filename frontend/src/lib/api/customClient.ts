@@ -207,6 +207,9 @@ export const adminApi = {
     reject: (id: string, token: string) => req<any>(`/api/procurement/${id}/reject`, { method: 'POST', token }),
     replenish: (token: string) => req<any>('/api/procurement/replenish', { method: 'POST', token }),
   },
+  admin: {
+    kpis: (token: string) => req<any>('/api/admin/kpis', { token }),
+  },
   models3d: {
     list: (token: string) => req<any[]>('/api/models-3d', { token }),
     upload: (formData: FormData, token: string) => req<any>('/api/models-3d', { method: 'POST', body: formData, token }),

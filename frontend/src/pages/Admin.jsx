@@ -308,7 +308,7 @@ function AdminInner({ user }) {
             <div className={`bg-surface2 border border-line rounded-2xl p-4 lg:p-6 shadow-sm min-h-[60vh] ${loading ? 'opacity-60' : ''}`}>
               {loading && !loadedTabsRef.current.has(tab) ? <Skeleton /> : (
                 <>
-                  {tab === 'overview' && <Overview data={data} onOpen={setTab} />}
+                  {tab === 'overview' && <Overview data={data} onOpen={setTab} token={token} />}
                   {tab === 'orders' && <Orders data={data} reload={() => load('orders')} token={token} />}
                   {tab === 'inventory' && <Inventory data={data} reload={() => load('inventory')} token={token} role={user?.role} />}
                   {tab === 'products' && <Products data={data} reload={() => load('products')} token={token} />}
@@ -391,8 +391,13 @@ const Btn = ({ children, onClick, color = 'royal', disabled, small }) => (
     className={`inline-flex items-center gap-1 rounded-xl font-semibold disabled:opacity-50 transition-colors ${small ? 'px-2.5 py-1 text-xs' : 'px-4 py-2 text-sm'} ${color === 'royal' ? 'bg-royal-600 text-white hover:bg-royal-700' : color === 'black' ? 'bg-gray-900 text-white hover:bg-gray-800' : color === 'ghost' ? 'border border-line-strong text-ink hover:bg-surface3' : color === 'red' ? 'bg-red-600 text-white hover:bg-red-700' : color === 'amber' ? 'bg-amber-500 text-white hover:bg-amber-600' : ''}`}>{children}</button>
 );
 
-function Overview({ data, onOpen }) {
+function Overview({ data, onOpen, token }) {
   const orders = Array.isArray(data.orders) ? data.orders : [];
+  const [kpis, setKpis] = useState(null);
+  useEffect(() => {
+    if (!token) return;
+    adminApi.admin.kpis(token).then(setKpis).catch(() => {});
+  }, [token]);
   const low = Array.isArray(data.low) ? data.low : [];
   const workshops = Array.isArray(data.workshops) ? data.workshops : [];
   const pos = Array.isArray(data.purchaseOrders) ? data.purchaseOrders : [];
@@ -417,6 +422,16 @@ function Overview({ data, onOpen }) {
         <Stat label="Open POs" value={openPos.length} warn={openPos.length > 0} />
         <Stat label="Supplier spend" value={`$${totalSpend.toFixed(2)}`} accent />
       </div>
+      {kpis && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <Stat label="Low stock" value={kpis.lowStock} warn={kpis.lowStock > 0} />
+          <Stat label="Pending QC" value={kpis.pendingQc} warn={kpis.pendingQc > 0} />
+          <Stat label="Procurement drafts" value={kpis.pendingProcurement} warn={kpis.pendingProcurement > 0} />
+          <Stat label="Active prod runs" value={kpis.activeRuns} />
+          <Stat label="Open orders" value={kpis.openOrders} />
+          <Stat label="Active products" value={kpis.activeProducts} />
+        </div>
+      )}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card title="Recent orders" actions={<button onClick={() => onOpen('orders')} className="text-xs text-royal-700 dark:text-royal-300 hover:underline font-semibold">View all</button>}>
           <div className="space-y-1.5">
