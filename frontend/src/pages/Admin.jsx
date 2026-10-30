@@ -4008,6 +4008,11 @@ function StudioConsole({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [expanded, setExpanded] = useState(null); // id of expanded run history
+  const [runs, setRuns] = useState({});
+  const [runResult, setRunResult] = useState(null);
+  const [running, setRunning] = useState(null);
+  const [selected, setSelected] = useState(new Set());
 
   const endpoints = {
     skills: { list: () => adminApi.skills.list(token), create: (b) => adminApi.skills.create(b, token), update: (id, b) => adminApi.skills.update(id, b, token), remove: (id) => adminApi.skills.remove(id, token) },
@@ -4022,17 +4027,84 @@ function StudioConsole({ token }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [subTab, token]);
+  useEffect(() => { load(); setSelected(new Set()); setExpanded(null); setRuns({}); }, [subTab, token]);
+
+  const toggleActive = async (item) => {
+    try { await endpoints[subTab].update(item.id, { isActive: !item.isActive }); toast(item.isActive ? 'Disabled' : 'Enabled'); await load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
 
   const doDelete = async (id) => {
     try { await endpoints[subTab].remove(id); toast('Deleted'); await load(); }
     catch (e) { toast(e.message, 'error'); }
   };
 
+  const runWorkflow = async (id) => {
+    setRunning(id);
+    setRunResult(null);
+    try {
+      const result = await adminApi.workflows.run(id, {}, token);
+      setRunResult(result);
+      toast('Workflow completed: ' + result.status);
+      await loadRuns(id);
+    } catch (e) { toast(e.message, 'error'); setRunResult({ status: 'failed', error: e.message }); }
+    finally { setRunning(null); }
+  };
+
+  const triggerAutomation = async (id) => {
+    setRunning(id);
+    try {
+      await adminApi.automations.trigger(id, token);
+      toast('Automation triggered');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setRunning(null); }
+  };
+
+  const loadRuns = async (id) => {
+    if (expanded === id) { setExpanded(null); return; }
+    try {
+      const r = await adminApi.workflows.runs(id, token);
+      setRuns((prev) => ({ ...prev, [id]: r }));
+      setExpanded(id);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const bulkToggle = async (active) => {
+    const ids = [...selected];
+    for (const id of ids) {
+      try { await endpoints[subTab].update(id, { isActive: active }); } catch (e) { toast(e.message, 'error'); }
+    }
+    toast(`${ids.length} item(s) ${active ? 'enabled' : 'disabled'}`);
+    setSelected(new Set());
+    await load();
+  };
+
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${subTab}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-ink">Studio Console</h2>
-      <p className="text-xs text-muted">Manage skills, workflows, and automations. These are stored in the database and editable at runtime.</p>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-ink">Studio Console</h2>
+        <div className="flex gap-2">
+          <button onClick={exportJSON} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">Export JSON</button>
+          <button onClick={() => setEditing({})} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">+ New {subTab.slice(0, -1)}</button>
+        </div>
+      </div>
+      <p className="text-xs text-muted">Manage skills, workflows, and automations. Stored in the database, editable at runtime. Toggle, run, or trigger directly from this panel.</p>
 
       <div className="flex gap-2 border-b border-line pb-2">
         {['skills', 'workflows', 'automations'].map((t) => (
@@ -4042,28 +4114,95 @@ function StudioConsole({ token }) {
         ))}
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 bg-surface-2 border border-line rounded-xl px-4 py-2">
+          <span className="text-xs text-muted">{selected.size} selected</span>
+          <button onClick={() => bulkToggle(true)} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2">Enable</button>
+          <button onClick={() => bulkToggle(false)} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2">Disable</button>
+          <button onClick={() => setSelected(new Set())} className="text-xs text-muted hover:text-ink ml-auto">Clear</button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted">{items.length} {subTab}</span>
-        <button onClick={() => setEditing({})} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">+ New {subTab.slice(0, -1)}</button>
       </div>
 
       {loading ? <div className="text-xs text-muted py-6 text-center">Loading…</div> : (
         <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-ink">{item.name}</div>
-                <div className="text-xs text-muted truncate">{item.description || '—'}</div>
-                <div className="text-[10px] text-muted mt-1">
-                  {subTab === 'skills' && <span>Triggers: {item.triggers?.join(', ') || 'none'} • {item.isActive ? 'Active' : 'Disabled'}</span>}
-                  {subTab === 'workflows' && <span>{Array.isArray(item.steps) ? item.steps.length : 0} steps • {item._count?.runs ?? 0} runs • {item.isActive ? 'Active' : 'Disabled'}</span>}
-                  {subTab === 'automations' && <span>{item.triggerType}: {item.trigger} → {item.action} • {item.isActive ? 'Active' : 'Disabled'}</span>}
+            <div key={item.id} className="border border-line rounded-xl px-4 py-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} className="shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-ink">{item.name}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {item.isActive ? 'ACTIVE' : 'DISABLED'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted truncate">{item.description || '—'}</div>
+                  <div className="text-[10px] text-muted mt-1">
+                    {subTab === 'skills' && <span>Triggers: {item.triggers?.join(', ') || 'none'}</span>}
+                    {subTab === 'workflows' && <span>{Array.isArray(item.steps) ? item.steps.length : 0} steps • {item._count?.runs ?? 0} runs</span>}
+                    {subTab === 'automations' && <span>{item.triggerType}: {item.trigger} → {item.action}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  {/* Quick toggle */}
+                  <button onClick={() => toggleActive(item)} className={`text-xs border rounded-xl px-2 py-1 ${item.isActive ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}>
+                    {item.isActive ? 'On' : 'Off'}
+                  </button>
+                  {/* Run/Trigger button */}
+                  {subTab === 'workflows' && (
+                    <button onClick={() => runWorkflow(item.id)} disabled={running === item.id} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2 disabled:opacity-50">
+                      {running === item.id ? '…' : '▶ Run'}
+                    </button>
+                  )}
+                  {subTab === 'automations' && item.triggerType === 'manual' && (
+                    <button onClick={() => triggerAutomation(item.id)} disabled={running === item.id} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2 disabled:opacity-50">
+                      {running === item.id ? '…' : '⚡ Trigger'}
+                    </button>
+                  )}
+                  {subTab === 'workflows' && (
+                    <button onClick={() => loadRuns(item.id)} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2">
+                      {expanded === item.id ? 'Hide' : 'Runs'}
+                    </button>
+                  )}
+                  <button onClick={() => setEditing(item)} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2">Edit</button>
+                  <button onClick={() => doDelete(item.id)} className="text-xs border border-line rounded-xl px-2 py-1 text-red-600 hover:bg-red-50">Del</button>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                <button onClick={() => setEditing(item)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">Edit</button>
-                <button onClick={() => doDelete(item.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 hover:bg-red-50">Delete</button>
-              </div>
+
+              {/* Run result */}
+              {runResult && running === null && (
+                <div className="bg-surface-2 border border-line rounded-xl p-2 text-xs">
+                  <span className={`font-bold ${runResult.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                    {runResult.status === 'success' ? '✓' : '✗'} {runResult.status}
+                  </span>
+                  {runResult.duration && <span className="text-muted ml-2">{runResult.duration}ms</span>}
+                </div>
+              )}
+
+              {/* Run history (expandable) */}
+              {expanded === item.id && runs[item.id] && (
+                <div className="border-t border-line pt-2 space-y-1">
+                  <div className="text-[10px] text-muted font-bold uppercase">Run history</div>
+                  {runs[item.id].length === 0 && <div className="text-xs text-muted">No runs yet</div>}
+                  {runs[item.id].map((r) => (
+                    <div key={r.id} className="text-xs border border-line rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold ${r.status === 'success' ? 'text-green-600' : r.status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>
+                          {r.status === 'success' ? '✓' : r.status === 'failed' ? '✗' : '…'} {r.status}
+                        </span>
+                        <span className="text-muted">{r.duration ? r.duration + 'ms' : ''}</span>
+                        <span className="text-muted ml-auto">{new Date(r.createdAt).toLocaleString('en-AU')}</span>
+                      </div>
+                      {r.error && <div className="text-red-600 mt-1">{r.error}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {items.length === 0 && <div className="text-xs text-muted py-8 text-center">No {subTab} yet. Create one with + New above.</div>}
