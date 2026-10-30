@@ -1,6 +1,6 @@
 // Axe accessibility sweep — 48 scans.
 //   11 public routes × {light,dark} × {desktop,mobile}  (44)
-//   admin Overview/Documents/Media tabs × {light,dark} × {desktop,mobile}  (12)
+//   admin Overview/Documents/Media/Operations/3D Models/Agents/Reports tabs × {light,dark} × {desktop,mobile}  (28)
 // Usage: node scripts/axe-scan.mjs   (needs vite+backend dev servers running
 // on :5173/:3001 and playwright-core + axe-core installed in /tmp/opencode)
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -73,7 +73,7 @@ try {
       } catch {
         throw new Error(`login did not reach /admin (stayed on ${page.url()}) — check EMAIL/PASS`);
       }
-      for (const tab of ['Overview', 'Documents', 'Media']) {
+      for (const tab of ['Overview', 'Documents', 'Media', 'Operations', '3D Models', 'Agents', 'Reports']) {
         await page.locator('button', { hasText: tab }).first().click().catch(() => {});
         await page.waitForTimeout(900);
         const { label, res } = await runAxe(page, `admin:${tab} ${theme} ${vpName}`);
