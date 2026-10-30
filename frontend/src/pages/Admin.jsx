@@ -50,6 +50,7 @@ const TABS = [
   { id: 'operations', label: 'Operations', icon: '⚙️' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'agents', label: 'Agents', icon: '🤖' },
+  { id: 'studio', label: 'Studio', icon: '🔧' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
   { id: 'notebook', label: 'Notebook', icon: '📓' },
@@ -64,7 +65,7 @@ const NAV_GROUPS = [
   { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory', 'models3d'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
-  { label: 'System', tabs: ['users', 'settings', 'agents'] },
+  { label: 'System', tabs: ['users', 'settings', 'agents', 'studio'] },
 ];
 
 // Case-insensitive alphanumeric ordering (A2 before A10) for material lists.
@@ -333,6 +334,7 @@ function AdminInner({ user }) {
                   {tab === 'operations' && <Operations token={token} />}
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
                   {tab === 'agents' && <AgentsConsole token={token} />}
+                  {tab === 'studio' && <StudioConsole token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
                   {tab === 'notebook' && <NotebookAdmin data={data} onSave={(url) => setData((s) => ({ ...s, notebookUrl: url }))} token={token} />}
@@ -3994,6 +3996,193 @@ function AgentEditor({ agent, onSave, onClose }) {
         <div className="flex gap-2 justify-end">
           <Btn color="ghost" onClick={onClose} disabled={busy}>Cancel</Btn>
           <Btn onClick={save} disabled={busy || !form.name.trim() || !form.systemPrompt.trim()}>{busy ? 'Saving...' : (agent ? 'Save changes' : 'Create agent')}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudioConsole({ token }) {
+  const toast = useToast();
+  const [subTab, setSubTab] = useState('skills');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+
+  const endpoints = {
+    skills: { list: () => adminApi.skills.list(token), create: (b) => adminApi.skills.create(b, token), update: (id, b) => adminApi.skills.update(id, b, token), remove: (id) => adminApi.skills.remove(id, token) },
+    workflows: { list: () => adminApi.workflows.list(token), create: (b) => adminApi.workflows.create(b, token), update: (id, b) => adminApi.workflows.update(id, b, token), remove: (id) => adminApi.workflows.remove(id, token) },
+    automations: { list: () => adminApi.automations.list(token), create: (b) => adminApi.automations.create(b, token), update: (id, b) => adminApi.automations.update(id, b, token), remove: (id) => adminApi.automations.remove(id, token) },
+  };
+
+  const load = async () => {
+    setLoading(true);
+    try { setItems(await endpoints[subTab].list()); }
+    catch (e) { toast(e.message, 'error'); setItems([]); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [subTab, token]);
+
+  const doDelete = async (id) => {
+    try { await endpoints[subTab].remove(id); toast('Deleted'); await load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-ink">Studio Console</h2>
+      <p className="text-xs text-muted">Manage skills, workflows, and automations. These are stored in the database and editable at runtime.</p>
+
+      <div className="flex gap-2 border-b border-line pb-2">
+        {['skills', 'workflows', 'automations'].map((t) => (
+          <button key={t} onClick={() => setSubTab(t)} className={`text-xs px-3 py-1.5 rounded-xl border ${subTab === t ? 'bg-royal-600 text-white border-royal-600' : 'border-line hover:bg-surface-2'}`}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted">{items.length} {subTab}</span>
+        <button onClick={() => setEditing({})} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">+ New {subTab.slice(0, -1)}</button>
+      </div>
+
+      {loading ? <div className="text-xs text-muted py-6 text-center">Loading…</div> : (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-ink">{item.name}</div>
+                <div className="text-xs text-muted truncate">{item.description || '—'}</div>
+                <div className="text-[10px] text-muted mt-1">
+                  {subTab === 'skills' && <span>Triggers: {item.triggers?.join(', ') || 'none'} • {item.isActive ? 'Active' : 'Disabled'}</span>}
+                  {subTab === 'workflows' && <span>{Array.isArray(item.steps) ? item.steps.length : 0} steps • {item._count?.runs ?? 0} runs • {item.isActive ? 'Active' : 'Disabled'}</span>}
+                  {subTab === 'automations' && <span>{item.triggerType}: {item.trigger} → {item.action} • {item.isActive ? 'Active' : 'Disabled'}</span>}
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={() => setEditing(item)} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">Edit</button>
+                <button onClick={() => doDelete(item.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 hover:bg-red-50">Delete</button>
+              </div>
+            </div>
+          ))}
+          {items.length === 0 && <div className="text-xs text-muted py-8 text-center">No {subTab} yet. Create one with + New above.</div>}
+        </div>
+      )}
+
+      {editing && (
+        <StudioEditor
+          type={subTab}
+          item={editing.id ? editing : null}
+          onSave={async (form) => {
+            try {
+              if (form.id) { await endpoints[subTab].update(form.id, form); toast('Updated'); }
+              else { await endpoints[subTab].create(form); toast('Created'); }
+              setEditing(null);
+              await load();
+            } catch (e) { toast(e.message, 'error'); }
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function StudioEditor({ type, item, onSave, onClose }) {
+  const [form, setForm] = useState({
+    id: item?.id || null,
+    name: item?.name || '',
+    description: item?.description || '',
+    content: item?.content || '',
+    triggers: item?.triggers?.join(', ') || '',
+    steps: item?.steps ? JSON.stringify(item.steps, null, 2) : '[]',
+    trigger: item?.trigger || '',
+    triggerType: item?.triggerType || 'manual',
+    action: item?.action || '',
+    actionType: item?.actionType || 'function',
+    params: item?.params ? JSON.stringify(item.params, null, 2) : '{}',
+    isActive: item?.isActive ?? true,
+  });
+  const [busy, setBusy] = useState(false);
+  const input = 'w-full border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface-2 text-ink focus:outline-none focus:ring-2 focus:ring-royal-500';
+  const label = 'block text-xs font-semibold text-muted mb-1';
+
+  const save = async () => {
+    if (!form.name.trim()) return;
+    setBusy(true);
+    try {
+      let body = { name: form.name, description: form.description || null, isActive: form.isActive };
+      if (type === 'skills') {
+        body.content = form.content;
+        body.triggers = form.triggers.split(',').map((t) => t.trim()).filter(Boolean);
+      } else if (type === 'workflows') {
+        body.steps = JSON.parse(form.steps || '[]');
+      } else if (type === 'automations') {
+        body.trigger = form.trigger;
+        body.triggerType = form.triggerType;
+        body.action = form.action;
+        body.actionType = form.actionType;
+        try { body.params = JSON.parse(form.params || '{}'); } catch { body.params = null; }
+      }
+      await onSave(body);
+    } catch { /* handled in parent */ }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-ink">{item ? 'Edit' : 'New'} {type.slice(0, -1)}</h3>
+          <button onClick={onClose} className="text-xs text-muted hover:text-ink">X</button>
+        </div>
+        <div className="space-y-3">
+          <div><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!item} /></div>
+          <div><label className={label}>Description</label><input className={input} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+
+          {type === 'skills' && (
+            <>
+              <div><label className={label}>Triggers (comma-separated)</label><input className={input} value={form.triggers} onChange={(e) => setForm({ ...form, triggers: e.target.value })} placeholder="keyword1, keyword2" /></div>
+              <div><label className={label}>Content (markdown) *</label><textarea className={input} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={12} /></div>
+            </>
+          )}
+
+          {type === 'workflows' && (
+            <div><label className={label}>Steps (JSON array)</label><textarea className={input} value={form.steps} onChange={(e) => setForm({ ...form, steps: e.target.value })} rows={12} placeholder='[{"action":"check_bom","label":"Check BOM"},{"action":"consume_stock","label":"Consume stock"}]' /></div>
+          )}
+
+          {type === 'automations' && (
+            <>
+              <div><label className={label}>Trigger Type</label>
+                <select className={input} value={form.triggerType} onChange={(e) => setForm({ ...form, triggerType: e.target.value })}>
+                  <option value="manual">manual</option>
+                  <option value="cron">cron</option>
+                  <option value="event">event</option>
+                </select>
+              </div>
+              <div><label className={label}>Trigger (cron expression or event name)</label><input className={input} value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })} placeholder="0 * * * * or order.paid" /></div>
+              <div><label className={label}>Action Type</label>
+                <select className={input} value={form.actionType} onChange={(e) => setForm({ ...form, actionType: e.target.value })}>
+                  <option value="function">function</option>
+                  <option value="workflow">workflow</option>
+                </select>
+              </div>
+              <div><label className={label}>Action (function/workflow name)</label><input className={input} value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })} placeholder="replenishLowStock or order-fulfillment" /></div>
+              <div><label className={label}>Params (JSON)</label><textarea className={input} value={form.params} onChange={(e) => setForm({ ...form, params: e.target.value })} rows={4} /></div>
+            </>
+          )}
+
+          <div><label className={label}>Active</label>
+            <select className={input} value={form.isActive ? '1' : '0'} onChange={(e) => setForm({ ...form, isActive: e.target.value === '1' })}>
+              <option value="1">Active</option>
+              <option value="0">Disabled</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <Btn color="ghost" onClick={onClose} disabled={busy}>Cancel</Btn>
+          <Btn onClick={save} disabled={busy || !form.name.trim()}>{busy ? 'Saving...' : (item ? 'Save changes' : 'Create')}</Btn>
         </div>
       </div>
     </div>

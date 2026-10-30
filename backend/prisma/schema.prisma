@@ -1282,6 +1282,70 @@ model ProcedureRevision {
   @@map("procedure_revisions")
 }
 
+// ── In-app skills, workflows, automations ────────────────────────────────────
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  content     String   @db.Text
+  triggers    String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("skills")
+}
+
+model Workflow {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?       @db.Text
+  steps       Json          @default("[]")
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  runs        WorkflowRun[]
+
+  @@index([isActive])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status     String   @default("running") // running | success | failed
+  input      Json?
+  output     Json?
+  error      String?  @db.Text
+  duration   Int?
+  createdAt  DateTime @default(now())
+
+  @@index([workflowId])
+  @@index([status])
+  @@map("workflow_runs")
+}
+
+model Automation {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  trigger     String
+  triggerType String   // 'cron' | 'event' | 'manual'
+  action      String
+  actionType  String   // 'workflow' | 'function'
+  params      Json?
+  isActive    Boolean  @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([triggerType])
+  @@map("automations")
+}
+
 // ── In-app agent system ─────────────────────────────────────────────────────
 model Agent {
   id           String    @id @default(cuid())

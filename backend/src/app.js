@@ -54,6 +54,9 @@ import exportRoutes from './routes/export.js';
 import agentConsoleRoutes from './routes/agentConsole.js';
 import studioHealthRoutes from './routes/studioHealth.js';
 import agentsRoutes from './routes/agents.js';
+import skillsRoutes from './routes/skills.js';
+import workflowsRoutes from './routes/workflows.js';
+import automationsRoutes from './routes/automations.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -218,6 +221,9 @@ app.use('/api/admin', adminKpisRoutes); // admin dashboard KPIs
 app.use('/api/admin/failed-ops', failedOpsRoutes); // dead-letter queue for failed side effects
 app.use('/api/agents', agentConsoleRoutes); // agent console (file-based)
 app.use('/api/v2/agents', agentsRoutes); // in-app agent system (Phase 1)
+app.use('/api/skills', skillsRoutes); // in-app skills
+app.use('/api/workflows', workflowsRoutes); // in-app workflows
+app.use('/api/automations', automationsRoutes); // in-app automations
 app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
 app.use('/api/export', exportRoutes); // CSV data export
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
