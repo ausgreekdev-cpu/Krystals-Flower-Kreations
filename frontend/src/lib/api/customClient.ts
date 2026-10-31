@@ -209,6 +209,7 @@ export const adminApi = {
   },
   admin: {
     kpis: (token: string) => req<any>('/api/admin/kpis', { token }),
+    studioHealth: (token: string) => req<any>('/api/studio-health', { token }),
   },
   agents: {
     list: (token: string) => req<any[]>('/api/agents', { token }),
