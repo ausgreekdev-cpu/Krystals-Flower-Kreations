@@ -4,7 +4,7 @@
 // Usage: node scripts/axe-scan.mjs   (needs vite+backend dev servers running
 // on :5173/:3001 and playwright-core + axe-core installed in /tmp/opencode)
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { chromium } from '/tmp/opencode/node_modules/playwright-core/index.mjs';
+import { chromium } from '/home/aiuser/.hermes/hermes-agent/node_modules/playwright-core/index.mjs';
 
 const SITE = process.env.SITE || 'http://127.0.0.1:5173';
 const EMAIL = process.env.EMAIL || 'admin@krystal.local';
@@ -15,13 +15,15 @@ if (!/localhost|127\.0\.0\.1/.test(process.env.SITE || '') && (!process.env.EMAI
   console.error('set EMAIL and PASS (staff credentials) for non-local scans — refusing admin123 defaults against production');
   process.exit(1);
 }
-const AXE = readFileSync('/tmp/opencode/node_modules/axe-core/axe.min.js', 'utf8');
+const AXE = readFileSync('/home/aiuser/paint-inventory/node_modules/axe-core/axe.min.js', 'utf8');
 const ROUTES = ['/', '/shop', '/product/eucalyptus-paper-rose-bouquet-blush', '/cart', '/checkout', '/configurator', '/blog', '/workshops', '/privacy', '/terms', '/not-a-real-page'];
 const VIEWPORTS = { desktop: { width: 1280, height: 900 }, mobile: { width: 390, height: 844 } };
 
 const runAxe = async (page, label) => {
   await page.addScriptTag({ content: AXE });
   const res = await page.evaluate(async () => {
+    // Remove Vite dev-server error overlay (dev-only, not in prod builds)
+    document.querySelectorAll('vite-error-overlay').forEach((el) => el.remove());
     const r = await window.axe.run(document, { resultTypes: ['violations'] });
     return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length }));
   });

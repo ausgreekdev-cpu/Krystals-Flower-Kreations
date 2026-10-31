@@ -434,7 +434,7 @@ export default function Configurator(){
               <div className="flex flex-wrap gap-2 mt-2" role="group" aria-label="Paper weight">{WEIGHTS.map(w=> {
                 const lbl = WEIGHT_LABELS[w];
                 const sur = w==='80lb' ? Number(s.configurator_weight_80lb || 0) : w==='110lb' ? Number(s.configurator_weight_110lb || 0) : 0;
-                return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className={`text-[11px] font-normal ${spec.weight===w?'text-white/85':'opacity-70'}`}>({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className={`block text-[10px] font-normal ${spec.weight===w?'text-white/80':'opacity-60'}`}>{lbl.description}</span></button>;
+                return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className={`text-[11px] font-normal ${spec.weight===w?'text-white/85':'opacity-70'}`}>({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className={`block text-[10px] font-normal ${spec.weight===w?'text-white/90':'opacity-70'}`}>{lbl.description}</span></button>;
               })}</div>
               {(() => {
                 const hExtra = Math.max(0, Number(spec.heightMm) - 400);
@@ -451,11 +451,11 @@ export default function Configurator(){
 <h2 className="font-bold"><button type="button" onClick={()=>setOpenStep(openStep===2?null:2)} aria-expanded={openStep===2} className="w-full flex items-center gap-2 text-left"><span aria-hidden="true" className="w-6 h-6 rounded-full bg-bloom-500 text-white text-xs font-bold grid place-items-center shrink-0">2</span> Paper — pick colour &amp; type {paperPremium > 0 && <span className="text-xs font-normal text-muted">+${paperPremium.toFixed(2)}/stem</span>}<span aria-hidden="true" className={`ml-auto sm:hidden text-xs transition-transform ${openStep===2?'rotate-180':''}`}>▾</span></button></h2>
           <div className={`mt-2 ${openStep===2?'':'hidden sm:block'}`}>
             <div className="flex flex-wrap gap-2 mt-3 items-center">
-              <input value={paperQ} onChange={(e)=> setPaperQ(e.target.value)} placeholder="Search papers…" className="flex-1 min-w-[160px] border border-line-strong rounded-xl px-3 py-2 text-sm" />
-              <select value={paperTypeFilter} onChange={(e)=> setPaperTypeFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs">
+              <input value={paperQ} onChange={(e)=> setPaperQ(e.target.value)} placeholder="Search papers…" className="flex-1 min-w-[160px] border border-line-strong rounded-xl px-3 py-2 text-sm bg-surface text-ink" />
+              <select value={paperTypeFilter} onChange={(e)=> setPaperTypeFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs bg-surface text-ink" aria-label="Filter by paper type">
                 <option value="">All types</option>{paperTypes.map(t=> <option key={t} value={t}>{t}</option>)}
               </select>
-              <select value={paperTextureFilter} onChange={(e)=> setPaperTextureFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs">
+              <select value={paperTextureFilter} onChange={(e)=> setPaperTextureFilter(e.target.value)} className="border border-line-strong rounded-xl px-3 py-2 text-xs bg-surface text-ink" aria-label="Filter by paper texture">
                 <option value="">All textures</option>{paperTextures.map(t=> <option key={t} value={t}>{t}</option>)}
               </select>
               {(paperQ || paperTypeFilter || paperTextureFilter) && <button onClick={()=> { setPaperQ(''); setPaperTypeFilter(''); setPaperTextureFilter('');}} className="text-xs underline">Clear</button>}
@@ -556,7 +556,7 @@ export default function Configurator(){
           <div className="flex flex-wrap gap-2" role="group" aria-label="Paper weight fallback">{WEIGHTS.map(w=> {
             const lbl = WEIGHT_LABELS[w];
             const sur = w==='80lb' ? Number(s.configurator_weight_80lb || 0) : w==='110lb' ? Number(s.configurator_weight_110lb || 0) : 0;
-            return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className={`text-[11px] font-normal ${spec.weight===w?'text-white/85':'opacity-70'}`}>({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className={`block text-[10px] font-normal ${spec.weight===w?'text-white/80':'opacity-60'}`}>{lbl.description}</span></button>;
+            return <button key={w} onClick={()=>setSpec({weight:w})} aria-pressed={spec.weight===w} className={`${CHIP} ${spec.weight===w?CHIP_ON:CHIP_OFF}`}>{lbl.label} <span className={`text-[11px] font-normal ${spec.weight===w?'text-white/85':'opacity-70'}`}>({w})</span> {sur>0 && <span className="text-[11px] font-bold">+${sur.toFixed(2)}</span>}<span className={`block text-[10px] font-normal ${spec.weight===w?'text-white/90':'opacity-70'}`}>{lbl.description}</span></button>;
           })}</div>
           {(() => {
             const hExtra = Math.max(0, Number(spec.heightMm) - 400);
@@ -651,7 +651,7 @@ export default function Configurator(){
           <div className="flex justify-between"><span>Total ({spec.stemCount} stems)</span><span key={displayTotal} className="font-bold kfk-fade-in">${displayTotal.toFixed(2)} AUD</span></div>
           <div className="text-[11px] opacity-70">GST incl.</div>
           <div className="flex justify-between mt-1 text-sm opacity-80"><span>Ready in about {leadDays} days</span><span className="text-xs opacity-70">{isLiveQuote ? 'Live quote' : 'Estimate'}</span></div>
-          <div className="text-xs opacity-60 mt-2">Estimate — final price confirmed at proofing. Earn 1 Bloom pt per $1. All prices GST inclusive.</div>
+          <div className="text-xs opacity-70 mt-2">Estimate — final price confirmed at proofing. Earn 1 Bloom pt per $1. All prices GST inclusive.</div>
           <div className="flex gap-2 mt-4">
             <Btn onClick={submit} disabled={submitting} className="flex-1" variant="primary" size="lg">{submitting ? 'Sending…' : 'Send my design to Krystal'}</Btn>
             <Btn onClick={shareDesign} variant="onDark" size="lg" className="shrink-0">Share design</Btn>

@@ -1,16 +1,33 @@
 /* Botanical Studio — Global Theme */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap');
+html, body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Form elements inherit text color and background (fixes axe color-contrast) */
+input, select, textarea {
+  color: rgb(var(--ink));
+  background: rgb(var(--surface));
+}
+button {
+  color: rgb(var(--ink));
+}
 
 :root {
   /* Brand palette — botanical studio */
   --bloom-50: 250 248 245;     /* warm paper */
   --bloom-100: 245 241 235;
   --bloom-200: 237 232 224;
-  --bloom-500: 196 120 107;    /* terracotta */
+  --bloom-500: 139 90 80;     /* terracotta (WCAG AA: 5.0:1 on white) */
   --bloom-700: 42 42 42;       /* charcoal */
   --bloom-900: 26 26 26;
 
@@ -34,7 +51,7 @@
   --surface-2: 255 255 255;
   --surface-3: 237 232 224;
   --ink: var(--bloom-700);
-  --ink-muted: 107 107 107;
+  --ink-muted: 95 95 95;
   --line: 224 217 206;
   --line-strong: 200 192 180;
   --highlight: var(--bloom-500);
@@ -52,6 +69,8 @@
 }
 
 .dark {
+  --bloom-500: 139 90 80;     /* dark enough for white text on buttons */
+  --highlight: 212 144 138;    /* lighter terracotta for text on dark backgrounds */
   --surface: var(--d-bg, 26 26 26);
   --surface-2: var(--d-surface, 36 36 36);
   --surface-3: var(--d-surface-3, 46 46 46);
@@ -59,7 +78,7 @@
   --ink-muted: 176 176 176;
   --line: 58 58 58;
   --line-strong: 80 80 80;
-  --highlight: var(--bloom-500);
+  --royal-700: 156 175 136;
   --success-50: 20 40 30;
   --success-200: 40 80 60;
   --success-800: 134 239 172;
