@@ -3444,7 +3444,7 @@ function Models3D({ token, role }) {
                       <input type="file" accept=".glb" data-template={t.id} onChange={onUpload} className="hidden" />
                     </label>
                     {model && (
-                      <button onClick={() => setConfirmDel(model.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 hover:bg-red-50">Delete</button>
+                      <button onClick={() => setConfirmDel(model.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-red-50">Delete</button>
                     )}
                   </div>
                 )}
@@ -3834,7 +3834,7 @@ function AgentsConsole({ token }) {
                     <span className="badge-botanical mr-2">{a.mode}</span>
                     {a.model && <span className="mr-2">{a.model}</span>}
                     <span>{a._count?.runs ?? 0} runs</span>
-                    {!a.isActive && <span className="ml-2 text-red-600">DISABLED</span>}
+                    {!a.isActive && <span className="ml-2 text-red-600 dark:text-red-400">DISABLED</span>}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -3843,7 +3843,7 @@ function AgentsConsole({ token }) {
                   <button onClick={() => { setRunning(running === a.id ? null : a.id); setRunResult(null); }} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">
                     {running === a.id ? 'Close' : 'Run'}
                   </button>
-                  <button onClick={() => setConfirmDel(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 hover:bg-red-50">Delete</button>
+                  <button onClick={() => setConfirmDel(a.id)} className="text-xs border border-line rounded-xl px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-red-50">Delete</button>
                 </div>
               </div>
 
@@ -4170,7 +4170,7 @@ function StudioConsole({ token }) {
                     </button>
                   )}
                   <button onClick={() => setEditing(item)} className="text-xs border border-line rounded-xl px-2 py-1 hover:bg-surface-2">Edit</button>
-                  <button onClick={() => doDelete(item.id)} className="text-xs border border-line rounded-xl px-2 py-1 text-red-600 hover:bg-red-50">Del</button>
+                  <button onClick={() => doDelete(item.id)} className="text-xs border border-line rounded-xl px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50">Del</button>
                 </div>
               </div>
 
