@@ -1,1 +1,1 @@
-export { default } from './tailwind.cybercraft.config.js';
+export { default } from './tailwind.botanical.config.js';

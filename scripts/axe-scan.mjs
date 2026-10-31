@@ -73,7 +73,7 @@ try {
       } catch {
         throw new Error(`login did not reach /admin (stayed on ${page.url()}) — check EMAIL/PASS`);
       }
-      for (const tab of ['Overview', 'Documents', 'Media', 'Operations', '3D Models', 'Agents', 'Reports']) {
+      for (const tab of ['Overview', 'Documents', 'Media', 'Operations', '3D Models', 'Agents', 'Studio', 'Reports']) {
         await page.locator('button', { hasText: tab }).first().click().catch(() => {});
         await page.waitForTimeout(900);
         const { label, res } = await runAxe(page, `admin:${tab} ${theme} ${vpName}`);
