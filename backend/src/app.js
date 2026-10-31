@@ -57,10 +57,13 @@ import agentsRoutes from './routes/agents.js';
 import skillsRoutes from './routes/skills.js';
 import workflowsRoutes from './routes/workflows.js';
 import automationsRoutes from './routes/automations.js';
+import metricsRoutes from './routes/metrics.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
 import { globalRateLimit } from './middleware/rate-limit.js';
+import { correlationId } from './middleware/correlation-id.js';
+import { requestMetrics } from './middleware/request-metrics.js';
 import { notFound, errorHandler } from './middleware/error-handler.js';
 import { asyncHandler } from './middleware/async-handler.js';
 import { verifyToken } from './lib/auth.js';
@@ -102,6 +105,8 @@ const corsOrigin = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(','
 app.use(cors({ origin: corsOrigin, methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization','X-Request-Id','X-Cart-Id','Idempotency-Key'] }));
 
 app.use(requestLogger);
+app.use(correlationId);
+app.use(requestMetrics);
 app.use('/api', globalRateLimit(300, 1));
 
 // Body parsers — json 1mb (was 10mb) to limit abuse; multer handles file uploads separately
@@ -219,7 +224,8 @@ app.use('/api/orders', orderFulfillmentRoutes); // unified order fulfillment wor
 app.use('/api/procurement', procurementAutoRoutes); // procurement auto-workflow (mounted after procurement.js)
 app.use('/api/admin', adminKpisRoutes); // admin dashboard KPIs
 app.use('/api/admin/failed-ops', failedOpsRoutes); // dead-letter queue for failed side effects
-app.use('/api/agents', agentConsoleRoutes); // agent console (file-based)
+app.use('/api/agents', agentConsoleRoutes); // agent console
+app.use('/api/metrics', metricsRoutes); // request metrics + latency (file-based)
 app.use('/api/v2/agents', agentsRoutes); // in-app agent system (Phase 1)
 app.use('/api/skills', skillsRoutes); // in-app skills
 app.use('/api/workflows', workflowsRoutes); // in-app workflows
