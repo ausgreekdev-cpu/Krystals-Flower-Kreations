@@ -1019,6 +1019,8 @@ model BOMRecipe {
   updatedAt            DateTime           @updatedAt
 
   @@unique([productId, variantId])
+  @@index([productId, variantId])
+  @@index([templateId])
   @@map("bom_recipes")
 }
 

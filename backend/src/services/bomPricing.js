@@ -76,9 +76,12 @@ export async function suggestSubstitutes(prisma, material, limit = 5) {
 }
 
 export async function findRecipeFor(prisma, { productId, variantId, templateId }) {
-  let recipe = null;
-  if (templateId) recipe = await prisma.bOMRecipe.findUnique({ where: { templateId }, include: { lines: { include: { rawMaterial: true } } } });
-  if (!recipe && variantId) recipe = await prisma.bOMRecipe.findFirst({ where: { variantId }, include: { lines: { include: { rawMaterial: true } } } });
-  if (!recipe && productId) recipe = await prisma.bOMRecipe.findFirst({ where: { productId, variantId: null }, include: { lines: { include: { rawMaterial: true } } } });
-  return recipe;
+  const include = { lines: { include: { rawMaterial: true } } };
+  // Parallelize the lookups
+  const [byTemplate, byVariant, byProduct] = await Promise.all([
+    templateId ? prisma.bOMRecipe.findUnique({ where: { templateId }, include }) : null,
+    variantId ? prisma.bOMRecipe.findFirst({ where: { variantId }, include }) : null,
+    productId ? prisma.bOMRecipe.findFirst({ where: { productId, variantId: null }, include }) : null,
+  ]);
+  return byTemplate || byVariant || byProduct || null;
 }
