@@ -466,7 +466,8 @@ model StockMovement {
   rawMaterial RawMaterial?       @relation(fields: [rawMaterialId], references: [id])
   user        User?              @relation(fields: [userId], references: [id])
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  archivedAt DateTime?
 
   @@index([productId])
   @@index([type])
@@ -565,6 +566,7 @@ model Order {
   trackingUrl           String?
   bomSnapshot           Json? // production BOM generated at checkout finalize (materials + labour + lead days)
   qcStatus              String? // null | 'pending' | 'passed' | 'failed'
+  archivedAt            DateTime? // soft-archive timestamp (data archival pipeline)
   qcNotes               String?  @db.Text
   qcPhotoUrl            String?
   productionRunId       String?
@@ -1177,6 +1179,7 @@ model AuditLog {
   entityId   String?
   details    Json?
   createdAt  DateTime @default(now())
+  archivedAt DateTime?
 
   @@index([entityType, entityId])
   @@index([actorId])

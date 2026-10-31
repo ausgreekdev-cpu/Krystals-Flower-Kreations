@@ -58,6 +58,7 @@ import skillsRoutes from './routes/skills.js';
 import workflowsRoutes from './routes/workflows.js';
 import automationsRoutes from './routes/automations.js';
 import metricsRoutes from './routes/metrics.js';
+import archiveRoutes from './routes/archive.js';
 
 import fs from 'fs';
 import { requestLogger } from './middleware/request-log.js';
@@ -225,7 +226,8 @@ app.use('/api/procurement', procurementAutoRoutes); // procurement auto-workflow
 app.use('/api/admin', adminKpisRoutes); // admin dashboard KPIs
 app.use('/api/admin/failed-ops', failedOpsRoutes); // dead-letter queue for failed side effects
 app.use('/api/agents', agentConsoleRoutes); // agent console
-app.use('/api/metrics', metricsRoutes); // request metrics + latency (file-based)
+app.use('/api/metrics', metricsRoutes); // request metrics + latency
+app.use('/api/admin/archive', archiveRoutes); // data archival (file-based)
 app.use('/api/v2/agents', agentsRoutes); // in-app agent system (Phase 1)
 app.use('/api/skills', skillsRoutes); // in-app skills
 app.use('/api/workflows', workflowsRoutes); // in-app workflows
