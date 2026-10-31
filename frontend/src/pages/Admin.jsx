@@ -53,6 +53,7 @@ const TABS = [
   { id: 'studio', label: 'Studio', icon: '🔧' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
+  { id: 'health', label: 'Health', icon: '📊' },
   { id: 'notebook', label: 'Notebook', icon: '📓' },
 ];
 
@@ -65,7 +66,7 @@ const NAV_GROUPS = [
   { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory', 'models3d'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
-  { label: 'System', tabs: ['users', 'settings', 'agents', 'studio'] },
+  { label: 'System', tabs: ['users', 'settings', 'agents', 'studio', 'health'] },
 ];
 
 // Case-insensitive alphanumeric ordering (A2 before A10) for material lists.
@@ -335,6 +336,7 @@ function AdminInner({ user }) {
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
                   {tab === 'agents' && <AgentsConsole token={token} />}
                   {tab === 'studio' && <StudioConsole token={token} />}
+                  {tab === 'health' && <StudioHealth token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
                   {tab === 'settings' && <Settings data={data} reload={() => load('settings')} token={token} />}
                   {tab === 'notebook' && <NotebookAdmin data={data} onSave={(url) => setData((s) => ({ ...s, notebookUrl: url }))} token={token} />}
@@ -4324,6 +4326,123 @@ function StudioEditor({ type, item, onSave, onClose }) {
           <Btn onClick={save} disabled={busy || !form.name.trim()}>{busy ? 'Saving...' : (item ? 'Save changes' : 'Create')}</Btn>
         </div>
       </div>
+    </div>
+  );
+}
+
+function StudioHealth({ token }) {
+  const toast = useToast();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try { setData(await adminApi.admin.studioHealth(token)); }
+    catch (e) { toast(e.message, 'error'); setData(null); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [token]);
+
+  if (loading) return <div className="text-xs text-muted py-6 text-center">Loading health data…</div>;
+  if (!data) return <div className="text-xs text-muted py-6 text-center">Failed to load health data.</div>;
+
+  const { orders, revenue, inventory, operations, catalog, customers, alerts, recentOrders } = data;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-ink">Studio Health Dashboard</h2>
+        <button onClick={load} className="text-xs border border-line rounded-xl px-3 py-1.5 hover:bg-surface-2">Refresh</button>
+      </div>
+      <p className="text-[10px] text-muted">Generated: {new Date(data.generatedAt).toLocaleString('en-AU')}</p>
+
+      {/* Alerts */}
+      {alerts?.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a, i) => (
+            <div key={i} className={`border rounded-xl px-4 py-3 text-sm ${a.severity === 'error' ? 'border-red-300 bg-red-50 text-red-700' : a.severity === 'warning' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-blue-300 bg-blue-50 text-blue-700'}`}>
+              <span className="font-bold">{a.type.replace(/_/g, ' ').toUpperCase()}</span> — {a.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Orders */}
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Orders</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Stat label="Total" value={orders.total} />
+          <Stat label="Today" value={orders.today} />
+          <Stat label="This week" value={orders.week} />
+          <Stat label="This month" value={orders.month} />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+          <Stat label="Pending payment" value={orders.byStatus.pendingPayment} />
+          <Stat label="Paid" value={orders.byStatus.paid} />
+          <Stat label="Making" value={orders.byStatus.making} />
+          <Stat label="Ready" value={orders.byStatus.ready} />
+          <Stat label="Shipped" value={orders.byStatus.shipped} />
+          <Stat label="Delivered" value={orders.byStatus.delivered} />
+          <Stat label="Cancelled" value={orders.byStatus.cancelled} />
+        </div>
+      </section>
+
+      {/* Revenue */}
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Revenue (GST incl.)</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Stat label="Total" value={`$${revenue.total.toFixed(2)}`} accent />
+          <Stat label="Today" value={`$${revenue.today.toFixed(2)}`} />
+          <Stat label="This week" value={`$${revenue.week.toFixed(2)}`} />
+          <Stat label="This month" value={`$${revenue.month.toFixed(2)}`} />
+        </div>
+      </section>
+
+      {/* Inventory */}
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Inventory</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <Stat label="Low stock items" value={inventory.lowStock} warn={inventory.lowStock > 0} />
+          <Stat label="Total levels" value={inventory.totalLevels} />
+        </div>
+      </section>
+
+      {/* Operations */}
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Operations</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="Pending QC" value={operations.pendingQc} warn={operations.pendingQc > 0} />
+          <Stat label="Pending procurement" value={operations.pendingProcurement} warn={operations.pendingProcurement > 0} />
+          <Stat label="Active prod runs" value={operations.activeRuns} />
+        </div>
+      </section>
+
+      {/* Catalog & Customers */}
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Catalog & Customers</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <Stat label="Active products" value={catalog.activeProducts} />
+          <Stat label="Customers" value={customers.total} />
+        </div>
+      </section>
+
+      {/* Recent orders */}
+      <section>
+        <h3 className="text-sm font-bold text-ink mb-2">Recent orders</h3>
+        <div className="space-y-1.5">
+          {(recentOrders || []).map((o) => (
+            <div key={o.id} className="flex items-center gap-3 border border-line rounded-xl px-4 py-2.5 text-sm">
+              <span className="font-bold text-ink flex-1 truncate">{o.orderNumber}</span>
+              <span className="text-xs text-muted">{o.shippingName || '—'}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${o.status === 'delivered' ? 'bg-green-100 text-green-700' : o.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{o.status}</span>
+              <span className="font-bold text-ink">${Number(o.total).toFixed(2)}</span>
+              <span className="text-xs text-muted">{new Date(o.createdAt).toLocaleDateString('en-AU')}</span>
+            </div>
+          ))}
+          {(!recentOrders || recentOrders.length === 0) && <div className="text-xs text-muted py-4 text-center">No orders yet</div>}
+        </div>
+      </section>
     </div>
   );
 }
