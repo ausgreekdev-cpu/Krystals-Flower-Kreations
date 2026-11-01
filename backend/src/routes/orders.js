@@ -525,4 +525,27 @@ router.patch('/:id/qc', authenticate, asyncHandler(async (req, res) => {
   res.json(updated);
 }));
 
+// ── Public order tracking (no auth) ─────────────────────────────────────────
+// Customers look up their order by order number + email. Returns a safe subset
+// (no admin notes, no pricing internals) plus status history timeline.
+router.get('/track', asyncHandler(async (req, res) => {
+  const orderNumber = String(req.query.orderNumber || '').trim();
+  const email = String(req.query.email || '').trim().toLowerCase();
+  if (!orderNumber || !email) {
+    return res.status(400).json({ error: 'orderNumber and email are required', code: 'validation_failed' });
+  }
+  const order = await prisma.order.findFirst({
+    where: { orderNumber, email: { equals: email, mode: 'insensitive' } },
+    select: {
+      id: true, orderNumber: true, status: true, paymentStatus: true,
+      total: true, currency: true, trackingNumber: true, trackingUrl: true,
+      shippedAt: true, deliveredAt: true, createdAt: true, updatedAt: true,
+      lines: { select: { title: true, quantity: true, unitPrice: true, lineTotal: true } },
+      history: { orderBy: { createdAt: 'asc' }, select: { fromStatus: true, toStatus: true, note: true, createdAt: true } },
+    },
+  });
+  if (!order) return res.status(404).json({ error: 'Order not found', code: 'not_found' });
+  res.json({ order });
+}));
+
 export default router;

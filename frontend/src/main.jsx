@@ -22,6 +22,7 @@ const Workshops = lazy(() => import('./pages/Workshops.jsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const Login = lazy(() => import('./pages/Login.jsx'));
 const Account = lazy(() => import('./pages/Account.jsx'));
+const OrderTracking = lazy(() => import('./pages/OrderTracking.jsx'));
 const PasswordReset = lazy(() => import('./pages/PasswordReset.jsx'));
 const Configurator = lazy(() => import('./features/configurator/Configurator.jsx'));
 const BrutalistConfigurator = lazy(() => import('./features/configurator/BrutalistBouquetConfigurator.jsx'));
@@ -67,6 +68,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/terms" element={<Terms />} />
             <Route path="/login" element={<Login />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/track" element={<OrderTracking />} />
             <Route path="/forgot-password" element={<PasswordReset mode="request" />} />
             <Route path="/reset-password" element={<PasswordReset mode="consume" />} />
             <Route path="*" element={<NotFound />} />
