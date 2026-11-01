@@ -183,16 +183,41 @@ Rules: materials are per finished unit; use "piece" when no unit fits; estimated
 labourMinutesPerUnit is hands-on craft time per unit; cricutMinutesPerUnit is machine-cut time (0 if no Cricut);
 isProcedure=false with a short confidence when the text is not a manufacturing procedure.`;
 
+const LLM_TIMEOUT_MS = 30000;
+const LLM_MAX_RETRIES = 2;
+
 async function analyzeWithLlm(text, sourceName) {
   const body = `${sourceName ? `Source file: ${sourceName}\n\n` : ''}${text.slice(0, 40000)}`;
-  const json = await llmJson({
-    system: LLM_SYSTEM,
-    user: body,
-    maxTokens: 4000,
-    session: `krystal-import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    userAgent: 'krystal-procedure-analyzer/1.0',
-  });
-  return analysisSchema.parse(json);
+
+  const runOnce = async () => {
+    const json = await llmJson({
+      system: LLM_SYSTEM,
+      user: body,
+      maxTokens: 4000,
+      session: `krystal-import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      userAgent: 'krystal-procedure-analyzer/1.0',
+    });
+    return analysisSchema.parse(json);
+  };
+
+  let lastError;
+  for (let attempt = 0; attempt <= LLM_MAX_RETRIES; attempt++) {
+    try {
+      return await Promise.race([
+        runOnce(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('LLM procedure analysis timed out after 30s')), LLM_TIMEOUT_MS)
+        ),
+      ]);
+    } catch (e) {
+      lastError = e;
+      const msg = String(e?.message || '');
+      const isTransient = /429|503|502|504|timed out|timeout|network|fetch failed|ECONNREFUSED|ETIMEDOUT/i.test(msg);
+      if (!isTransient || attempt === LLM_MAX_RETRIES) break;
+      await new Promise((r) => setTimeout(r, 200 * Math.pow(2, attempt)));
+    }
+  }
+  throw lastError;
 }
 
 /**
