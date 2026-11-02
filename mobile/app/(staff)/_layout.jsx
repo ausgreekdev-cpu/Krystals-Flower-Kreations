@@ -1,17 +1,21 @@
 import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
-import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '../../core/auth/authStore';
 import { flushQueue } from '../../core/services/offlineSync';
 import SyncStatusBanner from '../../core/components/SyncStatusBanner';
 
+const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+
 export default function StaffLayout() {
   const { token } = useAuth();
   useEffect(() => {
-    const unsub = NetInfo.addEventListener(state => {
-      if (state.isConnected) flushQueue(token).catch(() => {});
-    });
-    return () => unsub && unsub();
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`${BASE}/api/health`);
+        if (res.ok) await flushQueue(token);
+      } catch {}
+    }, 15000);
+    return () => clearInterval(timer);
   }, [token]);
 
   return (
