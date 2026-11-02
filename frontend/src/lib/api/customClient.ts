@@ -212,8 +212,8 @@ export const adminApi = {
     studioHealth: (token: string) => req<any>('/api/studio-health', { token }),
   },
   agents: {
-    list: (token: string) => req<any[]>('/api/agents', { token }),
-    get: (id: string, token: string) => req<any>(`/api/agents/${id}`, { token }),
+    list: (token: string) => req<any[]>('/api/v2/agents', { token }),
+    get: (id: string, token: string) => req<any>(`/api/v2/agents/${id}`, { token }),
     create: (body: any, token: string) => req<any>('/api/v2/agents', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/v2/agents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
     remove: (id: string, token: string) => req<any>(`/api/v2/agents/${id}`, { method: 'DELETE', token }),

@@ -3830,7 +3830,7 @@ function AgentsConsole({ token }) {
             <div key={a.id} className="border border-line rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-sm text-ink">{a.id}</div>
+                  <div className="font-bold text-sm text-ink">{a.name || a.id}</div>
                   <div className="text-xs text-muted truncate">{a.description}</div>
                   <div className="text-[10px] text-muted mt-1">
                     <span className="badge-botanical mr-2">{a.mode}</span>
@@ -3887,7 +3887,7 @@ function AgentsConsole({ token }) {
         <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
           <div className="bg-surface border border-line rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-auto space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-ink">{detail.id}</h3>
+              <h3 className="font-bold text-ink">{detail.name || detail.id}</h3>
               <button onClick={() => setDetail(null)} className="text-xs text-muted hover:text-ink">✕ Close</button>
             </div>
             <div className="text-xs text-muted space-y-1">
