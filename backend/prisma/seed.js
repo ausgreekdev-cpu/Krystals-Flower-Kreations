@@ -653,6 +653,56 @@ Format: provide 2-3 variations (short/medium/long) for each request.`,
   }
   console.log(`Seeded ${skills.length} studio console skills.`);
 
+  // Additional studio console skills
+  const moreSkills = [
+    { name: 'daily-pos-summary', description: 'End-of-day POS summary.', triggers: ['pos.session_end'], content: 'Summarise cash/EFTPOS/bank transfer, discounts, voids and session variance for the admin.' },
+    { name: 'workshop-reminder-24h', description: '24-hour workshop reminders.', triggers: ['workshop.reminder_due'], content: 'Pull upcoming sessions for tomorrow, list attendees and prepare reminder emails/SMS notes.' },
+    { name: 'workshop-checkin-audit', description: 'Post-session attendance audit.', triggers: ['workshop.session_end'], content: 'Cross-check bookings vs checkedInAt, flag no-shows and update waitlist if needed.' },
+    { name: 'po-overdue-escalate', description: 'Escalate overdue purchase orders.', triggers: ['po.overdue'], content: 'List overdue POs by supplier, draft follow-up text, bump priority and notify admin.' },
+    { name: 'bom-margin-guard', description: 'Margin guard on recipe/price changes.', triggers: ['bom.recipe_updated', 'product.price_changed'], content: 'Recalculate cost vs price, flag any product below target margin and suggest fixes.' },
+    { name: 'custom-order-stale-followup', description: 'Follow up stale custom art orders.', triggers: ['custom_order.stale'], content: 'Find orders stuck in a state > 48-72 hours, draft a polite follow-up and prompt action.' },
+    { name: 'stocktake-due', description: 'Prompt scheduled stocktake.', triggers: ['inventory.stocktake_due'], content: 'Generate location-based stocktake list, assign to staff and set due time.' },
+    { name: 'digital-delivery-verify', description: 'Verify digital template delivery.', triggers: ['order.paid.digital'], content: 'Ensure download links exist for digital_template orders and flag any missing links.' },
+    { name: 'abandoned-cart-review', description: 'Review abandoned carts.', triggers: ['cart.abandoned'], content: 'Pull carts with email captured but no completed order, suggest recovery action.' },
+    { name: 'material-expiry-check', description: 'Check expiring inventory lots.', triggers: ['inventory.lots_expiring'], content: 'Flag lots nearing expiry by location and suggest use/reduce stock.' },
+  ];
+  for (const s of moreSkills) {
+    await prisma.skill.upsert({ where: { name: s.name }, update: { description: s.description, content: s.content, triggers: s.triggers, isActive: true }, create: { name: s.name, description: s.description, content: s.content, triggers: s.triggers, isActive: true } });
+  }
+  const allSkills = [...skills, ...moreSkills];
+
+  // Workflows
+  const workflows = [
+    { name: 'order-to-making', description: 'Move paid order to making with checks.', steps: [ { type: 'skill', name: 'order-fulfillment-triage' }, { type: 'function', name: 'inventory.checkBOMAvailability' }, { type: 'function', name: 'orders.assignMaker' }, { type: 'function', name: 'orders.updateStatus', params: { status: 'making' } }, { type: 'notify', target: 'staff' } ] },
+    { name: 'low-stock-to-po-draft', description: 'Turn low stock into a draft PO.', steps: [ { type: 'skill', name: 'low-stock-reorder' }, { type: 'function', name: 'inventory.getLowStock' }, { type: 'function', name: 'procurement.groupBySupplier' }, { type: 'function', name: 'purchaseOrders.createDraft' }, { type: 'notify', target: 'admin' } ] },
+    { name: 'daily-studio-closeout', description: 'End-of-day routine.', steps: [ { type: 'skill', name: 'pos-closeout-checklist' }, { type: 'skill', name: 'daily-pos-summary' }, { type: 'skill', name: 'material-expiry-check' }, { type: 'notify', target: 'admin', note: 'summary' } ] },
+    { name: 'workshop-day-prep', description: 'Prep for upcoming workshop session.', steps: [ { type: 'skill', name: 'workshop-checkin' }, { type: 'function', name: 'workshops.getRoster' }, { type: 'function', name: 'inventory.reserveKitMaterials' }, { type: 'notify', target: 'staff' } ] },
+    { name: 'workshop-reminders-run', description: 'Send 24h reminders.', steps: [ { type: 'skill', name: 'workshop-reminder-24h' }, { type: 'function', name: 'workshops.sendReminders' }, { type: 'audit', action: 'log' } ] },
+    { name: 'custom-order-ageing-review', description: 'Ageing review for custom orders.', steps: [ { type: 'skill', name: 'custom-order-stale-followup' }, { type: 'function', name: 'customOrders.findStale' }, { type: 'function', name: 'customOrders.suggestActions' }, { type: 'notify', target: 'maker' } ] },
+    { name: 'bom-margin-enforcement', description: 'Enforce margin guard on changes.', steps: [ { type: 'skill', name: 'bom-margin-guard' }, { type: 'function', name: 'bom.recalcMargins' }, { type: 'function', name: 'products.flagLowMargin' }, { type: 'notify', target: 'admin' } ] },
+  ];
+  for (const w of workflows) {
+    await prisma.workflow.upsert({ where: { name: w.name }, update: { description: w.description, steps: w.steps, isActive: true }, create: { name: w.name, description: w.description, steps: w.steps, isActive: true } });
+  }
+
+  // Automations
+  const automations = [
+    { name: 'order-paid-trigger-fulfill', description: 'Run order-to-making on paid.', trigger: 'order.paid', triggerType: 'event', action: 'order-to-making', actionType: 'workflow', params: {} },
+    { name: 'pos-closeout-daily', description: 'Daily POS closeout.', trigger: '0 17 * * 1-6', triggerType: 'cron', action: 'daily-studio-closeout', actionType: 'workflow', params: {} },
+    { name: 'low-stock-hourly-scan', description: 'Hourly low-stock scan.', trigger: '0 * * * *', triggerType: 'cron', action: 'low-stock-to-po-draft', actionType: 'workflow', params: {} },
+    { name: 'workshop-reminders-daily', description: 'Daily 24h workshop reminders.', trigger: '0 9 * * *', triggerType: 'cron', action: 'workshop-reminders-run', actionType: 'workflow', params: {} },
+    { name: 'workshop-prep-morning', description: 'Morning workshop prep.', trigger: '0 8 * * *', triggerType: 'cron', action: 'workshop-day-prep', actionType: 'workflow', params: {} },
+    { name: 'custom-orders-ageing-daily', description: 'Daily custom order ageing review.', trigger: '30 9 * * *', triggerType: 'cron', action: 'custom-order-ageing-review', actionType: 'workflow', params: {} },
+    { name: 'bom-margin-watch', description: 'Margin watch on BOM changes.', trigger: 'bom.recipe_updated', triggerType: 'event', action: 'bom-margin-enforcement', actionType: 'workflow', params: {} },
+    { name: 'inventory-lots-expiry-daily', description: 'Weekday lot expiry check.', trigger: '0 8 * * 1-5', triggerType: 'cron', action: 'material-expiry-check', actionType: 'skill', params: {} },
+  ];
+  for (const a of automations) {
+    await prisma.automation.upsert({ where: { name: a.name }, update: { description: a.description, trigger: a.trigger, triggerType: a.triggerType, action: a.action, actionType: a.actionType, params: a.params, isActive: true }, create: { name: a.name, description: a.description, trigger: a.trigger, triggerType: a.triggerType, action: a.action, actionType: a.actionType, params: a.params, isActive: true } });
+  }
+
+  console.log(`Seeded ${allSkills.length} skills, ${workflows.length} workflows, ${automations.length} automations.`);
+
+
 
   console.log('Seed complete.');
 }
