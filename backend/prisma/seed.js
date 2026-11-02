@@ -638,6 +638,22 @@ Format: provide 2-3 variations (short/medium/long) for each request.`,
   }
   console.log(`[seed] ${agents.length} agents.`);
 
+  // In-app skills (studio console) — reusable instruction sets for agents/workflows
+  const skills = [
+    { name: 'pos-closeout-checklist', description: 'End-of-day POS reconciliation checklist.', triggers: ['pos.session_end', 'pos.close'], content: '1. Count cash drawer and record closing cash. 2. Reconcile EFTPOS/bank transfer totals. 3. Note variances. 4. Close session. 5. Audit log entry.' },
+    { name: 'order-fulfillment-triage', description: 'Prioritize paid orders for makers.', triggers: ['order.paid', 'order.needs_making'], content: 'Sort by due date, check stock/BOM availability, assign to maker, update status with notes.' },
+    { name: 'low-stock-reorder', description: 'Prompt reordering for low stock.', triggers: ['inventory.low_stock'], content: 'Review affected items, check suppliers, draft PO, notify staff/admin.' },
+    { name: 'workshop-checkin', description: 'QR check-in and waitlist management.', triggers: ['workshop.session_start', 'workshop.checkin'], content: 'Scan ticket, mark attendance, handle walk-ins, promote waitlist if spots open.' },
+    { name: 'custom-order-proofing', description: 'Guide proof approval for custom art.', triggers: ['custom_order.drafting_proofing'], content: 'Review specs, generate proof, send to customer, track approval, move to next state.' },
+    { name: 'bom-costing-review', description: 'Review margins after BOM changes.', triggers: ['bom.recipe_updated'], content: 'Compare cost vs price, flag margin drops, update pricing or adjust recipe, log changes.' },
+    { name: 'supplier-followup', description: 'Follow up outstanding POs.', triggers: ['po.overdue', 'po.partial'], content: 'List overdue POs, draft follow-up messages, update expected dates, escalate to admin.' },
+  ];
+  for (const s of skills) {
+    await prisma.skill.upsert({ where: { name: s.name }, update: { description: s.description, content: s.content, triggers: s.triggers, isActive: true }, create: { name: s.name, description: s.description, content: s.content, triggers: s.triggers, isActive: true } });
+  }
+  console.log(`Seeded ${skills.length} studio console skills.`);
+
+
   console.log('Seed complete.');
 }
 

@@ -50,6 +50,7 @@ import adminKpisRoutes from './routes/adminKpis.js';
 import orderFulfillmentRoutes from './routes/orderFulfillment.js';
 import procurementAutoRoutes from './routes/procurementAuto.js';
 import failedOpsRoutes from './routes/failedOps.js';
+import mobileRoutes from './routes/mobile.js';
 import exportRoutes from './routes/export.js';
 import agentConsoleRoutes from './routes/agentConsole.js';
 import studioHealthRoutes from './routes/studioHealth.js';
@@ -235,6 +236,7 @@ app.use('/api/skills', skillsRoutes); // in-app skills
 app.use('/api/workflows', workflowsRoutes); // in-app workflows
 app.use('/api/automations', automationsRoutes); // in-app automations
 app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
+app.use('/api/mobile', mobileRoutes); // mobile companion app endpoints
 app.use('/api/export', exportRoutes); // CSV data export
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
