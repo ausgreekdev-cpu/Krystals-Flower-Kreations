@@ -5,10 +5,8 @@
   functions = "netlify/functions"
 
 [build.environment]
-  SECRETS_SCAN_OMIT_PATHS = "mobile/eas.json"
-
-[build.environment]
   NODE_VERSION = "22"
+  SECRETS_SCAN_OMIT_PATHS = "mobile/eas.json"
   NPM_CONFIG_CACHE = "/opt/buildhome/.npm"
   NPM_CONFIG_AUDIT = "false"
   NPM_CONFIG_FUND = "false"
