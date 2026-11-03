@@ -51,6 +51,8 @@ const TABS = [
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'agents', label: 'Agents', icon: '🤖' },
   { id: 'incidents', label: 'Incidents', icon: '🚨' },
+  { id: 'patches', label: 'Patches', icon: '🩹' },
+  { id: 'dlq', label: 'DLQ', icon: '📬' },
   { id: 'studio', label: 'Studio', icon: '🔧' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -67,7 +69,7 @@ const NAV_GROUPS = [
   { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory', 'models3d'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
-  { label: 'System', tabs: ['users', 'settings', 'agents', 'incidents', 'studio', 'health'] },
+  { label: 'System', tabs: ['users', 'settings', 'agents', 'incidents', 'patches', 'dlq', 'studio', 'health'] },
 ];
 
 // Case-insensitive alphanumeric ordering (A2 before A10) for material lists.
@@ -337,6 +339,8 @@ function AdminInner({ user }) {
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
                   {tab === 'agents' && <AgentsConsole token={token} />}
                   {tab === 'incidents' && <IncidentsConsole token={token} />}
+                  {tab === 'patches' && <PatchesConsole token={token} />}
+                  {tab === 'dlq' && <DlqConsole token={token} />}
                   {tab === 'studio' && <StudioConsole token={token} />}
                   {tab === 'health' && <StudioHealth token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
@@ -3777,6 +3781,60 @@ function IncidentsConsole({ token }) {
             <span className="badge-botanical">{i.severity}</span>
           </div>
           <div className="text-xs text-muted mt-1">{i.source} · {i.status} · count {i.count}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PatchesConsole({ token }) {
+  const toast = useToast();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => { setLoading(true); try { setItems(await adminApi.patches.list(token)); } catch(e){toast(e.message,'error');setItems([]);} finally {setLoading(false);} };
+  useEffect(()=>{load();},[token]);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between"><h2 className="font-bold text-ink">Patch Proposals</h2><button onClick={load} className="text-xs border border-line rounded-xl px-3 py-1.5">Refresh</button></div>
+      {loading && <p className="text-xs text-muted">Loading...</p>}
+      {!loading && items.length===0 && <p className="text-xs text-muted">No patch proposals.</p>}
+      {items.map((p)=>(
+        <div key={p.id} className="border border-line rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-sm text-ink">{p.branchName}</span>
+            <span className="badge-botanical">{p.status}</span>
+          </div>
+          <div className="text-xs text-muted mt-1">Incident: {p.incidentId}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DlqConsole({ token }) {
+  const toast = useToast();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => { setLoading(true); try { setItems(await adminApi.dlq.list(token)); } catch(e){toast(e.message,'error');setItems([]);} finally {setLoading(false);} };
+  useEffect(()=>{load();},[token]);
+  const retry = async (id) => { try { await adminApi.dlq.retry(id,token); toast('Retried','success'); load(); } catch(e){toast(e.message,'error');} };
+  const discard = async (id) => { try { await adminApi.dlq.discard(id,token); toast('Discarded','success'); load(); } catch(e){toast(e.message,'error');} };
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between"><h2 className="font-bold text-ink">Dead Letter Queue</h2><button onClick={load} className="text-xs border border-line rounded-xl px-3 py-1.5">Refresh</button></div>
+      {loading && <p className="text-xs text-muted">Loading...</p>}
+      {!loading && items.length===0 && <p className="text-xs text-muted">DLQ empty.</p>}
+      {items.map((e)=>(
+        <div key={e.id} className="border border-line rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-sm text-ink">{e.status}</span>
+            <span className="text-xs text-muted">{e.attempts} attempts</span>
+          </div>
+          <div className="text-xs text-muted mt-1 truncate">{e.error}</div>
+          <div className="flex gap-2 mt-2">
+            <button onClick={()=>retry(e.id)} className="text-xs border border-line rounded-xl px-2 py-1">Retry</button>
+            <button onClick={()=>discard(e.id)} className="text-xs border border-line rounded-xl px-2 py-1">Discard</button>
+          </div>
         </div>
       ))}
     </div>

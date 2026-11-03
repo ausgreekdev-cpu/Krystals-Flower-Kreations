@@ -226,6 +226,18 @@ export const adminApi = {
     create: (body: any, token: string) => req<any>('/api/incidents', { method: 'POST', body: JSON.stringify(body), token }),
     update: (id: string, body: any, token: string) => req<any>(`/api/incidents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
   },
+  patches: {
+    list: (token: string) => req<any[]>('/api/patches', { token }),
+    get: (id: string, token: string) => req<any>(`/api/patches/${id}`, { token }),
+    create: (body: any, token: string) => req<any>('/api/patches', { method: 'POST', body: JSON.stringify(body), token }),
+    sandbox: (id: string, token: string) => req<any>(`/api/patches/${id}/sandbox`, { method: 'POST', token }),
+    openPr: (id: string, token: string) => req<any>(`/api/patches/${id}/open-pr`, { method: 'POST', token }),
+  },
+  dlq: {
+    list: (token: string) => req<any[]>('/api/dlq', { token }),
+    retry: (id: string, token: string) => req<any>(`/api/dlq/${id}/retry`, { method: 'POST', token }),
+    discard: (id: string, token: string) => req<any>(`/api/dlq/${id}/discard`, { method: 'POST', token }),
+  },
   skills: {
     list: (token: string) => req<any[]>('/api/skills', { token }),
     get: (id: string, token: string) => req<any>(`/api/skills/${id}`, { token }),
