@@ -4,6 +4,7 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
+import { runSandbox } from '../agents/remediate/sandbox-runner.js';
 
 const router = Router();
 const ADMIN = ['admin', 'developer'];
@@ -55,7 +56,12 @@ router.post('/:id/sandbox', authenticate, requireRole(...ADMIN), asyncHandler(as
     const updated = await prisma.patchProposal.update({ where: { id }, data: { status: 'failed', testResults: { safety: gate.issues } } });
     return res.json(updated);
   }
-  const updated = await prisma.patchProposal.update({ where: { id }, data: { status: 'passed', testResults: { sandbox: 'passed (stub)', safety: 'ok' } } });
+  const sandbox = await runSandbox(proposal.diff, proposal.branchName);
+  const passed = sandbox.applied && sandbox.tests === 'passed';
+  const updated = await prisma.patchProposal.update({
+    where: { id },
+    data: { status: passed ? 'passed' : 'failed', testResults: { safety: 'ok', sandbox } },
+  });
   res.json(updated);
 }));
 
