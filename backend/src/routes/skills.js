@@ -73,4 +73,43 @@ router.delete('/:id', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(as
   res.json({ ok: true });
 }));
 
+
+// List versions for a skill
+router.get('/:id/versions', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const versions = await prisma.skillVersion.findMany({ where: { skillId: id }, orderBy: { createdAt: 'desc' } });
+  res.json(versions);
+}));
+
+// Publish a new version (snapshot current content)
+router.post('/:id/versions', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const skill = await prisma.skill.findUnique({ where: { id } });
+  if (!skill) return res.status(404).json({ error: 'Skill not found', code: 'not_found' });
+  const version = req.body?.version || `v${Date.now()}`;
+  const created = await prisma.skillVersion.create({
+    data: { skillId: id, version, content: skill.content, schema: req.body?.schema || null, status: 'published' },
+  });
+  res.status(201).json(created);
+}));
+
+// Health check (stub: returns stored status)
+router.get('/:id/health', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const skill = await prisma.skill.findUnique({ where: { id } });
+  if (!skill) return res.status(404).json({ error: 'Skill not found', code: 'not_found' });
+  res.json({ skill: skill.name, isActive: skill.isActive, triggers: skill.triggers, health: 'ok', lastChecked: new Date() });
+}));
+
+// Scaffold a skill from natural language (LLM-assisted stub)
+router.post('/scaffold', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const { name, description, capability } = req.body || {};
+  if (!name || !capability) return res.status(400).json({ error: 'name and capability required', code: 'bad_request' });
+  const content = `# ${name}\n\n${description || ''}\n\nCapability: ${capability}\n\nImplement this skill per the Skill Master spec.`;
+  const skill = await prisma.skill.create({
+    data: { name, description: description || null, content, triggers: [], isActive: false },
+  });
+  res.status(201).json(skill);
+}));
+
 export default router;

@@ -59,6 +59,8 @@ import skillsRoutes from './routes/skills.js';
 import workflowsRoutes from './routes/workflows.js';
 import incidentsRoutes from './routes/incidents.js';
 import dlqRoutes from './routes/dlq.js';
+import recipesRoutes from './routes/recipes.js';
+import patchesRoutes from './routes/patches.js';
 import automationsRoutes from './routes/automations.js';
 import metricsRoutes from './routes/metrics.js';
 import archiveRoutes from './routes/archive.js';
@@ -239,6 +241,8 @@ app.use('/api/workflows', workflowsRoutes); // in-app workflows
 app.use('/api/automations', automationsRoutes); // in-app automations
 app.use('/api/incidents', incidentsRoutes); // sentinel incidents
 app.use('/api/dlq', dlqRoutes); // automation DLQ
+app.use('/api/recipes', recipesRoutes); // SOP translator
+app.use('/api/patches', patchesRoutes); // auto-remediator
 app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
 app.use('/api/mobile', mobileRoutes); // mobile companion app endpoints
 app.use('/api/export', exportRoutes); // CSV data export

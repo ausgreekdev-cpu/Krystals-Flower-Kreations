@@ -95,4 +95,21 @@ router.post('/:id/trigger', authenticate, requireRole(...EDITOR_ROLES), asyncHan
   res.json({ ok: true, triggered: automation.name, action: automation.action });
 }));
 
+
+// Heal: inspect DLQ entries for this automation and suggest patches (stub)
+router.post('/:id/heal', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const automation = await prisma.automation.findUnique({ where: { id } });
+  if (!automation) return res.status(404).json({ error: 'Automation not found', code: 'not_found' });
+  const dlq = await prisma.dLQEntry.findMany({ where: { automationId: id }, orderBy: { createdAt: 'desc' }, take: 20 });
+  res.json({ automation: automation.name, dlqCount: dlq.length, entries: dlq, suggestion: dlq.length ? 'Review DLQ entries and retry or discard.' : 'No failed runs.' });
+}));
+
+// List DLQ entries for this automation
+router.get('/:id/dlq', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const entries = await prisma.dLQEntry.findMany({ where: { automationId: id }, orderBy: { createdAt: 'desc' }, take: 50 });
+  res.json(entries);
+}));
+
 export default router;

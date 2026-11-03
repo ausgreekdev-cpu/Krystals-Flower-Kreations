@@ -220,6 +220,12 @@ export const adminApi = {
     run: (id: string, input: string, token: string) => req<any>(`/api/v2/agents/${id}/run`, { method: 'POST', body: JSON.stringify({ input }), token }),
     runs: (id: string, token: string) => req<any[]>(`/api/v2/agents/${id}/runs`, { token }),
   },
+  incidents: {
+    list: (token: string) => req<any[]>('/api/incidents', { token }),
+    get: (id: string, token: string) => req<any>(`/api/incidents/${id}`, { token }),
+    create: (body: any, token: string) => req<any>('/api/incidents', { method: 'POST', body: JSON.stringify(body), token }),
+    update: (id: string, body: any, token: string) => req<any>(`/api/incidents/${id}`, { method: 'PATCH', body: JSON.stringify(body), token }),
+  },
   skills: {
     list: (token: string) => req<any[]>('/api/skills', { token }),
     get: (id: string, token: string) => req<any>(`/api/skills/${id}`, { token }),

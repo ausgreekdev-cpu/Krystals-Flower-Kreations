@@ -50,6 +50,7 @@ const TABS = [
   { id: 'operations', label: 'Operations', icon: '⚙️' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'agents', label: 'Agents', icon: '🤖' },
+  { id: 'incidents', label: 'Incidents', icon: '🚨' },
   { id: 'studio', label: 'Studio', icon: '🔧' },
   { id: 'reports', label: 'Reports', icon: '📈' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -66,7 +67,7 @@ const NAV_GROUPS = [
   { label: 'Catalog', tabs: ['products', 'papers', 'collections', 'recipes', 'inventory', 'models3d'] },
   { label: 'Content', tabs: ['blog', 'procedures', 'database', 'reviews', 'meta', 'notebook'] },
   { label: 'Studio', tabs: ['workshops', 'bookings', 'shipping', 'suppliers', 'operations'] },
-  { label: 'System', tabs: ['users', 'settings', 'agents', 'studio', 'health'] },
+  { label: 'System', tabs: ['users', 'settings', 'agents', 'incidents', 'studio', 'health'] },
 ];
 
 // Case-insensitive alphanumeric ordering (A2 before A10) for material lists.
@@ -335,6 +336,7 @@ function AdminInner({ user }) {
                   {tab === 'operations' && <Operations token={token} />}
                   {tab === 'users' && <Users data={data} reload={() => load('users')} token={token} user={user} />}
                   {tab === 'agents' && <AgentsConsole token={token} />}
+                  {tab === 'incidents' && <IncidentsConsole token={token} />}
                   {tab === 'studio' && <StudioConsole token={token} />}
                   {tab === 'health' && <StudioHealth token={token} />}
                   {tab === 'reports' && <Reports data={data} />}
@@ -3745,6 +3747,38 @@ function Settings({ reload, token }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function IncidentsConsole({ token }) {
+  const toast = useToast();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try { setItems(await adminApi.incidents?.list?.(token) || []); }
+    catch (e) { toast(e.message, 'error'); setItems([]); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [token]);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-ink">Sentinel Incidents</h2>
+        <button onClick={load} className="text-xs border border-line rounded-xl px-3 py-1.5">Refresh</button>
+      </div>
+      {loading && <p className="text-xs text-muted">Loading...</p>}
+      {!loading && items.length === 0 && <p className="text-xs text-muted">No incidents.</p>}
+      {items.map((i) => (
+        <div key={i.id} className="border border-line rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-sm text-ink">{i.title}</span>
+            <span className="badge-botanical">{i.severity}</span>
+          </div>
+          <div className="text-xs text-muted mt-1">{i.source} · {i.status} · count {i.count}</div>
+        </div>
+      ))}
     </div>
   );
 }
