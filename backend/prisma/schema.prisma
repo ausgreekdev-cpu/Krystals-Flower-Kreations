@@ -150,6 +150,7 @@ model User {
   purchaseOrders PurchaseOrder[]
   loyaltyAccount LoyaltyAccount?
   passwordResets PasswordResetToken[]
+  wishlists      Wishlist[]
 
   @@map("users")
 }
@@ -238,6 +239,7 @@ model Product {
   bomRecipes         BOMRecipe[]
   customArtOrders    CustomArtOrder[]
   productionRuns     ProductionRun[]
+  wishlists          Wishlist[]
 
   @@index([procedureDocumentId])
   // Manufacturing spec backing this made-to-order product (nullable —
@@ -802,6 +804,19 @@ model Review {
 
   @@index([productId, isApproved])
   @@map("reviews")
+}
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  variantId String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId, variantId])
+  @@map("wishlists")
 }
 
 model PosSession {
