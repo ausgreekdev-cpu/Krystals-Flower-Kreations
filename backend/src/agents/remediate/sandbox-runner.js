@@ -49,5 +49,3 @@ export async function runSandbox(diff, branchName) {
   }
   return results;
 }
-EOF
-echo done

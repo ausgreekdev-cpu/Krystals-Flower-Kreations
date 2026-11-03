@@ -10,7 +10,8 @@ export async function scanBackend(baseUrl) {
   return results;
 }
 EOF
-cat > /home/aiuser/Downloads/KFK/backend/src/agents/sentinel/frontend-ingest.js << 'EOF'
+# recreate frontend-ingest.js
+cat > /home/aiuser/Downloads/KFK/backend/src/agents/sentinel/frontend-ingest.js << 'INGESTEOF'
 // Frontend telemetry ingestion helper (called by route).
 export function normalizeFrontendPayload(payload) {
   return {
@@ -22,23 +23,5 @@ export function normalizeFrontendPayload(payload) {
     errorType: payload?.type || 'window.onerror',
   };
 }
-EOF
-cat > /home/aiuser/Downloads/KFK/backend/src/agents/core/workflow-optimizer.js << 'EOF'
-// Suggests parallelization opportunities in a DAG.
-export function suggestParallelization(dag) {
-  const suggestions = [];
-  // Find nodes with same parent that have no data dependency between them
-  const childrenByParent = new Map();
-  for (const e of dag.edges) {
-    if (!childrenByParent.has(e.from)) childrenByParent.set(e.from, []);
-    childrenByParent.get(e.from).push(e.to);
-  }
-  for (const [parent, children] of childrenByParent) {
-    if (children.length > 1) {
-      suggestions.push({ type: 'parallel', parent, children, note: 'These child nodes share a parent and can run in parallel if no data dependency.' });
-    }
-  }
-  return suggestions;
-}
-EOF
-echo done
+INGESTEOF
+node --check backend/src/agents/sentinel/backend-scanner.js && node --check backend/src/agents/sentinel/frontend-ingest.js && echo OK
