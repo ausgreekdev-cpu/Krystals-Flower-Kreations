@@ -54,7 +54,7 @@ rm -rf .netlify-smoke
 npx --no-install esbuild netlify/functions/api.js \
   --bundle --platform=node --target=node18 --format=cjs --packages=external \
   --outfile=.netlify-smoke/api.cjs
-NODE_ENV=production node -e "
+NODE_PATH="$PWD/backend/node_modules:$PWD/node_modules" NODE_ENV=production node -e "
 const handler = require('./.netlify-smoke/api.cjs').handler;
 handler({ httpMethod: 'GET', path: '/api/health', headers: {}, multiValueHeaders: {}, isBase64Encoded: false, requestContext: {}, rawBody: '' }, {})
   .then((r) => {
