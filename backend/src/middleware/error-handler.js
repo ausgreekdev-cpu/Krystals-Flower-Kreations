@@ -49,8 +49,7 @@ export function errorHandler(err, req, res, _next) {
   const safeCode = typeof err.code === 'string' && !/^P\d{4}$/.test(err.code) && /^[a-z_]+$/.test(err.code) ? err.code : null;
 
   if (isServerError) {
-    console.error(`[${requestId || 'no-id'}] ${req.method} ${req.originalUrl} -> ${status}`, err.message);
-    console.error(err.stack);
+    console.error(JSON.stringify({ level: 'error', requestId: requestId || 'no-id', method: req.method, path: req.originalUrl, status, message: err.message, stack: err.stack }));
   }
 
   // err.expose lets intentional 5xx (e.g. storage not configured) show their message
