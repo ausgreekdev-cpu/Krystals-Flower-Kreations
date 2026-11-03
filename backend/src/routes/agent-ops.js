@@ -41,5 +41,3 @@ router.post('/optimize/:agentId', authenticate, requireRole(...ADMIN), asyncHand
 }));
 
 export default router;
-EOF
-echo done
