@@ -20,7 +20,7 @@ export default function Product(){
   const [reviews,setReviews]=useState([]);
   const [related,setRelated]=useState([]);
   const [fieldDefs,setFieldDefs]=useState([]);
-  const [rvForm,setRvForm]=useState({ name:'', rating:5, title:'', body:'', website:'' });
+  const [rvForm,setRvForm]=useState({ name:'', rating:5, title:'', body:'', website:'', images:[] });
   const [rvSent,setRvSent]=useState(false); const [rvErr,setRvErr]=useState(''); const [rvBusy,setRvBusy]=useState(false);
   useEffect(()=>{
     fetch(`/api/products/${slug}`).then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d=>{
@@ -80,6 +80,7 @@ export default function Product(){
       const body = { productId: p.id, name: rvForm.name.trim(), rating: rvForm.rating };
       if(rvForm.title.trim()) body.title = rvForm.title.trim();
       if(rvForm.body.trim()) body.body = rvForm.body.trim();
+      if(rvForm.images.length) body.images = JSON.stringify(rvForm.images);
       const res = await fetch('/api/reviews', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
       if(!res.ok){
         const j = await res.json().catch(()=>({}));
@@ -253,6 +254,7 @@ export default function Product(){
               <div className="text-highlight text-sm" aria-label={`${r.rating} out of 5 stars`}>{stars(r.rating)}</div>
               {r.title && <div className="font-bold text-sm mt-1">{r.title}</div>}
               {r.body && <p className="text-sm text-muted mt-1 whitespace-pre-wrap">{r.body}</p>}
+              {r.images && (() => { try { const imgs = JSON.parse(r.images); return Array.isArray(imgs) && imgs.length ? <div className="mt-2 flex gap-2 flex-wrap">{imgs.map((u,i)=><img key={i} src={u} alt="" className="w-20 h-20 object-cover rounded-lg border" />)}</div> : null; } catch { return null; } })()}
             </div>
           ))}
         </div>
@@ -275,6 +277,10 @@ export default function Product(){
               <Input required label="Your name" placeholder="Your name" labelVisible value={rvForm.name} onChange={e=>setRvForm(f=>({...f, name:e.target.value}))} minLength={2} maxLength={100} size="sm" className="w-full" />
               <Input label="Review title" placeholder="Title (optional)" labelVisible value={rvForm.title} onChange={e=>setRvForm(f=>({...f, title:e.target.value}))} maxLength={200} size="sm" className="w-full" />
               <TextArea label="Review text" placeholder="What did you think? (optional)" labelVisible value={rvForm.body} onChange={e=>setRvForm(f=>({...f, body:e.target.value}))} maxLength={2000} rows={3} size="sm" className="w-full" />
+              <div>
+                <label className="text-xs text-muted">Photos (optional, paste image URLs one per line)</label>
+                <textarea value={rvForm.images.join('\n')} onChange={e=>setRvForm(f=>({...f, images: e.target.value.split('\n').map(s=>s.trim()).filter(Boolean)}))} placeholder="https://..." rows={2} className="w-full border rounded px-3 py-2 text-sm" />
+              </div>
               <input type="text" value={rvForm.website} onChange={e=>setRvForm(f=>({...f, website:e.target.value}))} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
               <Btn size="sm" disabled={rvBusy}>{rvBusy?'Sending…':'Submit review'}</Btn>
               <p className="text-[11px] text-muted">Reviews are checked by the studio before they appear.</p>

@@ -98,6 +98,11 @@ export const cartApi = {
   // + debounced Checkout capture). Fire-and-forget from the callers.
   saveEmail: (cartId: string, email: string) => req<any>('/api/cart/email', { method: 'POST', body: JSON.stringify({ cartId, email }) }),
 };
+export const wishlistApi = {
+  list: (token: string) => req<any[]>('/api/wishlist', { token }),
+  add: (token: string, productId: string, variantId?: string) => req<any>('/api/wishlist', { method: 'POST', token, body: JSON.stringify({ productId, variantId }) }),
+  remove: (token: string, productId: string) => req<any>(`/api/wishlist/${productId}`, { method: 'DELETE', token }),
+};
 export const ordersApi = {
   checkout: (body: any, idempotencyKey?: string) => req<any>('/api/orders/checkout', { method: 'POST', body: JSON.stringify(body), idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),
   paypalCreate: (body: any, idempotencyKey?: string) => req<any>('/api/orders/paypal/create', { method: 'POST', body: JSON.stringify(body), idempotencyKey: idempotencyKey || (globalThis.crypto?.randomUUID?.()) }),

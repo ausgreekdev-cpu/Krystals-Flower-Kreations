@@ -150,6 +150,7 @@ model User {
   purchaseOrders PurchaseOrder[]
   loyaltyAccount LoyaltyAccount?
   passwordResets PasswordResetToken[]
+  wishlists      Wishlist[]
 
   @@map("users")
 }
@@ -222,22 +223,24 @@ model Product {
   // Admin-defined custom fields: { [fieldKey]: string | number | boolean }
   customFields     Json?
 
-  variants            ProductVariant[]
-  images              ProductImage[]
-  collections         CollectionProduct[]
-  orderLines          OrderLine[]
-  cartItems           CartItem[]
-  inventoryLevels     InventoryLevel[]
-  stockMovements      StockMovement[]
-  inventoryLots       InventoryLot[]
-  stocktakeLines      StocktakeLine[]
-  purchaseOrderLines  PurchaseOrderLine[]
-  reviews             Review[]
-  postProducts        PostProduct[]
-  metaSync            MetaCatalogItem?
-  bomRecipes          BOMRecipe[]
-  customArtOrders     CustomArtOrder[]
-  productionRuns      ProductionRun[]
+  variants           ProductVariant[]
+  images             ProductImage[]
+  collections        CollectionProduct[]
+  orderLines         OrderLine[]
+  cartItems          CartItem[]
+  inventoryLevels    InventoryLevel[]
+  stockMovements     StockMovement[]
+  inventoryLots      InventoryLot[]
+  stocktakeLines     StocktakeLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  reviews            Review[]
+  postProducts       PostProduct[]
+  metaSync           MetaCatalogItem?
+  bomRecipes         BOMRecipe[]
+  customArtOrders    CustomArtOrder[]
+  productionRuns     ProductionRun[]
+  wishlists          Wishlist[]
+
   // Manufacturing spec backing this made-to-order product (nullable —
   // products created outside the procedure-import pipeline have none).
   procedureDocumentId String?             @db.Uuid
@@ -801,6 +804,19 @@ model Review {
 
   @@index([productId, isApproved])
   @@map("reviews")
+}
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  variantId String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId, variantId])
+  @@map("wishlists")
 }
 
 model PosSession {
