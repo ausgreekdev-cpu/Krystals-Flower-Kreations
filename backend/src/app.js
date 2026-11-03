@@ -57,6 +57,8 @@ import studioHealthRoutes from './routes/studioHealth.js';
 import agentsRoutes from './routes/agents.js';
 import skillsRoutes from './routes/skills.js';
 import workflowsRoutes from './routes/workflows.js';
+import incidentsRoutes from './routes/incidents.js';
+import dlqRoutes from './routes/dlq.js';
 import automationsRoutes from './routes/automations.js';
 import metricsRoutes from './routes/metrics.js';
 import archiveRoutes from './routes/archive.js';
@@ -235,6 +237,8 @@ app.use('/api/v2/agents', agentsRoutes); // in-app agent system (Phase 1)
 app.use('/api/skills', skillsRoutes); // in-app skills
 app.use('/api/workflows', workflowsRoutes); // in-app workflows
 app.use('/api/automations', automationsRoutes); // in-app automations
+app.use('/api/incidents', incidentsRoutes); // sentinel incidents
+app.use('/api/dlq', dlqRoutes); // automation DLQ
 app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
 app.use('/api/mobile', mobileRoutes); // mobile companion app endpoints
 app.use('/api/export', exportRoutes); // CSV data export

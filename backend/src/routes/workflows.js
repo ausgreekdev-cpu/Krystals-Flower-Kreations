@@ -6,6 +6,8 @@ import { authenticate, requireRole } from '../lib/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { audit } from '../lib/audit.js';
+import { compile } from '../agents/core/dag-compiler.js';
+import { runDag } from '../agents/core/dag-runner.js';
 
 const router = Router();
 const EDITOR_ROLES = ['admin', 'developer', 'maker', 'staff'];
@@ -132,6 +134,33 @@ router.get('/:id/runs', authenticate, requireRole(...EDITOR_ROLES), asyncHandler
     take: 50,
   });
   res.json(runs);
+}));
+
+// Compile/validate a workflow definition as a DAG
+router.post('/:id/compile', authenticate, requireRole(...ADMIN_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const w = await prisma.workflow.findUnique({ where: { id } });
+  if (!w) return res.status(404).json({ error: 'Workflow not found', code: 'not_found' });
+  res.json(compile(w.steps));
+}));
+
+// Run a workflow as a DAG with tracing
+router.post('/:id/run-dag', authenticate, requireRole(...EDITOR_ROLES), asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 100);
+  const w = await prisma.workflow.findUnique({ where: { id } });
+  if (!w) return res.status(404).json({ error: 'Workflow not found', code: 'not_found' });
+  if (!w.isActive) return res.status(409).json({ error: 'Workflow disabled', code: 'disabled' });
+  const compiled = compile(w.steps);
+  if (!compiled.ok) return res.status(400).json({ error: 'Invalid workflow', details: compiled.errors });
+  const start = Date.now();
+  const run = await prisma.workflowRun.create({ data: { workflowId: id, status: 'running', input: req.body || null } });
+  const handlers = { default: async (node) => ({ executed: true, type: node.type, label: node.label || node.id }) };
+  const result = await runDag(compiled.dag, handlers, { topologicalOrder: compiled.topologicalOrder });
+  const updated = await prisma.workflowRun.update({
+    where: { id: run.id },
+    data: { status: result.status, output: result, duration: result.duration, ...(result.status === 'failed' ? { error: result.results.find((r) => r.status === 'failed')?.error } : {}) },
+  });
+  res.json(updated);
 }));
 
 export default router;

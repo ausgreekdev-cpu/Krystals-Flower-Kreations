@@ -1,0 +1,16 @@
+Act as a Senior Staff Systems Engineer. Build the "Sentinel Monitor" (`agent_sentinel_monitor`) in [Python / TypeScript] to continuously scan both the frontend and backend of our web application for errors, performance regressions, and broken flows.
+
+Architecture & Core Modules to Implement:
+1. Frontend Telemetry & Synthetic Collector (`frontend_scanner`):
+   - Connect to Playwright/Puppeteer for synthetic user-flow checks and ingest client webhook payloads (window.onerror, unhandledrejection, failed network calls, Core Web Vitals).
+   - Capture DOM state snapshots, console logs, and failed request/response headers.
+2. Backend Log & Health Collector (`backend_scanner`):
+   - Poll API health endpoints, parse application server logs for 5xx/unhandled exceptions, and query database performance views for slow queries or deadlocks.
+3. Deduplication & Fingerprinting Engine (`incident_normalizer`):
+   - Hash stack traces and error signatures so repeated identical errors are grouped into a single incident with a counter rather than flooding the queue.
+4. Output Dispatcher (`queue_publisher`):
+   - Emit a strict JSON payload validated via [Pydantic / Zod] with fields: `incident_id`, `severity` (CRITICAL | DEGRADED | LOW), `layer` (FRONTEND | BACKEND | DATABASE), `fingerprint`, `stack_trace`, `reproduction_context`, `suspected_files`, and `timestamp`.
+
+Deliverables:
+- Complete source files with strict typing, retry logic, and structured logging.
+- Unit tests mocking a frontend 500 API call and a backend unhandled exception.

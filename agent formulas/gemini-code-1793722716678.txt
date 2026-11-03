@@ -1,0 +1,13 @@
+Act as a Senior AI Tooling Engineer. Build the "Skill Master" (`agent_skill_lifecycle`) in [Python / TypeScript] to create, validate, maintain, and deprecate modular tool skills used by our internal agents.
+
+Architecture & Core Modules to Implement:
+1. Skill Scaffolder (`skill_generator`):
+   - Accept a natural language capability request or an external OpenAPI/Swagger spec and generate a standardized agent skill module: strongly typed input parameters, execution function, timeout handling, and structured error returns.
+2. Health & Drift Monitor (`skill_maintainer`):
+   - Monitor tool execution logs for schema validation errors, API deprecations (4xx/5xx responses from upstream services), or breaking payload changes.
+   - Automatically patch parameter definitions, update endpoints, and regenerate tool docstrings so agents understand how to call the updated skill.
+3. Lifecycle Registry (`skill_registry`):
+   - Maintain semantic versioning (`v1.0.0`) for every skill, run unit tests against mock responses before publishing, and deprecate unused or redundant skills safely.
+
+Deliverables:
+- Full implementation of the skill schema, code generator, automated mock tester, and registry manager.

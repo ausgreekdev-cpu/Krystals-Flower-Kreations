@@ -1,0 +1,15 @@
+Act as an Autonomous Multi-Agent Architect. Build the "Genesis Agent" (`agent_agent_creator`) in [Python / TypeScript] that detects unhandled operational intents or recurring manual bottlenecks and dynamically provisions, tests, and registers brand-new specialized agents.
+
+Architecture & Core Modules to Implement:
+1. Gap Detector (`demand_analyzer`):
+   - Scan dead-letter task queues, fallback router logs, and user/operator requests for recurring tasks that no existing agent handles effectively.
+2. Agent Manifest Synthesizer (`manifest_builder`):
+   - Generate a complete agent definition schema containing: `agent_id`, `role_description`, `system_prompt`, `input_schema`, `output_schema`, `allowed_tools`, `model_config`, and `safety_constraints`.
+3. Synthetic Validation Harness (`genesis_tester`):
+   - Spin up the newly defined agent in a sandboxed runtime.
+   - Generate 5 synthetic test cases (including malformed inputs and edge cases) and verify the agent produces valid outputs within token and latency budgets.
+4. Orchestrator Registration (`registry_publisher`):
+   - Register the validated agent manifest into the central routing orchestrator so incoming tasks matching its intent signature are automatically routed to it.
+
+Deliverables:
+- Complete code for the manifest schema, dynamic agent factory, sandbox test runner, and router registration client.

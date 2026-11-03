@@ -1,0 +1,16 @@
+Act as a Principal DevOps & Autonomous Systems Engineer. Build the "Auto-Remediator" (`agent_auto_remediator`) in [Python / TypeScript] that consumes error incident payloads from `agent_sentinel_monitor`, isolates the root cause in our repository, generates a patch, verifies it in a sandbox, and either auto-merges or opens a Pull Request.
+
+Architecture & Core Modules to Implement:
+1. Incident Consumer & Context Resolver (`context_loader`):
+   - Ingest the Sentinel JSON payload, use AST parsing or ripgrep to locate the exact files and line ranges referenced in `stack_trace` and `suspected_files`.
+2. Patch Generator (`patch_synthesizer`):
+   - Construct an LLM tool-calling loop that reads the target files, related tests, and recent git commits, then outputs a unified diff patch.
+3. Isolated Sandbox Verifier (`sandbox_runner`):
+   - Checkout a temporary git branch in an isolated container/worktree, apply the diff, and run the linter, type-checker, and targeted unit/integration test suite.
+   - If tests fail, feed the compiler/test stderr back to `patch_synthesizer` (max 3 retry loops).
+4. Safety Gate & Deployment Router (`deployment_gate`):
+   - Classify the diff: if changes are strictly low-risk (null-checks, fallback assets, timeout adjustments) and 100% of CI checks pass, trigger an auto-merge commit.
+   - If the diff alters database schemas, authentication, state mutations, or core business logic, open a GitHub/GitLab Pull Request containing the root-cause analysis, diff summary, and test logs.
+
+Deliverables:
+- Modular implementation with Git CLI / GitHub API integration, safety policy evaluator, and rollback hooks.

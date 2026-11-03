@@ -1,0 +1,12 @@
+Act as a Senior Backend Automation Engineer. Build the "Automation Builder" (`agent_automation_lifecycle`) in [Python / TypeScript] to discover, create, monitor, and self-heal deterministic trigger-to-action automations (webhooks, cron jobs, event relays, and data syncs).
+
+Architecture & Core Modules to Implement:
+1. Automation Synthesizer (`automation_generator`):
+   - Convert repeatable linear tasks into lightweight, idempotent event-driven handlers with explicit trigger definitions (webhook, cron schedule, database event), data transformation logic, and target API actions.
+2. Resilience & Execution Engine (`automation_runner`):
+   - Execute automations with built-in idempotency keys, exponential backoff retries, rate-limit queuing, and dead-letter queue (DLQ) capture.
+3. Self-Healing Maintainer (`automation_healer`):
+   - Monitor failed runs in the DLQ, inspect payload mismatches or expired webhook subscriptions, automatically patch field mappings, and replay failed events once verified.
+
+Deliverables:
+- Complete codebase for the trigger-action schema, idempotent execution wrapper, DLQ inspector, and automated mapping repair module.

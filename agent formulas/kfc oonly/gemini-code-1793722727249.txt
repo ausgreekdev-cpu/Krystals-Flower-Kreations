@@ -1,0 +1,17 @@
+Act as an AI Knowledge & Process Engineering Lead. Build the "Procedure-to-Recipe Converter" (`agent_sop_translator`) in [Python / TypeScript] that ingests unstructured operational procedures (meeting transcripts, raw SOP markdown, screen-recording logs, or step-by-step notes) and compiles them into standardized, machine-readable Draft Recipes.
+
+Architecture & Core Modules to Implement:
+1. Unstructured Ingestion Parser (`procedure_ingest`):
+   - Normalize raw text, markdown docs, or timestamped transcripts and extract the core objective, trigger conditions, actors, and system touchpoints.
+2. Recipe Compiler (`recipe_structurer`):
+   - Transform extracted steps into a strict dual-output Draft Recipe (both human-readable Markdown and machine-executable JSON/YAML) containing:
+     * `metadata`: Title, objective, trigger, estimated duration, and required permissions/tools.
+     * `inputs` & `outputs`: Typed variables required to start and verify completion.
+     * `steps`: Ordered action blocks tagged as `AUTOMATABLE` (with target skill/API binding) or `HUMAN_DECISION` (with explicit criteria).
+     * `exception_paths`: Deterministic fallback instructions if a step fails.
+     * `definition_of_done`: Verifiable assertions confirming success.
+3. Ambiguity Detector (`gap_flagger`):
+   - Identify missing credentials, undefined thresholds (e.g., vague phrases like "if traffic looks high"), or unstated failure behaviors, and append a targeted `clarification_questions` array to the draft.
+
+Deliverables:
+- Complete implementation with strict JSON/YAML schema validation, ambiguity analyzer, and Markdown/JSON dual exporter.

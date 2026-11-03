@@ -1,0 +1,16 @@
+Act as a Lead AI Systems Architect. Build the "Agent Optimizer" (`agent_agent_architect`) in [Python / TypeScript] to continuously audit, benchmark, and upgrade all operational AI agents in our system.
+
+Architecture & Core Modules to Implement:
+1. Telemetry Aggregator (`telemetry_analyzer`):
+   - Analyze execution logs across all registered agents for latency, token usage, tool-call failure rates, retry loops, and task rejection rates.
+2. Prompt & Schema Refactorer (`agent_upgrader`):
+   - Identify poorly performing system prompts or ambiguous tool schemas.
+   - Generate candidate prompt optimizations (pruning redundant instructions, tightening output schemas, adding few-shot examples for frequent failure modes).
+3. Golden Dataset Evaluator (`benchmark_runner`):
+   - Run A/B evaluations comparing the current production agent configuration against the candidate upgrade across a fixed golden dataset of historical tasks.
+   - Score candidates on accuracy, schema compliance, latency, and token cost.
+4. Registry Updater (`version_promoter`):
+   - Promote the candidate configuration to the agent registry only if it improves the target metric without regressing accuracy on the golden dataset. Keep versioned snapshots for instant rollback.
+
+Deliverables:
+- Full implementation including the telemetry parser, evaluation harness, versioned prompt registry, and changelog generator.

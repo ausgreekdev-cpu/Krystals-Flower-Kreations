@@ -216,38 +216,37 @@ model Product {
   flowerType       String? // rose, lily, wattle, banksia, peony, mixed
   colourFamily     String? // blush, sage, ivory, dusty-pink, eucalyptus, white, mixed
   stemLengthMm     Int?
-  occasions        String[] @default([]) // birthday, wedding, anniversary, sympathy, valentines, mothers-day
+  occasions        String[]    @default([]) // birthday, wedding, anniversary, sympathy, valentines, mothers-day
   // SEO + social
   ogImageUrl       String?
   // Admin-defined custom fields: { [fieldKey]: string | number | boolean }
   customFields     Json?
 
-  variants           ProductVariant[]
-  images             ProductImage[]
-  collections        CollectionProduct[]
-  orderLines         OrderLine[]
-  cartItems          CartItem[]
-  inventoryLevels    InventoryLevel[]
-  stockMovements     StockMovement[]
-  inventoryLots      InventoryLot[]
-  stocktakeLines     StocktakeLine[]
-  purchaseOrderLines PurchaseOrderLine[]
-  reviews            Review[]
-  postProducts       PostProduct[]
-  metaSync           MetaCatalogItem?
-  bomRecipes         BOMRecipe[]
-  customArtOrders    CustomArtOrder[]
-  productionRuns     ProductionRun[]
-
-  @@index([procedureDocumentId])
+  variants            ProductVariant[]
+  images              ProductImage[]
+  collections         CollectionProduct[]
+  orderLines          OrderLine[]
+  cartItems           CartItem[]
+  inventoryLevels     InventoryLevel[]
+  stockMovements      StockMovement[]
+  inventoryLots       InventoryLot[]
+  stocktakeLines      StocktakeLine[]
+  purchaseOrderLines  PurchaseOrderLine[]
+  reviews             Review[]
+  postProducts        PostProduct[]
+  metaSync            MetaCatalogItem?
+  bomRecipes          BOMRecipe[]
+  customArtOrders     CustomArtOrder[]
+  productionRuns      ProductionRun[]
   // Manufacturing spec backing this made-to-order product (nullable —
   // products created outside the procedure-import pipeline have none).
-  procedureDocumentId String?            @db.Uuid
-  procedureDocument   ProcedureDocument? @relation(fields: [procedureDocumentId], references: [id], onDelete: SetNull)
+  procedureDocumentId String?             @db.Uuid
+  procedureDocument   ProcedureDocument?  @relation(fields: [procedureDocumentId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([procedureDocumentId])
   @@index([isActive, isFeatured])
   @@index([type])
   @@index([deletedAt])
@@ -302,16 +301,16 @@ model ProductVariant {
 }
 
 model ProductImage {
-  id        String  @id @default(cuid())
-  productId String
-  url       String
-  alt       String?
-  sortOrder Int     @default(0)
-  width     Int?
-  height    Int?
+  id           String  @id @default(cuid())
+  productId    String
+  url          String
+  alt          String?
+  sortOrder    Int     @default(0)
+  width        Int?
+  height       Int?
   // Responsive variants generated at upload: { avif: { "400": url, "800": url }, webp: {...} }
   // null = legacy row or source smaller than the smallest variant width.
-  variants  Json?
+  variants     Json?
   // Set when this image was attached from the media library (provenance —
   // lets detach clean up the row and keeps library assets purge-safe).
   mediaAssetId String?
@@ -466,7 +465,7 @@ model StockMovement {
   rawMaterial RawMaterial?       @relation(fields: [rawMaterialId], references: [id])
   user        User?              @relation(fields: [userId], references: [id])
 
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   archivedAt DateTime?
 
   @@index([productId])
@@ -495,17 +494,17 @@ model InventoryLedger {
 }
 
 model Cart {
-  id        String   @id @default(cuid())
-  userId    String?
-  sessionId String?  @unique // guest
-  currency  String   @default("AUD")
+  id              String    @id @default(cuid())
+  userId          String?
+  sessionId       String?   @unique // guest
+  currency        String    @default("AUD")
   // Abandoned-cart recovery: email captured on the Cart page or (debounced)
   // from Checkout; reminderSentAt dedupes the single hourly-cron reminder.
   email           String?
   emailCapturedAt DateTime?
   reminderSentAt  DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   items CartItem[]
 
@@ -559,7 +558,7 @@ model Order {
   adminNote             String?        @db.Text
   stripePaymentIntentId String?
   stripeSessionId       String?
-  paypalOrderId         String?       @unique // PayPal Orders v2 id — order stays pending_payment until capture
+  paypalOrderId         String?        @unique // PayPal Orders v2 id — order stays pending_payment until capture
   shippedAt             DateTime?
   deliveredAt           DateTime?
   trackingNumber        String?
@@ -567,7 +566,7 @@ model Order {
   bomSnapshot           Json? // production BOM generated at checkout finalize (materials + labour + lead days)
   qcStatus              String? // null | 'pending' | 'passed' | 'failed'
   archivedAt            DateTime? // soft-archive timestamp (data archival pipeline)
-  qcNotes               String?  @db.Text
+  qcNotes               String?        @db.Text
   qcPhotoUrl            String?
   productionRunId       String?
   productionRun         ProductionRun? @relation(fields: [productionRunId], references: [id])
@@ -595,7 +594,7 @@ model ProductionRun {
   product         Product  @relation(fields: [productId], references: [id])
   status          String   @default("planned") // planned | in_progress | completed | cancelled
   notes           String?  @db.Text
-  consolidatedBOM Json?    // aggregated materials + labour across all orders
+  consolidatedBOM Json? // aggregated materials + labour across all orders
   orders          Order[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -922,29 +921,29 @@ model Supplier {
 // Each row is a colour+type+texture+weight combo with its own per-stem premium and optional image/stock.
 // Picked in the configurator via spec.paperStockId; legacy spec.paperColor/paperTexture/weight remain for compat.
 model PaperStock {
-  id                    String   @id @default(cuid())
-  name                  String   @unique // e.g. "Blush Pearl 80lb"
-  colour                String // e.g. Blush
-  colourHex             String? // e.g. #F8C4B4
-  paperType             String // e.g. Canson, Colorplan, Quill
-  texture               String // textured | smooth | pearl | linen
-  weight                String // 65lb | 80lb | 110lb | 160gsm etc
-  sku                   String?  @unique // e.g. CS-PL-WIN-BLUSH (intake template SKU)
-  stockType             String? // Cardstock | Paper | Foil (intake template Type)
-  packName              String? // e.g. Winter (intake template Pack Name)
-  sellable              Boolean  @default(true) // false = stock only (intake template "To Sell")
-  pricePremiumPerStem   Decimal  @default(0) @db.Decimal(10, 2) // added per stem on top of floor+perStem
-  imageUrl              String? // storage ref or /uploads/papers/...
-  variants              Json? // { webp: {400,800}, avif: {...} }
-  width                 Int?
-  height                Int?
-  isActive              Boolean  @default(true)
-  sortOrder             Int      @default(0)
-  onHand                Float    @default(0)
-  lowThreshold          Float    @default(5)
-  compatibleTemplates   String[] @default([]) // e.g. ["wattle-sprig","paper-rose"] — empty = all templates
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  name                String   @unique // e.g. "Blush Pearl 80lb"
+  colour              String // e.g. Blush
+  colourHex           String? // e.g. #F8C4B4
+  paperType           String // e.g. Canson, Colorplan, Quill
+  texture             String // textured | smooth | pearl | linen
+  weight              String // 65lb | 80lb | 110lb | 160gsm etc
+  sku                 String?  @unique // e.g. CS-PL-WIN-BLUSH (intake template SKU)
+  stockType           String? // Cardstock | Paper | Foil (intake template Type)
+  packName            String? // e.g. Winter (intake template Pack Name)
+  sellable            Boolean  @default(true) // false = stock only (intake template "To Sell")
+  pricePremiumPerStem Decimal  @default(0) @db.Decimal(10, 2) // added per stem on top of floor+perStem
+  imageUrl            String? // storage ref or /uploads/papers/...
+  variants            Json? // { webp: {400,800}, avif: {...} }
+  width               Int?
+  height              Int?
+  isActive            Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  onHand              Float    @default(0)
+  lowThreshold        Float    @default(5)
+  compatibleTemplates String[] @default([]) // e.g. ["wattle-sprig","paper-rose"] — empty = all templates
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([isActive, sortOrder])
   @@map("paper_stocks")
@@ -984,7 +983,7 @@ model RawMaterial {
   supplierId         String?
   supplierRef        Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   brand              String? // e.g. Canson
-  procurementStatus  String  @default("active") // 'draft' | 'active' — auto-created materials start as draft
+  procurementStatus  String              @default("active") // 'draft' | 'active' — auto-created materials start as draft
   suggestedSupplier  String? // suggested supplier name for draft materials
   weightValue        Float? // e.g. 65
   weightUnit         String? // lb | gsm — validated in route schemas
@@ -1006,19 +1005,19 @@ model RawMaterial {
 }
 
 model BOMRecipe {
-  id                   String             @id @default(cuid())
+  id                   String              @id @default(cuid())
   productId            String?
   variantId            String?
-  templateId           String?            @unique // configurator template (wattle-sprig, paper-rose, banksia-petal, origami-lily)
-  product              Product?           @relation(fields: [productId], references: [id])
-  variant              ProductVariant?    @relation(fields: [variantId], references: [id])
-  version              String             @default("v1.0")
-  labourMinutesPerUnit Float              @default(25)
-  cricutMinutesPerUnit Float              @default(8)
+  templateId           String?             @unique // configurator template (wattle-sprig, paper-rose, banksia-petal, origami-lily)
+  product              Product?            @relation(fields: [productId], references: [id])
+  variant              ProductVariant?     @relation(fields: [variantId], references: [id])
+  version              String              @default("v1.0")
+  labourMinutesPerUnit Float               @default(25)
+  cricutMinutesPerUnit Float               @default(8)
   lines                BOMLine[]
   revisions            BOMRecipeRevision[]
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@unique([productId, variantId])
   @@index([productId, variantId])
@@ -1027,16 +1026,16 @@ model BOMRecipe {
 }
 
 model BOMRecipeRevision {
-  id              String   @id @default(cuid())
-  recipeId        String
-  recipe          BOMRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  version         String
+  id                   String    @id @default(cuid())
+  recipeId             String
+  recipe               BOMRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  version              String
   labourMinutesPerUnit Float
   cricutMinutesPerUnit Float
-  lines           Json // snapshot of BOM lines
-  editorId        String?
-  note            String?  @db.Text
-  createdAt       DateTime @default(now())
+  lines                Json // snapshot of BOM lines
+  editorId             String?
+  note                 String?   @db.Text
+  createdAt            DateTime  @default(now())
 
   @@index([recipeId])
   @@map("bom_recipe_revisions")
@@ -1171,14 +1170,14 @@ model RateLimitBucket {
 // Immutable audit trail of sensitive admin/money actions (role changes, deletes,
 // settings edits, order status, price changes, etc).
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   actorId    String?
   actorEmail String?
   action     String
   entityType String
   entityId   String?
   details    Json?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   archivedAt DateTime?
 
   @@index([entityType, entityId])
@@ -1242,22 +1241,22 @@ model PasswordResetToken {
 // ── Procedures & specifications (assembly guides, origami steps, mfg specs) ──
 // UUID PKs per spec; authorId mirrors Post (optional FK → survives user deletes).
 model ProcedureDocument {
-  id              String          @id @default(uuid()) @db.Uuid
+  id              String            @id @default(uuid()) @db.Uuid
   title           String
   category        ProcedureCategory
   subcategory     String? // ORIGAMI | CREPE_PAPER | DIE_CUT | SCULPTURAL | HAND_ASSEMBLY (zod-validated app-side)
-  version         String          @default("v1.0")
-  sku             String?         @unique // manufacturing specs; multiple NULLs allowed
-  contentMarkdown String          @db.Text
-  metadata        Json?           // difficulty, estimatedTimeMinutes, tools, GSM, foldingComplexity…
-  status          ProcedureStatus @default(draft)
+  version         String            @default("v1.0")
+  sku             String?           @unique // manufacturing specs; multiple NULLs allowed
+  contentMarkdown String            @db.Text
+  metadata        Json? // difficulty, estimatedTimeMinutes, tools, GSM, foldingComplexity…
+  status          ProcedureStatus   @default(draft)
   authorId        String?
   deletedAt       DateTime? // soft delete (task §2)
 
-  author   User?                @relation(fields: [authorId], references: [id])
-  media    DocumentMedia[]
+  author    User?               @relation(fields: [authorId], references: [id])
+  media     DocumentMedia[]
   revisions ProcedureRevision[]
-  products Product[]
+  products  Product[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1269,12 +1268,12 @@ model ProcedureDocument {
 }
 
 model DocumentMedia {
-  id           String           @id @default(uuid()) @db.Uuid
-  documentId   String           @db.Uuid
+  id           String             @id @default(uuid()) @db.Uuid
+  documentId   String             @db.Uuid
   mediaType    ProcedureMediaType
   url          String
-  displayOrder Int              @default(0)
-  createdAt    DateTime         @default(now())
+  displayOrder Int                @default(0)
+  createdAt    DateTime           @default(now())
 
   document ProcedureDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
@@ -1309,6 +1308,8 @@ model Skill {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  versions SkillVersion[]
 
   @@index([isActive])
   @@map("skills")
@@ -1345,18 +1346,20 @@ model WorkflowRun {
 }
 
 model Automation {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?  @db.Text
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?   @db.Text
   trigger     String
-  triggerType String   // 'cron' | 'event' | 'manual'
+  triggerType String // 'cron' | 'event' | 'manual'
   action      String
-  actionType  String   // 'workflow' | 'function'
+  actionType  String // 'workflow' | 'function'
   params      Json?
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   lastRunAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  dlqEntries DLQEntry[]
 
   @@index([isActive])
   @@index([triggerType])
@@ -1365,17 +1368,19 @@ model Automation {
 
 // ── In-app agent system ─────────────────────────────────────────────────────
 model Agent {
-  id           String    @id @default(cuid())
-  name         String    @unique
-  description  String?   @db.Text
-  systemPrompt String    @db.Text
-  mode         String    @default("primary") // primary | subagent
-  tools        String[]  @default([]) // allowed tool names (empty = all)
-  model        String? // optional model override
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  runs         AgentRun[]
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?          @db.Text
+  systemPrompt    String           @db.Text
+  mode            String           @default("primary") // primary | subagent
+  tools           String[]         @default([]) // allowed tool names (empty = all)
+  model           String? // optional model override
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  runs            AgentRun[]
+  benchmarks      AgentBenchmark[]
+  telemetryEvents TelemetryEvent[]
 
   @@index([isActive])
   @@map("agents")
@@ -1410,22 +1415,22 @@ enum ProcedureImportStatus {
 }
 
 model ProcedureImport {
-  id                  String               @id @default(cuid())
-  sourceDocumentId    String? // BusinessDocument id (plain string, no FK)
-  sourceName          String?
-  extracted           Json
-  materialPlan        Json
-  labourMinutesPerUnit Float              @default(25)
-  cricutMinutesPerUnit Float              @default(8)
-  pricing             Json
-  productProposal     Json
-  status              ProcedureImportStatus @default(pending)
-  reviewNote          String?              @db.Text
-  reviewedById        String?
-  result              Json?
-  createdBy           String?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id                   String                @id @default(cuid())
+  sourceDocumentId     String? // BusinessDocument id (plain string, no FK)
+  sourceName           String?
+  extracted            Json
+  materialPlan         Json
+  labourMinutesPerUnit Float                 @default(25)
+  cricutMinutesPerUnit Float                 @default(8)
+  pricing              Json
+  productProposal      Json
+  status               ProcedureImportStatus @default(pending)
+  reviewNote           String?               @db.Text
+  reviewedById         String?
+  result               Json?
+  createdBy            String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@index([status, createdAt])
   @@map("procedure_imports")
@@ -1457,19 +1462,19 @@ enum DocumentCategory {
 }
 
 model BusinessDocument {
-  id           String           @id @default(uuid()) @db.Uuid
-  title        String
-  originalName String
-  mime         String
-  sizeBytes    Int
-  storageRef   String // "bucket/key" private ref
-  sha256       String // dedup: identical bytes reuse the existing row
-  kind         DocumentKind     @default(OTHER)
-  category     DocumentCategory @default(OTHER)
-  subcategory  String? // imposed sub-category within category (e.g. STOCKTAKE:CARDSTOCK)
-  tags         String[]         @default([])
-  extractedText String?         @db.Text // searchable payload: csv/md/txt + pdf text + xlsx rows (≤256KB)
-  thumbRef      String?          // private "bucket/key" webp preview for images (M2)
+  id            String           @id @default(uuid()) @db.Uuid
+  title         String
+  originalName  String
+  mime          String
+  sizeBytes     Int
+  storageRef    String // "bucket/key" private ref
+  sha256        String // dedup: identical bytes reuse the existing row
+  kind          DocumentKind     @default(OTHER)
+  category      DocumentCategory @default(OTHER)
+  subcategory   String? // imposed sub-category within category (e.g. STOCKTAKE:CARDSTOCK)
+  tags          String[]         @default([])
+  extractedText String?          @db.Text // searchable payload: csv/md/txt + pdf text + xlsx rows (≤256KB)
+  thumbRef      String? // private "bucket/key" webp preview for images (M2)
   ocrConfidence Float? // last OCR confidence (0-100) — surfaced in the OCR drawer
   ocrAt         DateTime? // last OCR run
   ocrWords      Json? // word boxes: { pages: [{ pageIndex, w, h, words: [{ t, c, x0, y0, x1, y1 }] }] }
@@ -1521,14 +1526,14 @@ enum MediaAttachable {
 }
 
 model MediaFolder {
-  id        String       @id @default(uuid()) @db.Uuid
-  name      String       @db.VarChar(80)
-  parentId  String?      @db.Uuid
-  parent    MediaFolder? @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String        @db.VarChar(80)
+  parentId  String?       @db.Uuid
+  parent    MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
   children  MediaFolder[] @relation("FolderTree")
   assets    MediaAsset[]
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([parentId])
   @@map("media_folders")
@@ -1551,10 +1556,10 @@ model Model3D {
 }
 
 model MediaAsset {
-  id           String          @id @default(uuid()) @db.Uuid
-  title        String          @db.VarChar(200)
-  altText      String?         @db.VarChar(255)
-  caption      String?         @db.VarChar(500)
+  id           String            @id @default(uuid()) @db.Uuid
+  title        String            @db.VarChar(200)
+  altText      String?           @db.VarChar(255)
+  caption      String?           @db.VarChar(500)
   mime         String
   sizeBytes    Int
   storageRef   String // "media/<key>" | "staff-media/<key>" (deleteObjectByUrl contract)
@@ -1564,11 +1569,11 @@ model MediaAsset {
   height       Int?
   variants     Json? // LIBRARY only — same shape as ProductImage.variants (400/800 webp+avif)
   thumbRef     String? // STAFF only — "staff-media/<key>-thumb.webp"
-  visibility   MediaVisibility @default(LIBRARY)
-  source       MediaSource     @default(UPLOAD)
-  folderId     String?         @db.Uuid
-  folder       MediaFolder?    @relation(fields: [folderId], references: [id])
-  tags         String[]        @default([])
+  visibility   MediaVisibility   @default(LIBRARY)
+  source       MediaSource       @default(UPLOAD)
+  folderId     String?           @db.Uuid
+  folder       MediaFolder?      @relation(fields: [folderId], references: [id])
+  tags         String[]          @default([])
   uploadedById String? // cuid users — plain string, no FK (repo convention)
   deletedAt    DateTime? // soft delete → trash; purge removes bytes too
   attachments  MediaAttachment[]
@@ -1583,16 +1588,147 @@ model MediaAsset {
 }
 
 model MediaAttachment {
-  id             String         @id @default(uuid()) @db.Uuid
-  assetId        String         @db.Uuid
-  asset          MediaAsset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  id             String          @id @default(uuid()) @db.Uuid
+  assetId        String          @db.Uuid
+  asset          MediaAsset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
   attachableType MediaAttachable
   attachableId   String // target id (cuid/uuid — plain string, no FK)
-  role           String         @default("gallery") // cover | gallery | reference
-  sortOrder      Int            @default(0)
-  createdAt      DateTime       @default(now())
+  role           String          @default("gallery") // cover | gallery | reference
+  sortOrder      Int             @default(0)
+  createdAt      DateTime        @default(now())
 
   @@unique([assetId, attachableType, attachableId, role])
   @@index([attachableType, attachableId])
   @@map("media_attachments")
+}
+
+// ── Agent ecosystem (Phase 1) ───────────────────────────────────────────────
+
+// ── Incidents (Sentinel Monitor) ────────────────────────────────────────────
+model Incident {
+  id          String    @id @default(cuid())
+  fingerprint String    @unique
+  source      String // 'frontend' | 'backend'
+  severity    String    @default("medium") // low | medium | high | critical
+  title       String
+  stackTrace  String?   @db.Text
+  payload     Json?
+  status      String    @default("open") // open | investigating | resolved | ignored
+  count       Int       @default(1)
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @updatedAt
+  resolvedAt  DateTime?
+
+  patchProposals PatchProposal[]
+
+  @@index([status, severity])
+  @@index([fingerprint])
+  @@map("incidents")
+}
+
+// ── DLQ entries (Automation self-healing) ────────────────────────────────────
+model DLQEntry {
+  id           String      @id @default(cuid())
+  automationId String?
+  automation   Automation? @relation(fields: [automationId], references: [id], onDelete: SetNull)
+  payload      Json
+  error        String      @db.Text
+  attempts     Int         @default(0)
+  status       String      @default("pending") // pending | retrying | resolved | discarded
+  nextRetryAt  DateTime?
+  resolvedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@map("dlq_entries")
+}
+
+// ── Patch proposals (Auto-Remediator) ───────────────────────────────────────
+model PatchProposal {
+  id          String   @id @default(cuid())
+  incidentId  String
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  branchName  String
+  diff        String   @db.Text
+  status      String   @default("pending") // pending | testing | passed | failed | pr_opened | merged
+  testResults Json?
+  prUrl       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([incidentId])
+  @@map("patch_proposals")
+}
+
+// ── Recipe drafts (SOP Translator) ───────────────────────────────────────────
+model RecipeDraft {
+  id             String   @id @default(cuid())
+  title          String
+  objective      String   @db.Text
+  sourceType     String // 'transcript' | 'sop' | 'notes' | 'recording'
+  sourceContent  String   @db.Text
+  recipeJson     Json
+  recipeMarkdown String   @db.Text
+  status         String   @default("draft") // draft | reviewed | approved | rejected
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@map("recipe_drafts")
+}
+
+// ── Agent benchmarks (Agent Optimizer) ───────────────────────────────────────
+model AgentBenchmark {
+  id              String   @id @default(cuid())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  candidateConfig Json
+  results         Json?
+  score           Float?
+  status          String   @default("running") // running | completed | failed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+  @@map("agent_benchmarks")
+}
+
+// ── Skill versions (Skill Master) ────────────────────────────────────────────
+model SkillVersion {
+  id        String   @id @default(cuid())
+  skillId   String
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  version   String
+  content   String   @db.Text
+  schema    Json?
+  status    String   @default("draft") // draft | published | deprecated
+  tests     Json?
+  createdAt DateTime @default(now())
+
+  @@index([skillId])
+  @@index([status])
+  @@map("skill_versions")
+}
+
+// ── Telemetry events (cross-agent metrics) ───────────────────────────────────
+model TelemetryEvent {
+  id         String   @id @default(cuid())
+  agentId    String?
+  agent      Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  eventType  String // run | error | tool_call | benchmark
+  payload    Json?
+  tokensIn   Int?
+  tokensOut  Int?
+  costUsd    Float?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+
+  @@index([agentId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("telemetry_events")
 }

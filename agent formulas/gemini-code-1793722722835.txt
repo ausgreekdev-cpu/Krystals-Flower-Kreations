@@ -1,0 +1,13 @@
+Act as a Distributed Systems & Workflow Architect. Build the "Workflow Synthesizer" (`agent_workflow_orchestrator`) in [Python / TypeScript] to design, execute, optimize, and repair complex multi-agent Directed Acyclic Graph (DAG) workflows.
+
+Architecture & Core Modules to Implement:
+1. DAG Compiler (`workflow_builder`):
+   - Translate high-level multi-step operational goals into executable DAG definitions containing parallel branches, conditional routing nodes, agent task nodes, and human-in-the-loop approval checkpoints.
+2. State Machine Executor (`dag_runner`):
+   - Manage stateful execution across steps, pass validated output artifacts from parent nodes to child nodes, and handle partial failures with compensating rollback actions.
+3. Bottleneck & Path Optimizer (`workflow_optimizer`):
+   - Analyze historical workflow runs to identify sequential steps that have no data dependencies and refactor the DAG to execute them concurrently.
+   - Reroute broken branches to fallback agents or skills when primary nodes degrade.
+
+Deliverables:
+- Complete DAG schema, stateful execution engine, parallelization analyzer, and fault-tolerant fallback router.
