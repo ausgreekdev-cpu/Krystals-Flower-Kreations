@@ -54,8 +54,8 @@ rm -rf .netlify-smoke
 npx --no-install esbuild netlify/functions/api.js \
   --bundle --platform=node --target=node18 --format=cjs --packages=external \
   --outfile=.netlify-smoke/api.cjs
-(cd backend && NODE_ENV=production node -e "
-const handler = require('../.netlify-smoke/api.cjs').handler;
+NODE_ENV=production node -e "
+const handler = require('./.netlify-smoke/api.cjs').handler;
 handler({ httpMethod: 'GET', path: '/api/health', headers: {}, multiValueHeaders: {}, isBase64Encoded: false, requestContext: {}, rawBody: '' }, {})
   .then((r) => {
     const body = String(r.body || '');
@@ -67,7 +67,7 @@ handler({ httpMethod: 'GET', path: '/api/health', headers: {}, multiValueHeaders
     process.exit(0);
   })
   .catch((e) => { console.error('BOOT SMOKE FAILED: ' + e.message); process.exit(1); });
-")
+"
 rm -rf .netlify-smoke
 
 # Fail fast with a clear message if devDependencies were skipped (NODE_ENV=production etc.)
