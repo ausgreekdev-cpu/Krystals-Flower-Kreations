@@ -4,7 +4,7 @@ import { wishlistApi, getToken, getUser } from '../lib/api/customClient';
 
 export default function Wishlist() {
   const token = getToken();
-  const user = getUser();
+  const _user = getUser();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 

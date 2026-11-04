@@ -12,7 +12,7 @@ export default [
       ecmaVersion: 2022,
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: { ...globals.browser },
+      globals: { ...globals.browser, ...globals.vitest, global: 'readonly' },
     },
     plugins: { 'unused-imports': unusedImports, react },
     rules: {
