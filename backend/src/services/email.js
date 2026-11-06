@@ -145,7 +145,7 @@ export async function sendOrderConfirmation(order) {
 // Studio notification recipient (settings: admin_order_alert_*).
 async function adminAlertRecipient(s) {
   const settings = s || await getSettings().catch(() => ({}));
-  if (settings.admin_order_alert_enabled !== '1') return null;
+  const enabled = settings.admin_order_alert_enabled; if (enabled === false || enabled === '0' || enabled === 'false' || !enabled) return null;
   return settings.admin_order_alert_recipient || settings.contact_email || process.env.COMPANY_EMAIL || null;
 }
 

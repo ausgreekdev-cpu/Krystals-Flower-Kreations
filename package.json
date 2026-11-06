@@ -2,7 +2,7 @@
   "name": "krystals-flower-kreations",
   "private": true,
   "version": "0.1.0",
-  "description": "Krystal's Flower Kreations \u2014 paper florist & sculptural art workshop (Perth WA). Cricut + origami shop, blog, POS & workshop platform.",
+  "description": "Krystal's Flower Kreations — paper florist & sculptural art workshop (Perth WA). Cricut + origami shop, blog, POS & workshop platform.",
   "workspaces": [
     "backend",
     "frontend",
@@ -55,5 +55,6 @@
     "@expo/metro-config": {
       "postcss": "8.5.31"
     }
-  }
+  },
+  "type": "module"
 }
