@@ -51,6 +51,11 @@ export function buildBOMSnapshot(lines) {
 // the order. Runs alongside generateOrderBOM.
 export async function consumeOrderMaterials(order) {
   if (!order?.id || !Array.isArray(order.lines) || !order.lines.length) return null;
+  // Idempotency: skip if BOM deductions already recorded for this order (webhook retries / duplicate finalize)
+  try {
+    const existing = await prisma.stockMovement.count({ where: { reference: order.id, type: 'bom_deduct' } });
+    if (existing > 0) return { skipped: true, reason: 'already_consumed' };
+  } catch {}
   const userId = order.userId || null;
   const movements = [];
   for (const line of order.lines) {

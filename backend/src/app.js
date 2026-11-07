@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'dotenv/config';
+import crypto from 'crypto';
+import prisma from './lib/prisma.js';
+import { generateOrderBOM, consumeOrderMaterials } from './services/orderBom.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -78,7 +81,6 @@ import { notFound, errorHandler } from './middleware/error-handler.js';
 import { asyncHandler } from './middleware/async-handler.js';
 import { verifyToken } from './lib/auth.js';
 import { getSettings } from './lib/settingsSchema.js';
-import prisma from './lib/prisma.js';
 import { validateEnv } from './lib/config.js';
 
 validateEnv();
@@ -121,8 +123,10 @@ app.use('/api', globalRateLimit(300, 1));
 
 // Body parsers — json 1mb (was 10mb) to limit abuse; multer handles file uploads separately
 app.use(express.json({ limit: '1mb', verify: (req, _res, buf) => {
-  // Keep raw bytes for webhook signature verification (Meta X-Hub-Signature-256)
-  if (req.originalUrl?.startsWith('/api/meta/webhook')) req.rawBody = Buffer.from(buf);
+  // Keep raw bytes for webhook signature verification (Meta X-Hub-Signature-256, Stripe)
+  if (req.originalUrl?.startsWith('/api/meta/webhook') || req.originalUrl?.startsWith('/api/webhooks/stripe')) {
+    req.rawBody = Buffer.from(buf);
+  }
 } }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
@@ -258,9 +262,67 @@ app.use('/api/models-3d', model3dRoutes); // 3D flower models for AR configurato
 app.use('/api/procurement', procurementRoutes); // procurement workflow — draft materials + supplier approval
 app.use('/api/dl', downloadRoutes); // token-gated digital template delivery
 
-// Stripe webhook (raw body needed — keep before json parser if you re-enable, currently json-parsed; stripe disabled)
+function verifyStripeSignature(rawBody, sigHeader, secret) {
+  if (!rawBody || !sigHeader || !secret) return false;
+  const parts = Object.fromEntries(String(sigHeader).split(',').map(p => { const i = p.indexOf('='); return [p.slice(0,i), p.slice(i+1)]; }));
+  const t = parts.t, v1 = parts.v1;
+  if (!t || !v1) return false;
+  const expected = crypto.createHmac('sha256', secret).update(`${t}.${rawBody.toString('utf8')}`).digest('hex');
+  try { return crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex')); }
+  catch { return false; }
+}
+
+// Stripe webhook — verifies signature, marks order paid idempotently, runs BOM side effects.
+// Raw body captured in json verify middleware (see above). express.raw kept for direct/raw delivery.
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  res.json({ received: true, note: 'Stripe disabled — manual payments active' });
+  try {
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+    const raw = Buffer.isBuffer(req.body) ? req.body : (req.rawBody || Buffer.from(JSON.stringify(req.body || {})));
+    if (secret) {
+      const ok = verifyStripeSignature(raw, req.headers['stripe-signature'], secret);
+      if (!ok) return res.status(400).json({ error: 'Invalid signature' });
+    } else if ((process.env.NODE_ENV || '').toLowerCase() === 'production') {
+      return res.status(503).json({ error: 'Webhook not configured (STRIPE_WEBHOOK_SECRET missing)' });
+    }
+    const event = JSON.parse(raw.toString('utf8'));
+    const type = event?.type;
+    let orderId = null;
+    let paid = false;
+    let stripeRef = null;
+    if (type === 'checkout.session.completed') {
+      const session = event.data?.object || {};
+      paid = session.payment_status === 'paid';
+      orderId = session.metadata?.orderId || null;
+      stripeRef = session.id || null;
+    } else if (type === 'payment_intent.succeeded') {
+      const pi = event.data?.object || {};
+      paid = pi.status === 'succeeded';
+      orderId = pi.metadata?.orderId || null;
+      stripeRef = pi.id || null;
+    }
+    if (paid && orderId) {
+      const current = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, orderNumber: true, status: true, paymentStatus: true } });
+      if (current && current.paymentStatus !== 'paid') {
+        const toPaid = ['draft', 'pending_payment'].includes(current.status);
+        const fresh = await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            paymentStatus: 'paid',
+            paymentMethod: 'stripe',
+            ...(stripeRef ? { stripeSessionId: stripeRef } : {}),
+            ...(toPaid ? { status: 'paid' } : {}),
+          },
+          include: { lines: true },
+        });
+        await generateOrderBOM(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'stripe_webhook_bom_failed', orderId, err: e?.message })));
+        await consumeOrderMaterials(fresh).catch((e) => console.error(JSON.stringify({ level: 'error', msg: 'stripe_webhook_stock_failed', orderId, err: e?.message })));
+      }
+    }
+    res.json({ received: true });
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'stripe_webhook_error', err: e?.message }));
+    res.status(500).json({ error: 'Webhook handler failed' });
+  }
 });
 
 // 404 + error (structured codes)

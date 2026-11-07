@@ -12,6 +12,7 @@ import { notify } from '../services/notifications.js';
 import { runSideEffect } from '../services/sideEffects.js';
 import { emit } from '../services/eventBus.js';
 import { generateOrderBOM, consumeOrderMaterials } from '../services/orderBom.js';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { earnForOrder } from '../services/loyaltyService.js';
 import { getSettings, paymentInstructionsFor } from '../lib/settingsSchema.js';
 import { audit } from '../lib/audit.js';
@@ -376,6 +377,65 @@ router.get('/my', authenticate, asyncHandler(async (req, res) => {
   if (!user) return res.status(401).json({ error: 'User not found', code: 'unauthorized' });
   const orders = await prisma.order.findMany({ where: { email: user.email }, orderBy: { createdAt: 'desc' }, take: 100, include: { lines: true } });
   res.json(orders);
+}));
+
+// Tax invoice + care guide PDF (owner or staff)
+router.get('/:id/invoice', authenticate, asyncHandler(async (req, res) => {
+  const id = String(req.params.id).slice(0, 50);
+  const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+  if (!order) return res.status(404).json({ error: 'Not found', code: 'not_found' });
+  const isStaff = ['admin','developer','maker','staff'].includes(req.user.role);
+  if (!isStaff && order.email !== req.user.email && order.userId !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden', code: 'forbidden' });
+  }
+  const settings = await getSettings().catch(() => ({}));
+  const abn = settings.abn || process.env.BUSINESS_ABN || '';
+  const biz = settings.store_name || "Krystal's Flower Kreations";
+  const bizAddr = [settings.business_address, settings.business_suburb, settings.business_state, settings.business_postcode].filter(Boolean).join(', ');
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595.28, 841.89]); // A4
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const { height } = page.getSize();
+  let y = height - 50;
+  const line = (t, x = 50, f = font, size = 10, color = rgb(0,0,0)) => { page.drawText(String(t ?? ''), { x, y, size, font: f, color }); y -= size + 5; };
+  const hr = () => { y -= 4; page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) }); y -= 10; };
+  line('TAX INVOICE', 50, bold, 18);
+  line(biz, 50, bold, 11);
+  if (bizAddr) line(bizAddr);
+  if (abn) line(`ABN: ${abn}`);
+  hr();
+  line(`Invoice / Order: ${order.orderNumber}`, 50, bold);
+  line(`Date: ${new Date(order.createdAt).toLocaleDateString('en-AU')}`);
+  line(`Payment status: ${order.paymentStatus}   Order status: ${order.status}`);
+  y -= 4;
+  line('Bill to:', 50, bold);
+  line(order.name || order.customerName || '');
+  line(order.email || '');
+  if (order.shippingAddress) line(String(order.shippingAddress).slice(0, 120));
+  hr();
+  line('Description', 50, bold); line('Qty', 360, bold); line('Unit', 410, bold); line('Amount (AUD)', 470, bold);
+  y += 15; hr();
+  for (const l of order.lines || []) {
+    const title = String(l.title || l.name || 'Item').slice(0, 60);
+    line(title, 50); line(String(l.quantity ?? 1), 360); line(`$${Number(l.unitPrice ?? 0).toFixed(2)}`, 410); line(`$${Number(l.lineTotal ?? (Number(l.unitPrice||0)*Number(l.quantity||1))).toFixed(2)}`, 470);
+    y += 15;
+  }
+  hr();
+  const sub = Number(order.subtotal ?? 0), ship = Number(order.shippingCost ?? order.shipping ?? 0), disc = Number(order.discountAmount ?? 0), total = Number(order.total ?? 0);
+  line(`Subtotal: $${sub.toFixed(2)}`, 380);
+  if (ship) line(`Shipping: $${ship.toFixed(2)}`, 380);
+  if (disc) line(`Discount: -$${disc.toFixed(2)}`, 380);
+  line(`Total (GST inclusive): $${total.toFixed(2)}`, 380, bold, 11);
+  if (order.gstAmount != null) line(`Includes GST: $${Number(order.gstAmount).toFixed(2)}`, 380);
+  if (settings.invoice_footer) { y -= 6; line(String(settings.invoice_footer).slice(0, 200), 50, font, 9, rgb(0.3,0.3,0.3)); }
+  hr();
+  line('Flower Care Guide (Paper Blooms)', 50, bold, 12);
+  ['Keep out of direct sunlight to prevent fading.', 'Avoid moisture and humidity; keep your blooms dry.', 'Dust gently with a soft brush or cool, low-pressure air.', 'Handle delicately and store upright in a cool, dry place.'].forEach(t => line(`• ${t}`));
+  const bytes = await pdf.save();
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="invoice-${order.orderNumber}.pdf"`);
+  res.send(Buffer.from(bytes));
 }));
 
 router.get('/:orderNumber', authenticate, asyncHandler(async (req, res) => {
