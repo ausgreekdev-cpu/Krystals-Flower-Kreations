@@ -8,6 +8,7 @@
 //
 // No SDK dependency — plain REST calls via fetch.
 import fs from 'fs';
+import { compressAndWatermark } from './imageWatermark.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -139,6 +140,18 @@ async function syncBucketSpec(cfg, spec) {
  * @param {{ bucket?: string }} [opts] override bucket (default: SUPABASE_STORAGE_BUCKET)
  */
 export async function putObject(key, buffer, contentType = 'image/jpeg', opts = {}) {
+  // Compress + watermark images before storing (when enabled and supported).
+  const isImage = /^image\/(jpeg|jpg|png|webp|avif)$/i.test(contentType || '');
+  if (isImage && opts?.processImage !== false) {
+    try {
+      const out = await compressAndWatermark(buffer);
+      buffer = out.buf;
+      contentType = out.contentType;
+      if (/\.(jpe?g|png|avif)$/i.test(key)) key = key.replace(/\.(jpe?g|png|avif)$/i, '.webp');
+    } catch (e) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'image_process_failed', err: e?.message }));
+    }
+  }
   if (!SAFE_KEY.test(key) || key.includes('..')) throw Object.assign(new Error('Invalid storage key'), { status: 400, code: 'validation_failed' });
   const cfg = supabaseConfig();
   const bucket = (cfg ? (opts.bucket || cfg.bucket) : opts.bucket) || 'product-images';
