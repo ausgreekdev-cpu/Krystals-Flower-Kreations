@@ -36,8 +36,7 @@
     "tesseract.js",
     "tesseract.js-core",
     "unpdf",
-    "xlsx",
-    "zod"
+    "xlsx"
   ]
 
 # Static assets must 404, not rewrite to SPA
