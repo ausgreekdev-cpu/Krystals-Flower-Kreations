@@ -67,7 +67,7 @@ import incidentsRoutes from './routes/incidents.js';
 import dlqRoutes from './routes/dlq.js';
 import recipesRoutes from './routes/recipes.js';
 import patchesRoutes from './routes/patches.js';
-import agentOpsRoutes from './routes/agent-ops.js';
+import agentRegistryRoutes from './routes/agentRegistry.js';
 import automationsRoutes from './routes/automations.js';
 import metricsRoutes from './routes/metrics.js';
 import archiveRoutes from './routes/archive.js';
@@ -255,7 +255,7 @@ app.use('/api/dlq', dlqRoutes); // automation DLQ
 app.use('/api/recipes', recipesRoutes); // SOP translator
 app.use('/api/patches', patchesRoutes); // auto-remediator
 app.use('/api/agent-ops', agentOpsRoutes); // telemetry + genesis + optimizer
-app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
+app.use('/api/agent-registry', agentRegistryRoutes); // code-level agent/skill/automation/workflow registry
 app.use('/api/mobile', mobileRoutes); // mobile companion app endpoints
 app.use('/api/export', exportRoutes); // CSV data export
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
