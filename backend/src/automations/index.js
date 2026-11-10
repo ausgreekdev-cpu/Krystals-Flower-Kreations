@@ -16,8 +16,24 @@ import stocktakeDueReminder from './stocktakeDueReminder.js';
 import errorDigest from './errorDigest.js';
 import dbHealthCheck from './dbHealthCheck.js';
 import slowMoverFlag from './slowMoverFlag.js';
+import paymentFailedNotify from './paymentFailedNotify.js';
+import orderStatusChangedNotify from './orderStatusChangedNotify.js';
+import orderStuckInPending from './orderStuckInPending.js';
+import welcomeEmail from './welcomeEmail.js';
+import reviewRequest from './reviewRequest.js';
+import sessionFullNotify from './sessionFullNotify.js';
+import sessionCancelledNotify from './sessionCancelledNotify.js';
+import noShowFollowup from './noShowFollowup.js';
+import materialsPrepReminder from './materialsPrepReminder.js';
+import postWorkshopSurvey from './postWorkshopSurvey.js';
+import workshopRecapEmail from './workshopRecapEmail.js';
+import newBlogPostNotify from './newBlogPostNotify.js';
 
-const all = [newOrderNotify, lowStockAlert, cartCleanup, emailQueueDrain, backupDump, rateLimitPurge, imageVariantBackfill, staleDraftCleanup, workshopReminder, reviewDigest, negativeStockAlert, inventorySnapshot, variantStockSync, stocktakeDueReminder, errorDigest, dbHealthCheck, slowMoverFlag];
+const all = [
+  newOrderNotify, lowStockAlert, cartCleanup, emailQueueDrain, backupDump, rateLimitPurge, imageVariantBackfill, staleDraftCleanup, workshopReminder, reviewDigest,
+  negativeStockAlert, inventorySnapshot, variantStockSync, stocktakeDueReminder, errorDigest, dbHealthCheck, slowMoverFlag,
+  paymentFailedNotify, orderStatusChangedNotify, orderStuckInPending, welcomeEmail, reviewRequest, sessionFullNotify, sessionCancelledNotify, noShowFollowup, materialsPrepReminder, postWorkshopSurvey, workshopRecapEmail, newBlogPostNotify,
+];
 for (const a of all) registerAutomation(a);
 
 export { registerAutomation, getAutomation, listAutomations, runAutomation } from './registry.js';
