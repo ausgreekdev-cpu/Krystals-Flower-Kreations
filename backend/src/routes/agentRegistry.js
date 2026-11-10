@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authenticate, requireRole } from '../lib/auth.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { validate } from '../middleware/validate.js';
-import { runWithPersistence } from '../agentRunner.js';
+import prisma from '../lib/prisma.js';
 import * as skills from '../agents/skills/index.js';
 import * as agents from '../agents/index.js';
 import * as automations from '../automations/index.js';
@@ -35,4 +35,23 @@ router.post('/run', authenticate, requireRole(...ADMIN), validate(runSchema), as
   res.json(result);
 }));
 
-export default router;
+function triggerTypeOf(trigger) {
+  if (!trigger) return 'manual';
+  if (trigger.startsWith('cron:')) return 'cron';
+  if (trigger.startsWith('event:')) return 'event';
+  return 'manual';
+}
+
+router.post('/sync-automations', authenticate, requireRole(...ADMIN), asyncHandler(async (req, res) => {
+  const list = automations.listAutomations();
+  let upserted = 0;
+  for (const a of list) {
+    await prisma.automation.upsert({
+      where: { name: a.name },
+      update: { description: a.description || null, trigger: a.trigger || 'manual', triggerType: triggerTypeOf(a.trigger), action: a.name, actionType: 'function' },
+      create: { name: a.name, description: a.description || null, trigger: a.trigger || 'manual', triggerType: triggerTypeOf(a.trigger), action: a.name, actionType: 'function' },
+    });
+    upserted++;
+  }
+  res.json({ upserted });
+}));
