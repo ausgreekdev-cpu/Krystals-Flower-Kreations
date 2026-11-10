@@ -67,6 +67,7 @@ import incidentsRoutes from './routes/incidents.js';
 import dlqRoutes from './routes/dlq.js';
 import recipesRoutes from './routes/recipes.js';
 import patchesRoutes from './routes/patches.js';
+import agentOpsRoutes from './routes/agent-ops.js';
 import agentRegistryRoutes from './routes/agentRegistry.js';
 import automationsRoutes from './routes/automations.js';
 import metricsRoutes from './routes/metrics.js';
