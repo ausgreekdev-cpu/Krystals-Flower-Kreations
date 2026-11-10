@@ -1,4 +1,3 @@
-import { runWithPersistence } from '../agentRunner.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../lib/auth.js';
@@ -10,6 +9,7 @@ import * as agents from '../agents/index.js';
 import * as automations from '../automations/index.js';
 import * as workflows from '../workflows/index.js';
 import { getRunner } from '../workflows/runners/index.js';
+import { runWithPersistence } from '../agentRunner.js';
 
 const router = Router();
 const ADMIN = ['admin', 'developer'];
@@ -51,6 +51,22 @@ router.post('/sync-automations', authenticate, requireRole(...ADMIN), asyncHandl
       where: { name: a.name },
       update: { description: a.description || null, trigger: a.trigger || 'manual', triggerType: triggerTypeOf(a.trigger), action: a.name, actionType: 'function' },
       create: { name: a.name, description: a.description || null, trigger: a.trigger || 'manual', triggerType: triggerTypeOf(a.trigger), action: a.name, actionType: 'function' },
+    });
+    upserted++;
+  }
+  res.json({ upserted });
+}));
+
+router.post('/sync-workflows', authenticate, requireRole(...ADMIN), asyncHandler(async (req, res) => {
+  const list = workflows.listWorkflows();
+  let upserted = 0;
+  for (const w of list) {
+    const full = workflows.getWorkflow(w.name);
+    const steps = full?.compiled?.dag?.nodes || [];
+    await prisma.workflow.upsert({
+      where: { name: w.name },
+      update: { description: w.description || null, steps },
+      create: { name: w.name, description: w.description || null, steps },
     });
     upserted++;
   }
