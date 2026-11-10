@@ -1,3 +1,4 @@
+import { runWithPersistence } from '../agentRunner.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../lib/auth.js';
@@ -55,3 +56,5 @@ router.post('/sync-automations', authenticate, requireRole(...ADMIN), asyncHandl
   }
   res.json({ upserted });
 }));
+
+export default router;
