@@ -1,4 +1,5 @@
 import { run as abandonedCartRecovery } from './abandonedCartRecovery.js';
+import { run as orderPaidFulfillment } from './orderPaidFulfillment.js';
 import prisma from '../../lib/prisma.js';
 
 const runners = {
@@ -12,7 +13,7 @@ const runners = {
   'low-stock-reorder': async () => ({ ok: true, note: 'wire to suggest_reorder + PO creation' }),
   'document-ocr-pipeline': async (input) => ({ ok: true, note: 'wire to document OCR/extraction', input }),
   'procedure-import-approve': async (input) => ({ ok: true, note: 'wire to procedure import review', input }),
-  'order-paid-fulfillment': async (input) => ({ ok: true, note: 'wire to order fulfillment', input }),
+  'order-paid-fulfillment': orderPaidFulfillment,
   'review-request': async (input) => ({ ok: true, note: 'wire to review request email', input }),
   'monthly-studio-report': async () => {
     const [orders, products, reviews] = await Promise.all([
