@@ -1,4 +1,3 @@
-// Studio health dashboard (Tier 4): aggregates all operational KPIs + alerts + trends.
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireRole } from '../lib/auth.js';
@@ -13,6 +12,9 @@ router.get('/', asyncHandler(async (req, res) => {
   const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  const safe = (p) => p.catch(() => 0);
+  const safeArr = (p) => p.catch(() => []);
+
   const [
     totalOrders, todayOrders, weekOrders, monthOrders,
     pendingPayment, paid, making, ready, shipped, delivered, cancelled,
@@ -22,21 +24,21 @@ router.get('/', asyncHandler(async (req, res) => {
     failedSideEffects, totalProducts, totalCustomers,
     recentOrders,
   ] = await Promise.all([
-    prisma.order.count(),
-    prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
-    prisma.order.count({ where: { createdAt: { gte: weekStart } } }),
-    prisma.order.count({ where: { createdAt: { gte: monthStart } } }),
-    prisma.order.count({ where: { status: 'pending_payment' } }),
-    prisma.order.count({ where: { status: 'paid' } }),
-    prisma.order.count({ where: { status: 'making' } }),
-    prisma.order.count({ where: { status: 'ready' } }),
-    prisma.order.count({ where: { status: 'shipped' } }),
-    prisma.order.count({ where: { status: 'delivered' } }),
-    prisma.order.count({ where: { status: 'cancelled' } }),
-    prisma.order.aggregate({ _sum: { total: true } }).then((r) => Number(r._sum.total || 0)),
-    prisma.order.aggregate({ where: { createdAt: { gte: todayStart } }, _sum: { total: true } }).then((r) => Number(r._sum.total || 0)),
-    prisma.order.aggregate({ where: { createdAt: { gte: weekStart } }, _sum: { total: true } }).then((r) => Number(r._sum.total || 0)),
-    prisma.order.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { total: true } }).then((r) => Number(r._sum.total || 0)),
+    prisma.order.count().catch(() => 0),
+    prisma.order.count({ where: { createdAt: { gte: todayStart } } }).catch(() => 0),
+    prisma.order.count({ where: { createdAt: { gte: weekStart } } }).catch(() => 0),
+    prisma.order.count({ where: { createdAt: { gte: monthStart } } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'pending_payment' } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'paid' } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'making' } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'ready' } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'shipped' } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'delivered' } }).catch(() => 0),
+    prisma.order.count({ where: { status: 'cancelled' } }).catch(() => 0),
+    prisma.order.aggregate({ _sum: { total: true } }).then((r) => Number(r._sum.total || 0)).catch(() => 0),
+    prisma.order.aggregate({ where: { createdAt: { gte: todayStart } }, _sum: { total: true } }).then((r) => Number(r._sum.total || 0)).catch(() => 0),
+    prisma.order.aggregate({ where: { createdAt: { gte: weekStart } }, _sum: { total: true } }).then((r) => Number(r._sum.total || 0)).catch(() => 0),
+    prisma.order.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { total: true } }).then((r) => Number(r._sum.total || 0)).catch(() => 0),
     prisma.rawMaterial.count({ where: { onHand: { lte: 0 } } }).catch(() => 0),
     prisma.inventoryLevel.count().catch(() => 0),
     prisma.order.count({ where: { qcStatus: 'pending' } }).catch(() => 0),
@@ -48,11 +50,9 @@ router.get('/', asyncHandler(async (req, res) => {
     prisma.order.findMany({ orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, orderNumber: true, status: true, total: true, createdAt: true, shippingName: true } }).catch(() => []),
   ]);
 
-  // Low stock (materials below threshold)
-  const allMaterials = await prisma.rawMaterial.findMany({ select: { onHand: true, lowThreshold: true } });
+  const allMaterials = await prisma.rawMaterial.findMany({ select: { onHand: true, lowThreshold: true } }).catch(() => []);
   const lowStock = allMaterials.filter((m) => Number(m.onHand) <= Number(m.lowThreshold)).length;
 
-  // Alerts
   const alerts = [];
   if (lowStock > 0) alerts.push({ type: 'low_stock', severity: 'warning', message: `${lowStock} material(s) below threshold` });
   if (pendingQc > 0) alerts.push({ type: 'pending_qc', severity: 'info', message: `${pendingQc} order(s) pending QC` });
@@ -60,7 +60,6 @@ router.get('/', asyncHandler(async (req, res) => {
   if (failedSideEffects > 0) alerts.push({ type: 'failed_side_effects', severity: 'error', message: `${failedSideEffects} failed side effect(s) need attention` });
   if (paid > 5) alerts.push({ type: 'backlog', severity: 'warning', message: `${paid} orders awaiting production` });
 
-  // Stale orders (stuck in a status for > 7 days)
   const staleCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const staleOrders = await prisma.order.count({
     where: { status: { in: ['pending_payment', 'paid', 'making'] }, updatedAt: { lt: staleCutoff } },
