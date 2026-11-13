@@ -1,2 +1,12 @@
-const a = { name:'email-queue-drain', description:'Drain pending emails (delegated).', trigger:'cron:hourly', async run(){ return { ok: true, note: 'wire to services/email.js drainEmailQueue' }; } };
+import { drainEmailQueue } from '../services/email.js';
+
+const a = {
+  name: 'email-queue-drain',
+  description: 'Drain pending emails.',
+  trigger: 'cron:hourly',
+  async run() {
+    const r = await drainEmailQueue(50);
+    return r;
+  },
+};
 export default a;
