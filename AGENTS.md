@@ -189,7 +189,17 @@ npm run build       # Vite build + PWA
 - `procedures.uploadMedia` in customClient.ts now sends **one request per file** (Netlify ~6MB payload limit) and returns `{created, failures}` — Admin.jsx call site toasts partial failures.
 - Tests: `backend/test/documents.test.js` (21) — private ref + kind on CSV, dedup 200/same-id/single-row, auth-gated list+search+filter, authed download (attachment/nosniff/no-store/byte-exact), PATCH round-trip + bad category 400, fake PDF 415 / xlsx→SPREADSHEET, DELETE→404s+bytes removed+list excludes, procedure DELETE cleans media rows+files, auto-categorise (stocktake/export/procedure/scan/invoice), CSV+MD+PDF+XLSX extraction + content `?q=` hits, empty-text-layer PDF → null, webp thumb (RIFF/WEBP bytes, auth-gated, 404 for non-image), dedup backfills extractedText (csv + pdf), DELETE removes thumb bytes, M4 OCR (stubbed engine: extract+searchable, 401 unauth, 415 csv/svg, 409 without force / 200 with `?force=1`, text-less-PDF 422). PDF fixtures are hand-rolled with computed xref (`makePdf` helper, space-vs-empty variants keep sha256s distinct); XLSX built via SheetJS itself (`makeXlsx`).
 
-\n\n## Agent/skill/automation/workflow registries (2026-11)\n- Code-level registries: `backend/src/agents/`, `backend/src/agents/skills/`, `backend/src/automations/`, `backend/src/workflows/` + `runners/`.\n- Generic runner: `backend/src/agentRunner.js` (`runWithPersistence`) persists via audit log + DLQ.\n- Endpoints: `GET/POST /api/agent-registry/{skills,agents,automations,workflows,run,sync-automations,sync-workflows}`.\n- Studio tabs read from DB rows; run `/sync-automations` and `/sync-workflows` to populate.\n- LLM-backed skills: `generate_seo_copy`, `draft_social_post`, `draft_email`, `classify_document` use `services/llm.js` with deterministic fallback.\n
+
+
+## AR / 3D
+
+## Agent/skill/automation/workflow registries (2026-11)
+- Code-level registries: `backend/src/agents/`, `backend/src/agents/skills/`, `backend/src/automations/`, `backend/src/workflows/` + `runners/`.
+- Generic runner: `backend/src/agentRunner.js` (`runWithPersistence`) persists via audit log + DLQ.
+- Endpoints: `GET/POST /api/agent-registry/{skills,agents,automations,workflows,run,sync-automations,sync-workflows}`.
+- Studio tabs read from DB rows; run `/sync-automations` and `/sync-workflows` to populate.
+- LLM-backed skills: `generate_seo_copy`, `draft_social_post`, `draft_email`, `classify_document` use `services/llm.js` with deterministic fallback.
+
 
 - `model-viewer@4.4.0` loads once from **jsDelivr** in `frontend/index.html` (ajax.googleapis.com only hosts model-viewer ≤4.1.0 — the 4.4.0 googleapis URL 404s). Workbox caches the lib 30d.
 - `ARViewer` (configurator) probes `/3d/<templateId>.glb` with a Range GET — rejects `text/html` (Vite SPA-fallback 200s for missing files) and ≤1KB bodies (12-byte placeholders). Vite HEAD omits content-length — never probe with HEAD alone.
