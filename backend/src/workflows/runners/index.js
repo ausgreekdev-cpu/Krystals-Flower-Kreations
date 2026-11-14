@@ -1,4 +1,5 @@
 import { run as abandonedCartRecovery } from './abandonedCartRecovery.js';
+import { run as newProductLaunch } from './newProductLaunch.js';
 import { run as orderPaidFulfillment } from './orderPaidFulfillment.js';
 import { run as reviewRequest } from './reviewRequest.js';
 import { run as customOrderFulfillment } from './customOrderFulfillment.js';
@@ -6,7 +7,7 @@ import prisma from '../../lib/prisma.js';
 
 const runners = {
   'abandoned-cart-recovery': abandonedCartRecovery,
-  'new-product-launch': async (input) => ({ ok: true, note: 'wire to product launch flow', input }),
+  'new-product-launch': newProductLaunch,
   'custom-order-fulfillment': customOrderFulfillment,
   'workshop-session-lifecycle': async () => {
     const sessions = await prisma.workshopSession.findMany({ where: { startsAt: { gte: new Date() } }, take: 20 });
