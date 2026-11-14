@@ -27,12 +27,12 @@ import noShowFollowup from './noShowFollowup.js';
 import materialsPrepReminder from './materialsPrepReminder.js';
 import postWorkshopSurvey from './postWorkshopSurvey.js';
 import workshopRecapEmail from './workshopRecapEmail.js';
-import digitalDeliveryRetry from './digitalDeliveryRetry.js';
+import invoiceGenerated from './invoiceGenerated.js';
 
 const all = [
   newOrderNotify, lowStockAlert, cartCleanup, emailQueueDrain, backupDump, rateLimitPurge, imageVariantBackfill, staleDraftCleanup, workshopReminder, reviewDigest,
   negativeStockAlert, inventorySnapshot, variantStockSync, stocktakeDueReminder, errorDigest, dbHealthCheck, slowMoverFlag,
-  paymentFailedNotify, orderStatusChangedNotify, orderStuckInPending, welcomeEmail, reviewRequest, sessionFullNotify, sessionCancelledNotify, noShowFollowup, materialsPrepReminder, postWorkshopSurvey, workshopRecapEmail, newBlogPostNotify, highValueOrderAlert, refundIssuedNotify, duplicateOrderDetect, digitalDeliveryRetry,
+  paymentFailedNotify, orderStatusChangedNotify, orderStuckInPending, welcomeEmail, reviewRequest, sessionFullNotify, sessionCancelledNotify, noShowFollowup, materialsPrepReminder, postWorkshopSurvey, workshopRecapEmail, newBlogPostNotify, highValueOrderAlert, refundIssuedNotify, duplicateOrderDetect, digitalDeliveryRetry, invoiceGenerated,
 ];
 for (const a of all) registerAutomation(a);
 
