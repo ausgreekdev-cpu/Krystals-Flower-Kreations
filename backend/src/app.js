@@ -257,7 +257,7 @@ app.use('/api/recipes', recipesRoutes); // SOP translator
 app.use('/api/patches', patchesRoutes); // auto-remediator
 app.use('/api/agent-ops', agentOpsRoutes); // telemetry + genesis + optimizer
 app.use('/api/agent-registry', agentRegistryRoutes); // code-level agent/skill/automation/workflow registry
-app.use('/api/mobile', mobileRoutes); // mobile companion app endpoints
+app.use('/api/studio-health', studioHealthRoutes); // studio health dashboard
 app.use('/api/export', exportRoutes); // CSV data export
 app.use('/api/media', mediaRoutes); // media library + staff photo archive
 app.use('/api/procedure-imports', procedureImportRoutes); // procedure → recipe import pipeline
