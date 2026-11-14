@@ -28,6 +28,11 @@ import materialsPrepReminder from './materialsPrepReminder.js';
 import postWorkshopSurvey from './postWorkshopSurvey.js';
 import workshopRecapEmail from './workshopRecapEmail.js';
 import invoiceGenerated from './invoiceGenerated.js';
+import newBlogPostNotify from './newBlogPostNotify.js';
+import highValueOrderAlert from './highValueOrderAlert.js';
+import refundIssuedNotify from './refundIssuedNotify.js';
+import duplicateOrderDetect from './duplicateOrderDetect.js';
+import digitalDeliveryRetry from './digitalDeliveryRetry.js';
 
 const all = [
   newOrderNotify, lowStockAlert, cartCleanup, emailQueueDrain, backupDump, rateLimitPurge, imageVariantBackfill, staleDraftCleanup, workshopReminder, reviewDigest,
