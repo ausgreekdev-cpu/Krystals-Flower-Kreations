@@ -1,4 +1,5 @@
 import { run as abandonedCartRecovery } from './abandonedCartRecovery.js';
+import { run as workshopSessionLifecycle } from './workshopSessionLifecycle.js';
 import { run as procedureImportApprove } from './procedureImportApprove.js';
 import { run as documentOcrPipeline } from './documentOcrPipeline.js';
 import { run as lowStockReorder } from './lowStockReorder.js';
@@ -12,10 +13,7 @@ const runners = {
   'abandoned-cart-recovery': abandonedCartRecovery,
   'new-product-launch': newProductLaunch,
   'custom-order-fulfillment': customOrderFulfillment,
-  'workshop-session-lifecycle': async () => {
-    const sessions = await prisma.workshopSession.findMany({ where: { startsAt: { gte: new Date() } }, take: 20 });
-    return { upcoming: sessions.length, sessions };
-  },
+  'workshop-session-lifecycle': workshopSessionLifecycle,
   'low-stock-reorder': lowStockReorder,
   'document-ocr-pipeline': documentOcrPipeline,
   'procedure-import-approve': procedureImportApprove,
