@@ -1,4 +1,5 @@
 import { run as abandonedCartRecovery } from './abandonedCartRecovery.js';
+import { run as procedureImportApprove } from './procedureImportApprove.js';
 import { run as documentOcrPipeline } from './documentOcrPipeline.js';
 import { run as lowStockReorder } from './lowStockReorder.js';
 import { run as newProductLaunch } from './newProductLaunch.js';
@@ -17,7 +18,7 @@ const runners = {
   },
   'low-stock-reorder': lowStockReorder,
   'document-ocr-pipeline': documentOcrPipeline,
-  'procedure-import-approve': async (input) => ({ ok: true, note: 'wire to procedure import review', input }),
+  'procedure-import-approve': procedureImportApprove,
   'order-paid-fulfillment': orderPaidFulfillment,
   'review-request': reviewRequest,
   'monthly-studio-report': async () => {
