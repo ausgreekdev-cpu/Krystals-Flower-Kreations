@@ -1,4 +1,5 @@
 import { run as abandonedCartRecovery } from './abandonedCartRecovery.js';
+import { run as documentOcrPipeline } from './documentOcrPipeline.js';
 import { run as lowStockReorder } from './lowStockReorder.js';
 import { run as newProductLaunch } from './newProductLaunch.js';
 import { run as orderPaidFulfillment } from './orderPaidFulfillment.js';
@@ -15,7 +16,7 @@ const runners = {
     return { upcoming: sessions.length, sessions };
   },
   'low-stock-reorder': lowStockReorder,
-  'document-ocr-pipeline': async (input) => ({ ok: true, note: 'wire to document OCR/extraction', input }),
+  'document-ocr-pipeline': documentOcrPipeline,
   'procedure-import-approve': async (input) => ({ ok: true, note: 'wire to procedure import review', input }),
   'order-paid-fulfillment': orderPaidFulfillment,
   'review-request': reviewRequest,
