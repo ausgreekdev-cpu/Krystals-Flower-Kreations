@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import prisma from '../../lib/prisma.js';
+import { llmAvailable, llmJson } from '../../services/llm.js';
 
 const inputSchema = z.object({ templateId: z.string().min(1) }).strict();
 
@@ -13,6 +14,12 @@ async function run(ctx) {
   const labourCost = ((recipe.labourMinutesPerUnit + recipe.cricutMinutesPerUnit) / 60) * labourRate;
   const cost = materialCost + labourCost;
   const retail = cost * margin;
+  if (llmAvailable()) {
+    try {
+      const out = await llmJson({ system: 'Return JSON: {suggestedRetail, note}.', user: JSON.stringify({ templateId, cost, retail }), maxTokens: 150 });
+      return { templateId, materialCost, labourCost, cost, margin, retail, suggestedRetail: out.suggestedRetail, note: out.note };
+    } catch (e) {}
+  }
   return { templateId, materialCost, labourCost, cost, margin, retail };
 }
 
