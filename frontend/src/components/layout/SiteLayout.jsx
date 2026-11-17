@@ -6,7 +6,7 @@ import { usePublicSettings } from '../../lib/publicSettings';
 import { currentStaffRole, renewSession } from '../../lib/session';
 import { updateSeo, restoreSeo } from '../../lib/seo';
 import { initAnalytics, trackPageView } from '../../lib/analytics';
-import BloomMark from '../ui/BloomMark';
+import TutorialOverlay from '../TutorialOverlay';
 
 const FALLBACK_EMAIL = 'krystal@krystalsflowerkreations.com.au';
 const FALLBACK_BUSINESS = "Krystals Flower Creations";
@@ -130,6 +130,7 @@ export default function SiteLayout() {
       <SiteHeader />
       <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 focus:outline-none"><Outlet /></main>
       <SiteFooter />
+      <TutorialOverlay />
     </div>
   );
 }
