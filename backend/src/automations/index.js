@@ -27,7 +27,7 @@ import noShowFollowup from './noShowFollowup.js';
 import materialsPrepReminder from './materialsPrepReminder.js';
 import postWorkshopSurvey from './postWorkshopSurvey.js';
 import workshopRecapEmail from './workshopRecapEmail.js';
-import vipFlag from './vipFlag.js';
+import loyaltyTierUpgrade from './loyaltyTierUpgrade.js';
 import newBlogPostNotify from './newBlogPostNotify.js';
 import highValueOrderAlert from './highValueOrderAlert.js';
 import refundIssuedNotify from './refundIssuedNotify.js';
@@ -37,7 +37,7 @@ import digitalDeliveryRetry from './digitalDeliveryRetry.js';
 const all = [
   newOrderNotify, lowStockAlert, cartCleanup, emailQueueDrain, backupDump, rateLimitPurge, imageVariantBackfill, staleDraftCleanup, workshopReminder, reviewDigest,
   negativeStockAlert, inventorySnapshot, variantStockSync, stocktakeDueReminder, errorDigest, dbHealthCheck, slowMoverFlag,
-  paymentFailedNotify, orderStatusChangedNotify, orderStuckInPending, welcomeEmail, reviewRequest, sessionFullNotify, sessionCancelledNotify, noShowFollowup, materialsPrepReminder, postWorkshopSurvey, workshopRecapEmail, newBlogPostNotify, highValueOrderAlert, refundIssuedNotify, duplicateOrderDetect, digitalDeliveryRetry, invoiceGenerated, churnRiskFlag, vipFlag,
+  paymentFailedNotify, orderStatusChangedNotify, orderStuckInPending, welcomeEmail, reviewRequest, sessionFullNotify, sessionCancelledNotify, noShowFollowup, materialsPrepReminder, postWorkshopSurvey, workshopRecapEmail, newBlogPostNotify, highValueOrderAlert, refundIssuedNotify, duplicateOrderDetect, digitalDeliveryRetry, invoiceGenerated, churnRiskFlag, vipFlag, loyaltyTierUpgrade,
 ];
 for (const a of all) registerAutomation(a);
 
