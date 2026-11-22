@@ -27,12 +27,21 @@ import noShowFollowup from './noShowFollowup.js';
 import materialsPrepReminder from './materialsPrepReminder.js';
 import postWorkshopSurvey from './postWorkshopSurvey.js';
 import workshopRecapEmail from './workshopRecapEmail.js';
-import certExpiryCheck from './certExpiryCheck.js';
 import newBlogPostNotify from './newBlogPostNotify.js';
 import highValueOrderAlert from './highValueOrderAlert.js';
 import refundIssuedNotify from './refundIssuedNotify.js';
 import duplicateOrderDetect from './duplicateOrderDetect.js';
 import digitalDeliveryRetry from './digitalDeliveryRetry.js';
+import invoiceGenerated from './invoiceGenerated.js';
+import churnRiskFlag from './churnRiskFlag.js';
+import vipFlag from './vipFlag.js';
+import loyaltyTierUpgrade from './loyaltyTierUpgrade.js';
+import birthdayDiscount from './birthdayDiscount.js';
+import socialPostScheduled from './socialPostScheduled.js';
+import seoMetaBackfill from './seoMetaBackfill.js';
+import brokenLinkCheck from './brokenLinkCheck.js';
+import sitemapRegenerate from './sitemapRegenerate.js';
+import certExpiryCheck from './certExpiryCheck.js';
 
 const all = [
   newOrderNotify, lowStockAlert, cartCleanup, emailQueueDrain, backupDump, rateLimitPurge, imageVariantBackfill, staleDraftCleanup, workshopReminder, reviewDigest,
